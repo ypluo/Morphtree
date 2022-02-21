@@ -8,5 +8,5 @@ target_include_directories(hydraList PUBLIC
 add_executable (main main.cpp)
 target_link_libraries (main hydraList numa jemalloc art)
 INSTALL(TARGETS hydraList 
-        ARCHIVE DESTINATION ${CMAKE_SOURCE_DIR}
+        ARCHIVE DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}
         )

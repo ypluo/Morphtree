@@ -7,6 +7,6 @@ target_include_directories(art PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
 )
 INSTALL(TARGETS art 
-        ARCHIVE DESTINATION ${CMAKE_SOURCE_DIR}
+        ARCHIVE DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}
         )
 

@@ -1,5 +1,4 @@
 file(GLOB SRCS *.cpp)
-MESSAGE($SRCS)
 ADD_EXECUTABLE(searchLayerTest ${SRCS})
 
 TARGET_LINK_LIBRARIES(

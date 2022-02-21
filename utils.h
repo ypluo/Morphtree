@@ -60,7 +60,7 @@ Index<KeyType, KeyComparator> *getInstance(const int type, const uint64_t kt) {
   return nullptr;
 }
 
-inline double randint() { 
+inline double randseed() { 
   struct timeval tv; 
   gettimeofday(&tv, 0); 
   return tv.tv_usec; 
