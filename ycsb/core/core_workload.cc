@@ -67,7 +67,7 @@ const string CoreWorkload::SCAN_LENGTH_DISTRIBUTION_PROPERTY =
 const string CoreWorkload::SCAN_LENGTH_DISTRIBUTION_DEFAULT = "uniform";
 
 const string CoreWorkload::INSERT_ORDER_PROPERTY = "insertorder";
-const string CoreWorkload::INSERT_ORDER_DEFAULT = "ordered";
+const string CoreWorkload::INSERT_ORDER_DEFAULT = "hashed";
 
 const string CoreWorkload::INSERT_START_PROPERTY = "insertstart";
 const string CoreWorkload::INSERT_START_DEFAULT = "0";

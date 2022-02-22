@@ -4,7 +4,7 @@ project(Hydralist)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_FLAGS "-pthread -Wall -Wextra -march=native")
 set(CMAKE_CXX_FLAGS_DEBUG "-g")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 message(${CMAKE_CURRENT_SOURCE_DIR})

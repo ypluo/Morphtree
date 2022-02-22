@@ -4,19 +4,20 @@
 #include <iostream>
 #include "indexkey.h"
 #include "ARTOLC/Tree.h"
+#include "ALEX/src/core/alex.h"
 #include "hydralist/include/HydraList.h"
 
 template<typename KeyType, class KeyComparator>
 class Index
 {
  public:
-  virtual bool insert(KeyType key, uint64_t value, threadinfo *ti) = 0;
+  virtual bool insert(KeyType key, uint64_t value) = 0;
 
-  virtual uint64_t find(KeyType key, std::vector<uint64_t> *v, threadinfo *ti) = 0;
+  virtual uint64_t find(KeyType key, std::vector<uint64_t> *v) = 0;
 
-  virtual bool upsert(KeyType key, uint64_t value, threadinfo *ti) = 0;
+  virtual bool upsert(KeyType key, uint64_t value) = 0;
 
-  virtual uint64_t scan(KeyType key, int range, threadinfo *ti) = 0;
+  virtual uint64_t scan(KeyType key, int range) = 0;
 
   virtual int64_t getMemory() const = 0;
 
@@ -49,14 +50,14 @@ class ArtOLCIndex : public Index<KeyType, KeyComparator>
   void setKey(Key& k, uint64_t key) { k.setInt(key); }
   void setKey(Key& k, GenericKey<31> key) { k.set(key.data,31); }
 
-  bool insert(KeyType key, uint64_t value, threadinfo *ti) {
+  bool insert(KeyType key, uint64_t value) {
     auto t = idx->getThreadInfo();
     Key k; setKey(k, key);
     idx->insert(k, value, t);
     return true;
   }
 
-  uint64_t find(KeyType key, std::vector<uint64_t> *v, threadinfo *ti) {
+  uint64_t find(KeyType key, std::vector<uint64_t> *v) {
     auto t = idx->getThreadInfo();
     Key k; setKey(k, key);
     uint64_t result=idx->lookup(k, t);
@@ -65,14 +66,15 @@ class ArtOLCIndex : public Index<KeyType, KeyComparator>
     return 0;
   }
 
-  bool upsert(KeyType key, uint64_t value, threadinfo *ti) {
+  bool upsert(KeyType key, uint64_t value) {
     std::atomic_thread_fence(std::memory_order_acq_rel);
     auto t = idx->getThreadInfo();
     Key k; setKey(k, key);
     idx->insert(k, value, t);
+    return true;
   }
 
-  uint64_t scan(KeyType key, int range, threadinfo *ti) {
+  uint64_t scan(KeyType key, int range) {
     auto t = idx->getThreadInfo();
     Key startKey; setKey(startKey, key);
 
@@ -115,60 +117,60 @@ class ArtOLCIndex : public Index<KeyType, KeyComparator>
 // HYDRALIST
 /////////////////////////////////////////////////////////////////////
 
-template<typename KeyType, class KeyComparator>
-class HydraListIndex : public Index<KeyType, KeyComparator>
-{
- public:
+// template<typename KeyType, class KeyComparator>
+// class HydraListIndex : public Index<KeyType, KeyComparator>
+// {
+//  public:
 
-  ~HydraListIndex() {
-          //idx.~HydraList();
-  }
+//   ~HydraListIndex() {
+//           //idx.~HydraList();
+//   }
 
-  void UpdateThreadLocal(size_t thread_num) {}
-  void AssignGCID(size_t thread_id) {idx.registerThread();}
-  void UnregisterThread(size_t thread_id) {idx.unregisterThread();}
+//   void UpdateThreadLocal(size_t thread_num) {}
+//   void AssignGCID(size_t thread_id) {idx.registerThread();}
+//   void UnregisterThread(size_t thread_id) {idx.unregisterThread();}
 
-  bool insert(KeyType key, uint64_t value, threadinfo *ti) {
-    idx.insert(key, value);
-    return true;
-  }
+//   bool insert(KeyType key, uint64_t value) {
+//     idx.insert(key, value);
+//     return true;
+//   }
 
-  uint64_t find(KeyType key, std::vector<uint64_t> *v, threadinfo *ti) {
-    uint64_t result;
-    result = idx.lookup(key);
-    v->clear();
-    v->push_back(result);
-    return 0;
-  }
+//   uint64_t find(KeyType key, std::vector<uint64_t> *v) {
+//     uint64_t result;
+//     result = idx.lookup(key);
+//     v->clear();
+//     v->push_back(result);
+//     return 0;
+//   }
 
-  bool upsert(KeyType key, uint64_t value, threadinfo *ti) {
-    idx.update(key, value);
-    return true;
-  }
+//   bool upsert(KeyType key, uint64_t value) {
+//     idx.update(key, value);
+//     return true;
+//   }
 
-  void incKey(uint64_t& key) { key++; };
-  void incKey(GenericKey<31>& key) { key.data[strlen(key.data)-1]++; };
+//   void incKey(uint64_t& key) { key++; };
+//   void incKey(GenericKey<31>& key) { key.data[strlen(key.data)-1]++; };
 
-  uint64_t scan(KeyType key, int range, threadinfo *ti) {
-    std::vector<KeyType> result;
-    uint64_t size = idx.scan(key, range, result);
-    //if(range != size) printf("%d %d\n", range, size);
-    return size;
-  }
+//   uint64_t scan(KeyType key, int range) {
+//     std::vector<KeyType> result;
+//     uint64_t size = idx.scan(key, range, result);
+//     //if(range != size) printf("%d %d\n", range, size);
+//     return size;
+//   }
 
-  int64_t getMemory() const {
-    return 0;
-  }
+//   int64_t getMemory() const {
+//     return 0;
+//   }
 
-  void merge() {}
+//   void merge() {}
 
-  HydraListIndex(uint64_t kt) : idx(4){
+//   HydraListIndex(uint64_t kt) : idx(4){
 
-  }
+//   }
 
 
- private:
- HydraList idx;
-};
+//  private:
+//  HydraList idx;
+// };
 
 #endif
