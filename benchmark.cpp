@@ -68,6 +68,10 @@ inline void load(std::vector<keytype> &init_keys,
   txn_file = "query.dat";
 
   std::ifstream infile_load(init_file);
+  if(!infile_load) {
+    fprintf(stderr, "query.dat is not found");
+    exit(-1);
+  }
 
   std::string op;
   std::string val;
@@ -80,9 +84,11 @@ inline void load(std::vector<keytype> &init_keys,
   std::string scan("SCAN");
 
   int count = 0;
-  char newline;
-  while (infile_load.good()) {
+  while (true) {
     infile_load >> op >> key;
+    if(!infile_load.good()) 
+      break;
+      
     if (op.compare(insert) != 0) {
       std::cout << "READING LOAD FILE FAIL!\n";
       return;
@@ -91,7 +97,7 @@ inline void load(std::vector<keytype> &init_keys,
     count++;
   }
   
-  //fprintf(stderr, "Loaded %d keys\n", count);
+  fprintf(stderr, "Loaded %d keys\n", count);
 
   count = 0;
   uint64_t value = 0;
@@ -123,10 +129,18 @@ inline void load(std::vector<keytype> &init_keys,
   // If we also execute transaction then open the 
   // transacton file here
   std::ifstream infile_txn(txn_file);
+  if(!infile_txn) {
+    fprintf(stderr, "query.dat is not found");
+    exit(-1);
+  }
   
   count = 0;
-  while (infile_txn.good()) {
+  while (true) {
     infile_txn >> op >> key;
+    if(!infile_txn.good()) {
+      break;
+    }
+
     if (op.compare(insert) == 0) {
       ops.push_back(OP_INSERT);
       keys.push_back(key);
@@ -173,7 +187,7 @@ inline void exec(int index_type,
 
   auto func = [idx, &init_keys, num_thread, &values, index_type] \
               (uint64_t thread_id, bool) {
-    size_t total_num_key = init_keys.size() - 1;
+    size_t total_num_key = init_keys.size();
     size_t key_per_thread = total_num_key / num_thread;
     size_t start_index = key_per_thread * thread_id;
     size_t end_index = start_index + key_per_thread;
@@ -224,7 +238,7 @@ inline void exec(int index_type,
                 &values,
                 &ranges,
                 &ops](uint64_t thread_id, bool) {
-    size_t total_num_op = ops.size() - 1;
+    size_t total_num_op = ops.size();
     size_t op_per_thread = total_num_op / num_thread;
     size_t start_index = op_per_thread * thread_id;
     size_t end_index = start_index + op_per_thread;

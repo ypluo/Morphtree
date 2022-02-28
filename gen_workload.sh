@@ -1,6 +1,8 @@
 #!/bin/bash
 
+BIN=./ycsb/ycsbc
+BINARY_DIR=build
 WORKLOAD=./ycsb/workloads/workloada.spec
 
-./ycsb/ycsbc load -P ${WORKLOAD} > dataset.dat
-./ycsb/ycsbc run -P ${WORKLOAD} > query.dat
+${BIN} load -P ${WORKLOAD} > ${BINARY_DIR}/dataset.dat
+${BIN} run -P ${WORKLOAD} > ${BINARY_DIR}/query.dat
