@@ -1,9 +1,9 @@
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
-file(GLOB artsrc "*.cpp" "*.h")
+file(GLOB btreeolc "*.cpp" "*.h")
 
-add_library(artolc STATIC ${artsrc})
+add_library(btreeolc STATIC ${btreeolc})
 
-target_include_directories(artolc PUBLIC
+target_include_directories(btreeolc PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
 )
 

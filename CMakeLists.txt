@@ -5,6 +5,7 @@ project(vibench)
 #======= include directories =======
 include_directories(${CMAKE_SOURCE_DIR}/ALEX/src/core)
 include_directories(${CMAKE_SOURCE_DIR}/ARTOLC)
+include_directories(${CMAKE_SOURCE_DIR}/BTreeOLC)
 include_directories(${CMAKE_SOURCE_DIR}/hydralist/include)
 include_directories(${CMAKE_SOURCE_DIR}/hydralist/src)
 
@@ -17,10 +18,12 @@ link_libraries(/usr/local/lib/libtbb.so)
 #add_subdirectory(hydralist)
 add_subdirectory(ALEX)
 add_subdirectory(ARTOLC)
+add_subdirectory(BTreeOLC)
+add_subdirectory(morphtree)
 
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 add_executable(benchmark benchmark.cpp)
-target_link_libraries(benchmark alex artolc)
+target_link_libraries(benchmark alex artolc btreeolc morphtree)
 
 add_custom_target(myclean
   COMMAND make clean

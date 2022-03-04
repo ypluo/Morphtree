@@ -6,6 +6,7 @@
 #include "ARTOLC/Tree.h"
 #include "ALEX/src/core/alex.h"
 #include "hydralist/include/HydraList.h"
+#include "BTreeOLC/BTreeOLC.h"
 
 template<typename KeyType, class KeyComparator>
 class Index
