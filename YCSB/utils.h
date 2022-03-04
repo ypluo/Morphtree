@@ -14,6 +14,7 @@
 #include <exception>
 #include <random>
 #include <sys/time.h>
+#include <sys/stat.h>
 
 namespace utils {
 
@@ -79,6 +80,11 @@ inline std::string Trim(const std::string &str) {
   auto front = std::find_if_not(str.begin(), str.end(), [](int c){ return std::isspace(c); });
   return std::string(front, std::find_if_not(str.rbegin(), std::string::const_reverse_iterator(front),
       [](int c){ return std::isspace(c); }).base());
+}
+
+inline bool file_exist(const char *pool_path) {
+    struct stat buffer;
+    return (stat(pool_path, &buffer) == 0);
 }
 
 } // utils
