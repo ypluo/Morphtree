@@ -5,3 +5,5 @@ add_library(core "core_workload.cc")
 
 add_executable(ycsbc "ycsbc.cc")
 target_link_libraries(ycsbc core)
+
+add_executable(keygen "keygen.cc")

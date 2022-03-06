@@ -4,6 +4,7 @@
 //
 //  Created by Jinglei Ren on 12/9/14.
 //  Copyright (c) 2014 Jinglei Ren <jinglei@ren.systems>.
+//  
 //  Modified by Yongping Luo on 3/4/22
 //  Copyright (c) 2022 Yongping Luo <ypluo18@qq.com>
 //
@@ -23,6 +24,7 @@
 namespace ycsbc {
 
 typedef uint64_t _key_t;
+const uint64_t KEYSET_SCALE_DEFAULT = 1 * 1024 * 1024;
 
 enum Operation {
   INSERT,
@@ -102,28 +104,18 @@ class CoreWorkload {
   CoreWorkload(std::string filename = "") :
     key_generator_(NULL), key_chooser_(NULL), 
     scan_len_chooser_(NULL), insert_key_sequence_(),
-    record_count_(0) {
-    if(filename.size() == 0) {
-      from_file_ = false;
-      return ;
-    } else {
-      from_file_ = true;
-      max_key_num_ = 0;
-      keys_.reserve(64 * 1024 * 1024);
-
-      std::ifstream infile_load(filename.c_str());
-      if(!infile_load) {
-        fprintf(stderr, "dataset file %s is not found\n", filename.c_str());
-        exit(-1);
+    record_count_(0), filename_(filename) {
+      if(filename == "") {
+        from_file_ = false;
+      } else {
+        if(utils::file_exist(filename.c_str())) {
+          fprintf(stderr, "using keyset file %s\n", filename.c_str());
+          from_file_ = true;
+        } else {
+          fprintf(stderr, "keyset file %s not found\n", filename.c_str());
+          from_file_ = false;
+        }
       }
-
-      _key_t key;
-      while (true) {
-        infile_load >> key;
-        if(!infile_load.good()) break;
-        max_key_num_++;
-      }
-    }
   }
   
   virtual ~CoreWorkload() {
@@ -133,8 +125,6 @@ class CoreWorkload {
   }
   
  protected:
-  std::string BuildKeyName(uint64_t key_num);
-
   Generator<uint64_t> *key_generator_;
   DiscreteGenerator<Operation> op_chooser_;
   Generator<uint64_t> *key_chooser_;
@@ -142,39 +132,42 @@ class CoreWorkload {
   CounterGenerator insert_key_sequence_;
   size_t record_count_;
   bool from_file_;
-  int max_key_num_;
+  std::string filename_;
+  int max_seq_id_;
   std::vector<_key_t> keys_;
 };
 
 inline std::string CoreWorkload::NextSequenceKey() {
-  uint64_t key_num = key_generator_->Next();
-  
+  uint64_t seq_id_ = key_generator_->Next();
+  _key_t key;
+
   if(from_file_) {
-    assert(key_num < max_key_num_);
-    key_num = keys_[key_num];
+    assert(seq_id_ < max_seq_id_);
+    key = keys_[seq_id_];       // a key from given dataset
   } else {
-    key_num = utils::Hash(key_num);
+    key = utils::Hash(seq_id_); // a random distributed key
   }
 
-  std::string key_num_str = std::to_string(key_num);
-  return key_num_str;
+  std::string key_str = std::to_string(key);
+  return key_str;
 }
 
 inline std::string CoreWorkload::NextTransactionKey() {
-  uint64_t key_num;
+  uint64_t seq_id_;
   do {
-    key_num = key_chooser_->Next();
-  } while (key_num > insert_key_sequence_.Last());
+    seq_id_ = key_chooser_->Next();
+  } while (seq_id_ > insert_key_sequence_.Last());
   
+  _key_t key;
   if(from_file_) {
-    assert(key_num < max_key_num_);
-    key_num = keys_[key_num];
+    assert(seq_id_ < max_seq_id_);
+    key = keys_[seq_id_];        // a key from given dataset
   } else {
-    key_num = utils::Hash(key_num);
+    key = (_key_t) utils::Hash(seq_id_);  // a random distributed key
   }
 
-  std::string key_num_str = std::to_string(key_num);
-  return key_num_str;
+  std::string key_str = std::to_string(key);
+  return key_str;
 }
   
 } // ycsbc

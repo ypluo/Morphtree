@@ -112,4 +112,19 @@ void CoreWorkload::Init(const utils::Properties &p) {
     throw utils::Exception("Distribution not allowed for scan length: " +
         scan_len_dist);
   }
+
+  // if we read dateset from given file
+  if(from_file_) {
+    keys_.reserve(KEYSET_SCALE_DEFAULT);
+    
+    std::ifstream infile_load(filename_.c_str());
+    max_seq_id_ = 0;
+    _key_t key;
+    while (true) {
+      infile_load >> key;
+      if(!infile_load.good()) break;
+      max_seq_id_++;
+      keys_.push_back(key);
+    }
+  }
 }

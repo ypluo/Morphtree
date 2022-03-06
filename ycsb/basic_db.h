@@ -1,9 +1,12 @@
 //
-//  basic_db.h
+//  core_workload.h
 //  YCSB-C
 //
-//  Created by Jinglei Ren on 12/17/14.
+//  Created by Jinglei Ren on 12/9/14.
 //  Copyright (c) 2014 Jinglei Ren <jinglei@ren.systems>.
+//  
+//  Modified by Yongping Luo on 3/4/22
+//  Copyright (c) 2022 Yongping Luo <ypluo18@qq.com>
 //
 
 #ifndef YCSB_C_BASIC_DB_H_
