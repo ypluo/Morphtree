@@ -37,6 +37,9 @@ const string CoreWorkload::READMODIFYWRITE_PROPORTION_DEFAULT = "0.0";
 const string CoreWorkload::REQUEST_DISTRIBUTION_PROPERTY = "requestdistribution";
 const string CoreWorkload::REQUEST_DISTRIBUTION_DEFAULT = "uniform";
 
+const string CoreWorkload::ZIPFIAN_SKEWNESS_PROPERTY = "skewness";
+const string CoreWorkload::ZIPFIAN_SKEWNESS_DEFAULT = "0.99";
+
 const string CoreWorkload::MAX_SCAN_LENGTH_PROPERTY = "maxscanlength";
 const string CoreWorkload::MAX_SCAN_LENGTH_DEFAULT = "1000";
 
@@ -45,6 +48,9 @@ const string CoreWorkload::SCAN_LENGTH_DISTRIBUTION_DEFAULT = "uniform";
 
 const string CoreWorkload::RECORD_COUNT_PROPERTY = "recordcount";
 const string CoreWorkload::OPERATION_COUNT_PROPERTY = "operationcount";
+
+const string CoreWorkload::INSERT_START_PROPERTY = "insertstart";
+const string CoreWorkload::INSERT_START_DEFAULT = "0";
 
 void CoreWorkload::Init(const utils::Properties &p) {
   double read_proportion = std::stod(p.GetProperty(READ_PROPORTION_PROPERTY,
@@ -61,13 +67,23 @@ void CoreWorkload::Init(const utils::Properties &p) {
   record_count_ = std::stoi(p.GetProperty(RECORD_COUNT_PROPERTY));
   std::string request_dist = p.GetProperty(REQUEST_DISTRIBUTION_PROPERTY,
                                            REQUEST_DISTRIBUTION_DEFAULT);
+  
+  float zipfian_skewness =std::stof(p.GetProperty(ZIPFIAN_SKEWNESS_PROPERTY,
+                                           ZIPFIAN_SKEWNESS_DEFAULT));
+
   int max_scan_len = std::stoi(p.GetProperty(MAX_SCAN_LENGTH_PROPERTY,
                                              MAX_SCAN_LENGTH_DEFAULT));
   std::string scan_len_dist = p.GetProperty(SCAN_LENGTH_DISTRIBUTION_PROPERTY,
                                             SCAN_LENGTH_DISTRIBUTION_DEFAULT);
   
-  key_generator_ = new CounterGenerator();
-  
+  int insert_start = std::stoi(p.GetProperty(INSERT_START_PROPERTY,
+                                             INSERT_START_DEFAULT));
+
+  key_generator_ = new CounterGenerator(insert_start);
+
+  insert_key_sequence_.Set(std::max(3, insert_start));
+
+  op_chooser_.Clear(); // before initializing each portion
   if (read_proportion > 0) {
     op_chooser_.AddValue(READ, read_proportion);
   }
@@ -85,8 +101,7 @@ void CoreWorkload::Init(const utils::Properties &p) {
   }
 
   if (request_dist == "uniform") {
-    key_chooser_ = new UniformGenerator(0, record_count_ - 1, rand());
-    
+    key_chooser_ = new UniformGenerator(0, record_count_ - 1);
   } else if (request_dist == "zipfian") {
     // If the number of keys changes, we don't want to change popular keys.
     // So we construct the scrambled zipfian generator with a keyspace
@@ -95,11 +110,9 @@ void CoreWorkload::Init(const utils::Properties &p) {
     // and pick another key.
     int op_count = std::stoi(p.GetProperty(OPERATION_COUNT_PROPERTY));
     int new_keys = (int)(op_count * insert_proportion * 2); // a fudge factor
-    key_chooser_ = new ScrambledZipfianGenerator(record_count_ + new_keys);
-    
+    key_chooser_ = new ScrambledZipfianGenerator(record_count_ + new_keys, zipfian_skewness);
   } else if (request_dist == "latest") {
-    key_chooser_ = new SkewedLatestGenerator(insert_key_sequence_);
-    
+    key_chooser_ = new SkewedLatestGenerator(insert_key_sequence_, zipfian_skewness);
   } else {
     throw utils::Exception("Unknown request distribution: " + request_dist);
   }
@@ -107,24 +120,9 @@ void CoreWorkload::Init(const utils::Properties &p) {
   if (scan_len_dist == "uniform") {
     scan_len_chooser_ = new UniformGenerator(1, max_scan_len);
   } else if (scan_len_dist == "zipfian") {
-    scan_len_chooser_ = new ZipfianGenerator(1, max_scan_len);
+    scan_len_chooser_ = new ZipfianGenerator(1, max_scan_len, zipfian_skewness);
   } else {
     throw utils::Exception("Distribution not allowed for scan length: " +
         scan_len_dist);
-  }
-
-  // if we read dateset from given file
-  if(from_file_) {
-    keys_.reserve(KEYSET_SCALE_DEFAULT);
-    
-    std::ifstream infile_load(filename_.c_str());
-    max_seq_id_ = 0;
-    _key_t key;
-    while (true) {
-      infile_load >> key;
-      if(!infile_load.good()) break;
-      max_seq_id_++;
-      keys_.push_back(key);
-    }
   }
 }

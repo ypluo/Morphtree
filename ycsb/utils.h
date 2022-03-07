@@ -43,7 +43,7 @@ inline uint64_t FNVHash64(uint64_t val) {
 inline uint64_t Hash(uint64_t val) { return FNVHash64(val); }
 
 inline double RandomDouble(double min = 0.0, double max = 1.0) {
-  static std::default_random_engine generator(rand());
+  static std::default_random_engine generator(997);
   static std::uniform_real_distribution<double> uniform(min, max);
   return uniform(generator);
 }

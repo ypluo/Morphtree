@@ -20,7 +20,7 @@ namespace ycsbc {
 class UniformGenerator : public Generator<uint64_t> {
  public:
   // Both min and max are inclusive
-  UniformGenerator(uint64_t min, uint64_t max, uint64_t seed = 30031) : generator_(seed), dist_(min, max) { Next(); }
+  UniformGenerator(uint64_t min, uint64_t max, uint64_t seed = 997) : generator_(seed), dist_(min, max) { Next(); }
   
   uint64_t Next();
   uint64_t Last();
@@ -33,12 +33,12 @@ class UniformGenerator : public Generator<uint64_t> {
 };
 
 inline uint64_t UniformGenerator::Next() {
-  std::lock_guard<std::mutex> lock(mutex_);
+  // std::lock_guard<std::mutex> lock(mutex_);
   return last_int_ = dist_(generator_);
 }
 
 inline uint64_t UniformGenerator::Last() {
-  std::lock_guard<std::mutex> lock(mutex_);
+  // std::lock_guard<std::mutex> lock(mutex_);
   return last_int_;
 }
 

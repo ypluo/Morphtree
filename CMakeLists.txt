@@ -13,6 +13,7 @@ include_directories(${CMAKE_SOURCE_DIR}/hydralist/src)
 # link options must be prior to adding sub directories
 add_link_options(-pthread)
 link_libraries(/usr/local/lib/libtbb.so)
+add_compile_options(-g)
 
 #======= add sub directories =======
 #add_subdirectory(hydralist)
@@ -22,7 +23,7 @@ add_subdirectory(BTreeOLC)
 add_subdirectory(morphtree)
 
 # add YCSB
-add_subdirectory(YCSB)
+add_subdirectory(ycsb)
 
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 add_executable(benchmark benchmark.cpp)

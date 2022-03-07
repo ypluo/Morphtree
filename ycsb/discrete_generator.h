@@ -28,6 +28,8 @@ class DiscreteGenerator : public Generator<Value> {
   Value Next();
   Value Last() { return last_; }
 
+  void Clear() {sum_ = 0; values_.clear();}
+
  private:
   std::vector<std::pair<Value, double>> values_;
   double sum_;
@@ -46,9 +48,9 @@ inline void DiscreteGenerator<Value>::AddValue(Value value, double weight) {
 
 template <typename Value>
 inline Value DiscreteGenerator<Value>::Next() {
-  mutex_.lock();
+  //mutex_.lock();
   double chooser = utils::RandomDouble();
-  mutex_.unlock();
+  //mutex_.unlock();
   
   for (auto p = values_.cbegin(); p != values_.cend(); ++p) {
     if (chooser < p->second / sum_) {

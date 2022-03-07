@@ -74,6 +74,9 @@ class CoreWorkload {
   static const std::string REQUEST_DISTRIBUTION_PROPERTY;
   static const std::string REQUEST_DISTRIBUTION_DEFAULT;
 
+  static const std::string ZIPFIAN_SKEWNESS_PROPERTY;
+  static const std::string ZIPFIAN_SKEWNESS_DEFAULT;
+
   /// 
   /// The name of the property for the max scan length (number of records).
   ///
@@ -90,6 +93,9 @@ class CoreWorkload {
   static const std::string RECORD_COUNT_PROPERTY;
   static const std::string OPERATION_COUNT_PROPERTY;
 
+  static const std::string INSERT_START_PROPERTY;
+  static const std::string INSERT_START_DEFAULT;
+
   ///
   /// Initialize the scenario.
   /// Called once, in the main client thread, before any operations are started.
@@ -103,7 +109,7 @@ class CoreWorkload {
 
   CoreWorkload(std::string filename = "") :
     key_generator_(NULL), key_chooser_(NULL), 
-    scan_len_chooser_(NULL), insert_key_sequence_(),
+    scan_len_chooser_(NULL), insert_key_sequence_(3),
     record_count_(0), filename_(filename) {
       if(filename == "") {
         from_file_ = false;
@@ -111,6 +117,17 @@ class CoreWorkload {
         if(utils::file_exist(filename.c_str())) {
           fprintf(stderr, "using keyset file %s\n", filename.c_str());
           from_file_ = true;
+          // read keys from file
+          keys_.reserve(KEYSET_SCALE_DEFAULT);
+          std::ifstream infile_load(filename_.c_str());
+          max_seq_id_ = 0;
+          _key_t key;
+          while (true) {
+            infile_load >> key;
+            if(!infile_load.good()) break;
+            max_seq_id_++;
+            keys_.push_back(key);
+          }
         } else {
           fprintf(stderr, "keyset file %s not found\n", filename.c_str());
           from_file_ = false;
@@ -139,13 +156,18 @@ class CoreWorkload {
 
 inline std::string CoreWorkload::NextSequenceKey() {
   uint64_t seq_id_ = key_generator_->Next();
+  insert_key_sequence_.Next();
   _key_t key;
 
   if(from_file_) {
     assert(seq_id_ < max_seq_id_);
     key = keys_[seq_id_];       // a key from given dataset
   } else {
-    key = utils::Hash(seq_id_); // a random distributed key
+    #ifdef DEBUG
+      key = seq_id_;
+    #else
+      key = utils::Hash(seq_id_); // a random distributed key
+    #endif
   }
 
   std::string key_str = std::to_string(key);
@@ -156,14 +178,18 @@ inline std::string CoreWorkload::NextTransactionKey() {
   uint64_t seq_id_;
   do {
     seq_id_ = key_chooser_->Next();
-  } while (seq_id_ > insert_key_sequence_.Last());
+  } while (seq_id_ > key_generator_->Last());
   
   _key_t key;
   if(from_file_) {
     assert(seq_id_ < max_seq_id_);
     key = keys_[seq_id_];        // a key from given dataset
   } else {
-    key = (_key_t) utils::Hash(seq_id_);  // a random distributed key
+    #ifdef DEBUG
+      key = seq_id_;
+    #else
+      key = utils::Hash(seq_id_); // a random distributed key
+    #endif
   }
 
   std::string key_str = std::to_string(key);

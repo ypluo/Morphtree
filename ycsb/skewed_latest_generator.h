@@ -20,8 +20,8 @@ namespace ycsbc {
 
 class SkewedLatestGenerator : public Generator<uint64_t> {
  public:
-  SkewedLatestGenerator(CounterGenerator &counter) :
-      basis_(counter), zipfian_(basis_.Last()) {
+  SkewedLatestGenerator(CounterGenerator &counter, float skewness) :
+      basis_(counter), zipfian_(basis_.Last(), skewness) {
     Next();
   }
   

@@ -19,11 +19,10 @@ namespace ycsbc {
 
 class ZipfianGenerator : public Generator<uint64_t> {
  public:
-  constexpr static const double kZipfianConst = 0.99;
   static const uint64_t kMaxNumItems = (UINT64_MAX >> 24);
   
   ZipfianGenerator(uint64_t min, uint64_t max,
-                   double zipfian_const = kZipfianConst) :
+                   double zipfian_const) :
       num_items_(max - min + 1), base_(min), theta_(zipfian_const),
       zeta_n_(0), n_for_zeta_(0) {
     assert(num_items_ >= 2 && num_items_ < kMaxNumItems);
@@ -35,8 +34,8 @@ class ZipfianGenerator : public Generator<uint64_t> {
     Next();
   }
   
-  ZipfianGenerator(uint64_t num_items) :
-      ZipfianGenerator(0, num_items - 1, kZipfianConst) { }
+  ZipfianGenerator(uint64_t num_items, float zipfian_const) :
+      ZipfianGenerator(0, num_items - 1, zipfian_const) { }
   
   uint64_t Next(uint64_t num_items);
   
@@ -91,7 +90,7 @@ class ZipfianGenerator : public Generator<uint64_t> {
 
 inline uint64_t ZipfianGenerator::Next(uint64_t num) {
   assert(num >= 2 && num < kMaxNumItems);
-  std::lock_guard<std::mutex> lock(mutex_);
+  // std::lock_guard<std::mutex> lock(mutex_);
 
   if (num > n_for_zeta_) { // Recompute zeta_n and eta
     RaiseZeta(num);
@@ -113,7 +112,7 @@ inline uint64_t ZipfianGenerator::Next(uint64_t num) {
 }
 
 inline uint64_t ZipfianGenerator::Last() {
-  std::lock_guard<std::mutex> lock(mutex_);
+  // std::lock_guard<std::mutex> lock(mutex_);
   return last_value_;
 }
 
