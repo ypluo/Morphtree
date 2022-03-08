@@ -15,3 +15,4 @@ set(NODE_LIB
 )
 
 add_library(morphtree "morphtree.cc")
+target_link_libraries(morphtree ${NODE_LIB})

@@ -11,7 +11,7 @@
 #include <cstring>
 #include <string>
 
-#include "../include/common.h"
+#include "../include/util.h"
 
 namespace morphtree {
 using std::string;
@@ -23,7 +23,7 @@ const uint64_t ROSTATS = 0x0000000000000000; // default statistic of RONode
 const uint64_t RWSTATS = 0x5555555555555555; // default statistic of RWNode
 const uint64_t WOSTATS = 0xFFFFFFFFFFFFFFFF; // default statistic of WONode
 const NodeType INIT_NODE_TYPE = WOLEAF; // the initial type of a leaf node
-const int GLOBAL_LEAF_SIZE    = 512;    // the maximum node size of a leaf node
+const int GLOBAL_LEAF_SIZE    = 4096;    // the maximum node size of a leaf node
 const int MORPH_FREQ          = 8;      // FREQ must be power of 2
 const uint8_t RO_RW_LINE      = 40;     // read times that distinguishs RONode and RWNode
 const uint8_t RW_WO_LINE      = 16;     // read times that distinguishs RWNode and WONode
@@ -237,8 +237,6 @@ inline void SwapNode(BaseNode * a, BaseNode *b) {
 extern uint64_t access_count;
 
 extern void MorphNode(BaseNode * leaf, NodeType from, NodeType to);
-
-extern BaseNode * global;
 
 } // namespace morphtree
 

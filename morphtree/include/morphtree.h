@@ -2,7 +2,7 @@
 #define __MORPHTREE_H__
 
 #include "../src/morphtree_impl.h"
-#include "common.h"
+#include "util.h"
 
 using morphtree::MorphtreeImpl;
 

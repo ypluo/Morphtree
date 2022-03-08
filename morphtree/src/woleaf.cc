@@ -6,9 +6,7 @@
 #include <vector>
 #include <cstring>
 
-#include "common.h"
 #include "node.h"
-#include "util.h"
 
 namespace morphtree {
 

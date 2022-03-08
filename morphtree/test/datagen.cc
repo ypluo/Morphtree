@@ -9,7 +9,7 @@
 #include <random>
 #include <algorithm>
 
-#include "../include/common.h"
+#include "../include/util.h"
 
 using std::cout;
 using std::endl;

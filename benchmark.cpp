@@ -1,13 +1,14 @@
 #include <cstring>
 #include <cctype>
 #include <atomic>
+#include <thread>
 
 #include "utils.h"
+#include "index.h"
 
 typedef uint64_t keytype;
 typedef std::less<uint64_t> keycomp;
 
-static const uint64_t key_type=0;
 static const uint64_t value_type=1; // 0 = random pointers, 1 = pointers to keys
 // Whether we only perform insert
 static bool insert_only = false;
@@ -19,22 +20,8 @@ void StartThreads(Index<keytype, keycomp> *tree_p,
                   Args &&...args) {
   std::vector<std::thread> thread_group;
 
-  if(tree_p != nullptr) {
-    tree_p->UpdateThreadLocal(num_threads);
-  }
-
   auto fn2 = [tree_p, &fn](uint64_t thread_id, Args ...args) {
-    if(tree_p != nullptr) {
-      tree_p->AssignGCID(thread_id);
-    }
-
-    //PinToCore(thread_id);
     fn(thread_id, args...);
-
-    if(tree_p != nullptr) {
-      tree_p->UnregisterThread(thread_id);
-    }
-
     return;
   };
 
@@ -44,10 +31,6 @@ void StartThreads(Index<keytype, keycomp> *tree_p,
 
   for (uint64_t thread_itr = 0; thread_itr < num_threads; ++thread_itr) {
     thread_group[thread_itr].join();
-  }
-
-  if(tree_p != nullptr) {
-    tree_p->UpdateThreadLocal(1);
   }
 
   return;
@@ -179,7 +162,7 @@ inline void exec(int index_type,
                  std::vector<int> &ranges, 
                  std::vector<int> &ops) {
 
-  Index<keytype, keycomp> *idx = getInstance<keytype, keycomp>(index_type, key_type);
+  Index<keytype, keycomp> *idx = getInstance<keytype, keycomp>(index_type);
 
   //WRITE ONLY TEST-----------------
   int count = (int)init_keys.size();
@@ -243,8 +226,7 @@ inline void exec(int index_type,
     size_t start_index = op_per_thread * thread_id;
     size_t end_index = start_index + op_per_thread;
    
-    std::vector<uint64_t> v;
-    v.reserve(10);
+    uint64_t v;
 
     int counter = 0;
     for(size_t i = start_index;i < end_index;i++) {
@@ -252,7 +234,6 @@ inline void exec(int index_type,
       if (op == OP_INSERT) { //INSERT
         idx->insert(keys[i], values[i]);
       } else if (op == OP_READ) { //READ
-        v.clear();
         idx->find(keys[i], &v);
       } else if (op == OP_UPSERT) { //UPDATE
         idx->upsert(keys[i], reinterpret_cast<uint64_t>(&keys[i]));
@@ -284,8 +265,12 @@ int main(int argc, char *argv[]) {
   int index_type;
   if (strcmp(argv[1], "artolc") == 0)
     index_type = TYPE_ARTOLC;
-  else if (strcmp(argv[1], "hydralist") == 0)
-    index_type = TYPE_HYDRALIST;
+  else if(strcmp(argv[1], "alex") == 0) 
+    index_type = TYPE_ALEX;
+  else if(strcmp(argv[1], "btree") == 0)
+    index_type = TYPE_STXBTREE;
+  else if(strcmp(argv[1], "wotree") == 0)
+    index_type = TYPE_MORPHTREE_WO;
   else {
     fprintf(stderr, "Unknown index type: %d\n", index_type);
     exit(1);

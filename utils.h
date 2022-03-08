@@ -8,7 +8,8 @@
 enum {
   TYPE_ALEX,
   TYPE_ARTOLC,
-  TYPE_HYDRALIST,
+  TYPE_STXBTREE,
+  TYPE_MORPHTREE_WO,
   TYPE_NONE,
 };
 
@@ -30,14 +31,6 @@ enum {
   WORKLOAD_D,
 };
 
-// These are key types we use for running the benchmark
-enum {
-  RAND_KEY,
-  MONO_KEY,
-  RDTSC_KEY,
-  EMAIL_KEY,
-};
-
 //==============================================================
 // GET INSTANCE
 //==============================================================
@@ -45,13 +38,15 @@ template<typename KeyType,
          typename KeyComparator=std::less<KeyType>, 
          typename KeyEuqal=std::equal_to<KeyType>, 
          typename KeyHash=std::hash<KeyType>>
-Index<KeyType, KeyComparator> *getInstance(const int type, const uint64_t kt) {
+Index<KeyType, KeyComparator> *getInstance(const int type) {
   if (type == TYPE_ALEX)
-    return nullptr;
+    return new AlexIndex<KeyType, KeyComparator>();
   else if (type == TYPE_ARTOLC)
-      return new ArtOLCIndex<KeyType, KeyComparator>(kt);
-  // else if (type == TYPE_HYDRALIST)
-  //   return new HydraListIndex<KeyType, KeyComparator>(kt);
+    return new ArtOLCIndex<KeyType, KeyComparator>();
+  else if (type == TYPE_STXBTREE) 
+    return new BtreeIndex<KeyType, KeyComparator>();
+  else if(type == TYPE_MORPHTREE_WO)
+    return new WoIndex<KeyType, KeyComparator>();
   else {
     fprintf(stderr, "Unknown index type: %d\n", type);
     exit(1);

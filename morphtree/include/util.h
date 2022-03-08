@@ -1,7 +1,52 @@
+#ifndef __MORPHTREE_UTIL_H__
+#define __MORPHTREE_UTIL_H__
+
 #include <queue>
 #include <vector>
+#include <sys/time.h>
+#include <sys/stat.h>
 
-#include "common.h"
+typedef uint64_t _key_t;
+typedef void * _val_t;
+
+#define KILO 1024
+#define MILLION (KILO * KILO)
+#define MAX_KEY UINT64_MAX
+#define MIN_KEY 0
+
+struct Record {
+    _key_t key;
+    _val_t val;
+    
+    Record(): key(MAX_KEY), val(nullptr) {}
+    Record(_key_t k, _val_t v) : key(k), val(v) {}
+
+    inline bool operator < (const Record & oth) {
+        return key < oth.key;
+    }
+
+    inline bool operator > (const Record & oth) const {
+        return key > oth.key;
+    }
+};
+
+static inline double seconds()
+{
+    timeval now;
+    gettimeofday(&now, NULL);
+    return now.tv_sec + now.tv_usec/1000000.0;
+}
+
+static inline int getRandom() {
+	timeval now;
+	gettimeofday(&now, NULL);
+	return now.tv_usec;
+}
+
+static inline bool fileExist(const char *pool_path) {
+    struct stat buffer;
+    return (stat(pool_path, &buffer) == 0);
+}
 
 class LinearModelBuilder {
 public:
@@ -114,3 +159,5 @@ void KWayMerge(T ** runs, int * run_lens, int k, std::vector<T> & out) {
         }
     }
 }
+
+#endif // __MORPHTREE_UTIL_H__

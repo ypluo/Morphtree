@@ -68,7 +68,6 @@ TEST_F(tree_test, ycsb) {
         count += 1;
     }
 
-    bool printall = false;
     while (infile_txn.good()) {
         infile_txn >> op >> key;
         //std::cout << op << " " << key << std::endl;

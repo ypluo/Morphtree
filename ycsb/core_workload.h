@@ -150,7 +150,7 @@ class CoreWorkload {
   size_t record_count_;
   bool from_file_;
   std::string filename_;
-  int max_seq_id_;
+  uint64_t max_seq_id_;
   std::vector<_key_t> keys_;
 };
 

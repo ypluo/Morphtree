@@ -1,7 +1,6 @@
 #ifndef __MORPHTREE_IMPL_H__
 #define __MORPHTREE_IMPL_H__
 
-#include "common.h"
 #include "node.h"
 
 namespace morphtree {

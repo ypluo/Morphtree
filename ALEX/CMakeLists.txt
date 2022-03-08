@@ -21,7 +21,7 @@ include_directories(src/core)
 
 add_subdirectory(src)
 
-# add_executable(example src/examples/main.cpp)
+add_executable(example src/examples/main.cpp)
 # add_executable(benchmark src/benchmark/main.cpp)
 
 # set(DOCTEST_DOWNLOAD_DIR ${CMAKE_CURRENT_BINARY_DIR}/doctest)

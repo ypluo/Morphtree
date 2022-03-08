@@ -6,7 +6,6 @@
 #include <cmath>
 
 #include "node.h"
-#include "util.h"
 
 namespace morphtree {
 
