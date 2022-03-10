@@ -9,8 +9,7 @@
 typedef uint64_t _key_t;
 typedef void * _val_t;
 
-#define KILO 1024
-#define MILLION (KILO * KILO)
+#define MILLION (1024 * 1024)
 #define MAX_KEY UINT64_MAX
 #define MIN_KEY 0
 

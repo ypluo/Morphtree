@@ -2,7 +2,9 @@
 
 namespace morphtree {
 
+// definitions of global variables
 uint64_t access_count;
+bool do_morphing;
 
 // Predict the node type of a leaf node according to its access history
 static NodeType PredictNodeType(uint64_t status) {
@@ -59,7 +61,7 @@ bool BaseNode::Store(_key_t k, _val_t v, _key_t * split_key, BaseNode ** split_n
     if(!Leaf()) {
         return reinterpret_cast<ROInner *>(this)->Store(k, v, split_key, (ROInner **)split_node);
     } else {
-        #ifdef MORPHING
+        if(do_morphing) {
             access_count += 1;
             if((access_count & (MORPH_FREQ - 1)) == 0) {
                 stats = (stats << 1) + 1; // a write access
@@ -68,7 +70,7 @@ bool BaseNode::Store(_key_t k, _val_t v, _key_t * split_key, BaseNode ** split_n
                     MorphNode(this, (NodeType)node_type, predict_type);
                 }
             }
-        #endif
+        }
 
         switch(node_type) {
         case NodeType::ROLEAF: 
@@ -88,7 +90,7 @@ bool BaseNode::Lookup(_key_t k, _val_t & v) {
         reinterpret_cast<ROInner *>(this)->Lookup(k, v);
         return true;
     } else {
-        #ifdef MORPHING
+        if(do_morphing) {
             access_count += 1;
             if((access_count & (MORPH_FREQ - 1)) == 0) {
                 stats = (stats << 1); // a read access
@@ -97,7 +99,7 @@ bool BaseNode::Lookup(_key_t k, _val_t & v) {
                     MorphNode(this, (NodeType)node_type, predict_type);
                 }
             }
-        #endif
+        }
         
         switch(node_type) {
         case NodeType::ROLEAF: 

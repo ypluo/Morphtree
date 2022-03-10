@@ -189,6 +189,8 @@ int main(int argc, char ** argv) {
         exit(-1);
     }
 
+    do_morphing = false;
+
     // start test 
     double elasped_time = 0;
     if(opt_read) {

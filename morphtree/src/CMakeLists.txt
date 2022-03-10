@@ -14,5 +14,5 @@ set(NODE_LIB
     CACHE STRING "NODE_LIB" FORCE
 )
 
-add_library(morphtree "morphtree.cc")
-target_link_libraries(morphtree ${NODE_LIB})
+# add_library(morphtree "morphtree.cc")
+# target_link_libraries(morphtree ${NODE_LIB})

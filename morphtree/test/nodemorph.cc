@@ -101,3 +101,10 @@ TEST(NodeMerge, ronode) {
     delete tmp;
     delete n;
 }
+
+int main(int argc, char ** argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+
+    do_morphing = false;
+    return RUN_ALL_TESTS();
+}

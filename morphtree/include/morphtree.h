@@ -2,17 +2,19 @@
 #define __MORPHTREE_H__
 
 #include "../src/morphtree_impl.h"
+#include "../src/node.h"
+
 #include "util.h"
 
-using morphtree::MorphtreeImpl;
+using namespace morphtree;
 
 class Morphtree {
 private:
-    MorphtreeImpl *mt_;
+    MorphtreeImpl<NodeType::WOLEAF, true> *mt_;
 
 public:
     Morphtree() {
-        mt_ = new MorphtreeImpl();
+        mt_ = new MorphtreeImpl<NodeType::WOLEAF, true>();
     }
 
     ~Morphtree() {

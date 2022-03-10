@@ -37,7 +37,6 @@ endif()
 
 include_directories(include)
 add_compile_options(-O3)
-#add_compile_definitions(MORPHING)
 
 # Now add what we want to compile
 add_subdirectory(src)

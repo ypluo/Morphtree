@@ -238,3 +238,10 @@ TEST(TwoNode, roleaf) {
     delete n;
     delete split_node;
 }
+
+int main(int argc, char ** argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+
+    do_morphing = false;
+    return RUN_ALL_TESTS();
+}

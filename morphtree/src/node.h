@@ -2,8 +2,8 @@
     Copyright (c) Luo Yongping ypluo18@qq.com
 */
 
-#ifndef __BASENODE__
-#define __BASENODE__
+#ifndef __MORPHTREE_BASENODE__
+#define __MORPHTREE_BASENODE__
 
 #include <algorithm>
 #include <cassert>
@@ -22,7 +22,6 @@ enum NodeType {ROINNER = 0, ROLEAF, RWLEAF, WOLEAF};
 const uint64_t ROSTATS = 0x0000000000000000; // default statistic of RONode
 const uint64_t RWSTATS = 0x5555555555555555; // default statistic of RWNode
 const uint64_t WOSTATS = 0xFFFFFFFFFFFFFFFF; // default statistic of WONode
-const NodeType INIT_NODE_TYPE = WOLEAF; // the initial type of a leaf node
 const int GLOBAL_LEAF_SIZE    = 4096;    // the maximum node size of a leaf node
 const int MORPH_FREQ          = 8;      // FREQ must be power of 2
 const uint8_t RO_RW_LINE      = 40;     // read times that distinguishs RONode and RWNode
@@ -98,14 +97,14 @@ private:
     }
 
     inline bool ShouldExpand() {
-        // fill factor > 0.33
-        // fill factor > 0.125 && count < EXPAND_THRESHOLD
-        return count > (capacity / 2) || ((count > capacity >> 4) && count < EXPAND_THRESHOLD);
+        // fill factor > 0.4
+        // fill factor > 0.125 && count < SPLIT_THRESHOLD
+        return count > (capacity * 2 / 5) || ((count > capacity >> 3) && count < SPLIT_THRESHOLD);
     }
     
 public:
-    static const int EXPAND_THRESHOLD = 1024;
-    static const int PROBE_SIZE       = 8;
+    static const int SPLIT_THRESHOLD = 1024;
+    static const int PROBE_SIZE      = 8;
 
     int32_t capacity;
     int32_t count;
@@ -234,10 +233,13 @@ inline void SwapNode(BaseNode * a, BaseNode *b) {
     memcpy(b, tmp, COMMON_SIZE);
 }
 
+/*
+    Global variables and functions controling the morphing of Morphtree 
+*/
 extern uint64_t access_count;
-
+extern bool do_morphing;
 extern void MorphNode(BaseNode * leaf, NodeType from, NodeType to);
 
 } // namespace morphtree
 
-#endif // __BASENODE__
+#endif // __MORPHTREE_BASENODE__

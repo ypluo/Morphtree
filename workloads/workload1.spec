@@ -1,5 +1,5 @@
-recordcount=100000
-operationcount=100000
+recordcount=1000000
+operationcount=1000
 
 readproportion=1
 updateproportion=0

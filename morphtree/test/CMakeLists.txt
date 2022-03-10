@@ -11,4 +11,4 @@ add_executable(datagen "datagen.cc")
 target_link_libraries(datagen)
 
 add_executable(treetest "treetest.cc")
-target_link_libraries(treetest gtest_main morphtree ${NODE_LIB})
+target_link_libraries(treetest gtest_main ${NODE_LIB})
