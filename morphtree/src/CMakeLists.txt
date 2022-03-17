@@ -1,18 +1,3 @@
-add_library(basenode "basenode.cc")
-add_library(roinner "roinner.cc")
-add_library(roleaf "roleaf.cc")
-add_library(rwleaf "rwleaf.cc")
-add_library(woleaf "woleaf.cc")
+set(MORPHTREE_SRC basenode.cc roinner.cc roleaf.cc rwleaf.cc woleaf.cc)
 
-
-set(NODE_LIB 
-        basenode
-        roinner
-        roleaf 
-        rwleaf
-        woleaf
-    CACHE STRING "NODE_LIB" FORCE
-)
-
-# add_library(morphtree "morphtree.cc")
-# target_link_libraries(morphtree ${NODE_LIB})
+add_library(morphtree ${MORPHTREE_SRC})

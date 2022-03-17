@@ -168,7 +168,6 @@ bool WOLeaf::Store(_key_t k, _val_t v, _key_t * split_key, WOLeaf ** split_node)
             }
             cur = cur->next;
         }
-        
         // Swap the old left node and the new
         SwapNode(this, left_node);
         delete left_node;

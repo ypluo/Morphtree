@@ -49,9 +49,6 @@ const string CoreWorkload::SCAN_LENGTH_DISTRIBUTION_DEFAULT = "uniform";
 const string CoreWorkload::RECORD_COUNT_PROPERTY = "recordcount";
 const string CoreWorkload::OPERATION_COUNT_PROPERTY = "operationcount";
 
-const string CoreWorkload::INSERT_START_PROPERTY = "insertstart";
-const string CoreWorkload::INSERT_START_DEFAULT = "0";
-
 void CoreWorkload::Init(const utils::Properties &p) {
   double read_proportion = std::stod(p.GetProperty(READ_PROPORTION_PROPERTY,
                                                    READ_PROPORTION_DEFAULT));
@@ -76,12 +73,11 @@ void CoreWorkload::Init(const utils::Properties &p) {
   std::string scan_len_dist = p.GetProperty(SCAN_LENGTH_DISTRIBUTION_PROPERTY,
                                             SCAN_LENGTH_DISTRIBUTION_DEFAULT);
   
-  int insert_start = std::stoi(p.GetProperty(INSERT_START_PROPERTY,
-                                             INSERT_START_DEFAULT));
+  // int insert_start = std::stoi(p.GetProperty(INSERT_START_PROPERTY,
+  //                                            INSERT_START_DEFAULT));
 
-  key_generator_ = new CounterGenerator(insert_start);
-
-  insert_key_sequence_.Set(std::max(3, insert_start));
+  key_generator_ = new CounterGenerator(record_count_);
+  insert_key_sequence_.Set(std::max((size_t)3, record_count_));
 
   op_chooser_.Clear(); // before initializing each portion
   if (read_proportion > 0) {

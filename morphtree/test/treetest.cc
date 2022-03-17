@@ -21,8 +21,8 @@ protected:
     }
 };
 
-TEST_F(tree_test, load) {
-    const int TEST_SCALE = 1000000;
+TEST_F(tree_test, DISABLED_load) {
+    const int TEST_SCALE = 10000;
     uint64_t STEP = UINT64_MAX / TEST_SCALE;
 
     _key_t * keys = new _key_t[TEST_SCALE];
@@ -36,12 +36,12 @@ TEST_F(tree_test, load) {
     std::shuffle(keys, &keys[TEST_SCALE - 1], gen);
 
     for(int i = 0; i < TEST_SCALE; i++) {
-        //printf("%d\n", keys[i]);
+        //printf("insert %lu\n", keys[i]);
         tree->insert(_key_t(keys[i]), _val_t((uint64_t)i));
     }
-
+    // tree->print();
     for(int i = 0; i < TEST_SCALE; i++) {
-        //printf("%d\n", keys[i]);
+        //printf("%lu\n", keys[i]);
         ASSERT_EQ(tree->lookup(_key_t(keys[i])), _val_t((uint64_t)i));
     }
 
@@ -49,8 +49,8 @@ TEST_F(tree_test, load) {
 } 
 
 TEST_F(tree_test, ycsb) {
-    std::ifstream infile_load("dataset.dat");
-    std::ifstream infile_txn("query.dat");
+    std::ifstream infile_load("../build/dataset.dat");
+    std::ifstream infile_txn("../build/query.dat");
     if(!infile_load || !infile_txn) {
         printf("file open error\n");
         return;
@@ -61,6 +61,7 @@ TEST_F(tree_test, ycsb) {
     _key_t key;
     while (true) {
         infile_load >> op >> key;
+        //std::cout << op << " " << key << std::endl;
         if(!infile_load.good()) {
             break;
         }

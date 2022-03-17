@@ -47,12 +47,12 @@ inline void load(std::vector<keytype> &init_keys,
   std::string init_file;
   std::string txn_file;
 
-  init_file = "dataset.dat";
-  txn_file = "query.dat";
+  init_file = "../build/dataset.dat";
+  txn_file = "../build/query.dat";
 
   std::ifstream infile_load(init_file);
   if(!infile_load) {
-    fprintf(stderr, "query.dat is not found");
+    fprintf(stderr, "dataset.dat is not found");
     exit(-1);
   }
 
@@ -66,7 +66,7 @@ inline void load(std::vector<keytype> &init_keys,
   std::string update("UPDATE");
   std::string scan("SCAN");
 
-  int count = 0;
+  size_t count = 0;
   while (true) {
     infile_load >> op >> key;
     if(!infile_load.good()) 
@@ -149,6 +149,9 @@ inline void load(std::vector<keytype> &init_keys,
     }
     count++;
   }
+
+  infile_load.close();
+  infile_txn.close();
 }
 
 //==============================================================
@@ -198,8 +201,6 @@ inline void exec(int index_type,
 
   //READ/UPDATE/SCAN TEST----------------
   int txn_num = ops.size();
-  uint64_t sum = 0;
-  uint64_t s = 0;
 
   if(values.size() < keys.size()) {
     fprintf(stderr, "Values array too small\n");

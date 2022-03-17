@@ -57,54 +57,39 @@ class ROInner : public BaseNode {
 public:
     ROInner();
 
-    ROInner(Record * recs_in, int num);
+    ROInner(Record * recs_in, int num, int expand = 3);
 
     ~ROInner();
 
-    inline void Clear() {
-        capacity = 0;
-    }
+    void Clear();
 
     bool Store(_key_t k, _val_t v, _key_t * split_key, ROInner ** split_node);
 
     bool Lookup(_key_t k, _val_t &v);
 
-    void Print(string prefix) {
-        printf("%s[", prefix.c_str());
-        for(int i = 0; i < capacity; i++) {
-            if(recs[i].key != MAX_KEY) {
-                printf("(%lu, 0x%lx) ", recs[i].key, (uint64_t)recs[i].val);
-            }
-        }
-        printf("]\n");
-        for(int i = 0; i < capacity; i++) {
-            if(recs[i].key != MAX_KEY) {
-                BaseNode * child = (BaseNode *) recs[i].val;
-                child->Print(prefix + "\t");
-            }
-        }
-    }
+    void Print(string prefix);
 
 private:
     bool Insert(_key_t k, _val_t v);
 
-    void Expand();
+    void Expand(_key_t k, _val_t v);
 
-    void Split(_key_t * split_key, ROInner ** split_node);
+    void Split(_key_t k, _val_t v, _key_t * split_key, ROInner ** split_node);
 
     inline int Predict(_key_t k) {
         return std::min(std::max(0, int(slope * k + intercept)), capacity - 1);
     }
 
     inline bool ShouldExpand() {
-        // fill factor > 0.4
-        // fill factor > 0.125 && count < SPLIT_THRESHOLD
-        return count > (capacity * 2 / 5) || ((count > capacity >> 3) && count < SPLIT_THRESHOLD);
+        // fill factor > 0.5 or 
+        // fill factor < 0.5 but count < MUST_EXPAND_COUNT or
+        // count > MUST_EXPAND_COUNT but fill factor > 0.25
+        return count > (capacity >> 1) || count < MUST_EXPAND_COUNT || count > (capacity >> 2);
     }
     
 public:
-    static const int SPLIT_THRESHOLD = 1024;
-    static const int PROBE_SIZE      = 8;
+    static const int MUST_EXPAND_COUNT = 256;
+    static const int PROBE_SIZE        = 8;
 
     int32_t capacity;
     int32_t count;
@@ -115,7 +100,8 @@ public:
     double intercept;
     // data
     Record *recs;
-    char dummy[8];
+    int32_t of_count;
+    char dummy[4];
 };
 
 // Node structure with high read performance
@@ -149,7 +135,7 @@ private:
 public:
     static const int PROBE_SIZE = 8;
     static const int NODE_CAP  = GLOBAL_LEAF_SIZE; 
-    static const int NODE_SIZE = ((GLOBAL_LEAF_SIZE / 7 * 8) & (~(PROBE_SIZE - 1))) + PROBE_SIZE; // without overflow, it can hold roughly 4096 Records
+    static const int NODE_SIZE = NODE_CAP * 2; // without overflow, it can hold roughly 4096 Records
 
     int32_t of_count;
     int32_t count;

@@ -9,6 +9,8 @@
 
 namespace morphtree {
 
+static const int MARGIN = ROInner::PROBE_SIZE * 4;
+
 // Overflow node
 struct OFNode {
     uint16_t len;
@@ -21,7 +23,7 @@ struct OFNode {
 
     bool Store(_key_t k, _val_t v) {
         if(recs_[len - 1].key == MAX_KEY) {
-            uint8_t i;
+            uint16_t i;
             for(i = 0; i < len; i++) {
                 if(recs_[i].key > k) {
                     break;
@@ -60,13 +62,13 @@ ROLeaf::ROLeaf(Record * recs_in, int num) {
 
     LinearModelBuilder model;
     for(int i = 0; i < num; i++) {
-        model.add(recs_in[i].key, i);
+        model.add(recs_in[i].key, MARGIN + i);
     }
     model.build();
 
     // caculate the linear model
-    slope = model.a_ * NODE_SIZE / num;
-    intercept = model.b_ * NODE_SIZE / num;
+    slope = model.a_ * NODE_SIZE / (2 * MARGIN + num);
+    intercept = model.b_ * NODE_SIZE / (2 * MARGIN + num);
     recs = new Record[NODE_SIZE];
     
     of_count = 0;

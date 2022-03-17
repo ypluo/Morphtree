@@ -93,9 +93,6 @@ class CoreWorkload {
   static const std::string RECORD_COUNT_PROPERTY;
   static const std::string OPERATION_COUNT_PROPERTY;
 
-  static const std::string INSERT_START_PROPERTY;
-  static const std::string INSERT_START_DEFAULT;
-
   ///
   /// Initialize the scenario.
   /// Called once, in the main client thread, before any operations are started.
@@ -107,7 +104,7 @@ class CoreWorkload {
   virtual Operation NextOperation() { return op_chooser_.Next(); }
   virtual size_t NextScanLength() { return scan_len_chooser_->Next(); }
 
-  CoreWorkload(std::string filename = "") :
+  CoreWorkload(std::string filename, uint64_t max_key_num = UINT64_MAX) :
     key_generator_(NULL), key_chooser_(NULL), 
     scan_len_chooser_(NULL), insert_key_sequence_(3),
     record_count_(0), filename_(filename) {
@@ -118,16 +115,17 @@ class CoreWorkload {
           fprintf(stderr, "using keyset file %s\n", filename.c_str());
           from_file_ = true;
           // read keys from file
-          keys_.reserve(KEYSET_SCALE_DEFAULT);
+          keys_.reserve(max_key_num);
           std::ifstream infile_load(filename_.c_str());
           max_seq_id_ = 0;
           _key_t key;
           while (true) {
             infile_load >> key;
-            if(!infile_load.good()) break;
+            if(!infile_load.good() || max_seq_id_ >= max_key_num) break;
             max_seq_id_++;
             keys_.push_back(key);
           }
+          infile_load.close();
         } else {
           fprintf(stderr, "keyset file %s not found\n", filename.c_str());
           from_file_ = false;

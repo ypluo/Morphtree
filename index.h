@@ -5,7 +5,7 @@
 #include "ARTOLC/Tree.h"
 #include "ALEX/src/core/alex.h"
 #include "stxbtree/btree.h"
-#include "morphtree/include/morphtree.h"
+#include "morphtree/src/morphtree_impl.h"
 
 template<typename KeyType, class KeyComparator>
 class Index
@@ -119,7 +119,7 @@ class WoIndex : public Index<KeyType, KeyComparator>
 {
 public:
     WoIndex() {
-        idx = new Morphtree;
+        idx = new morphtree::MorphtreeImpl<morphtree::NodeType::WOLEAF, false>();
     }
 
     ~WoIndex() {
@@ -132,8 +132,7 @@ public:
     }
 
     bool find(KeyType key, uint64_t *v) {
-        *v = reinterpret_cast<uint64_t>(idx->lookup(key));
-        return true;
+        return idx->lookup(key, reinterpret_cast<void * &>(*v));
     }
 
     bool upsert(KeyType key, uint64_t value) {
@@ -148,7 +147,7 @@ public:
     int64_t getMemory() const {return 0;}
     
 private:
-    Morphtree * idx;
+    morphtree::MorphtreeImpl<morphtree::NodeType::WOLEAF, false> * idx;
 };
 
 

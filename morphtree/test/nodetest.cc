@@ -26,7 +26,6 @@ TEST(SingleNode, woleaf) {
         n->Store(tmp[i], _val_t(tmp[i]), &split_key, &split_node);
     }
 
-    //n->Print("\t");
     // test lookup
     _val_t res;
     for(uint64_t i = 0; i < SCALE1; i++) {
@@ -102,25 +101,28 @@ TEST(SingleNode, roleaf) {
 
 TEST(SingleNode, roinner) {
     int load_size = SCALE1;
+    std::default_random_engine gen(getRandom());
+    std::uniform_int_distribution<uint64_t> dist(0, SCALE1 * 10);
+
 
     _key_t split_key = UINT64_MAX;
     ROInner * split_node = nullptr;
     Record * tmp = new Record[SCALE1];
     for(uint64_t i = 0; i < SCALE1; i++) {
-        tmp[i].key = i;
-        tmp[i].val = (_val_t)i;
+        tmp[i].key = dist(gen);
+        tmp[i].val = (_val_t)tmp[i].key;
     }
-    std::shuffle(tmp, tmp + SCALE1 - 1, std::default_random_engine(getRandom()));
 
     // bulk load
     std::sort(tmp, tmp + load_size);
     ROInner * n = new ROInner(tmp, load_size);
     
+    // n->Print("");
     // test lookup
     _val_t res;
     for(uint64_t i = 0; i < SCALE1; i++) {
-        ASSERT_TRUE(n->Lookup(i, res));
-        ASSERT_EQ(res, _val_t(i));
+        ASSERT_TRUE(n->Lookup(tmp[i].key, res));
+        ASSERT_EQ(res, _val_t(tmp[i].key));
     }
 
     delete tmp;

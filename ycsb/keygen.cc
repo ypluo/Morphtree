@@ -19,7 +19,6 @@ using std::ofstream;
 
 void gen_keyset(uint64_t *arr, uint64_t scale, bool uniform) {
     if(uniform) {
-        uint64_t step = INT64_MAX / scale;
         for(uint64_t i = 0; i < scale; i++) {
             arr[i] = i + 1;
         }

@@ -79,16 +79,19 @@ int main(const int argc, const char *argv[]) {
     utils::Properties props;
     ParseCommandLine(argc, argv, props);
 
-    ycsbc::CoreWorkload wl(props.GetProperty("dataset_file", ""));
+    const string filename = props.GetProperty("dataset_file", "");
+    const int recordcount = stoi(props.GetProperty("recordcount", "1000"));
+    const int operationcount = stoi(props.GetProperty("operationcount", "0"));
+    const float insert_ratio = stof(props.GetProperty(CoreWorkload::INSERT_PROPORTION_PROPERTY, "0"));
+
+    ycsbc::CoreWorkload wl(filename, recordcount + operationcount * insert_ratio);
     ycsbc::BasicDB db;
 
     wl.Init(props);
-    const int recordcount = stoi(props.GetProperty("recordcount", "1000"));
-    const int operationcount = stoi(props.GetProperty("operationcount", "0"));
 
     if(props.GetProperty("preload", "true") == "true") {
         // do loading
-        for (int i = 0; i < recordcount; ++i) {
+        for (int i = 0; i < operationcount; ++i) {
             std::string key = wl.NextSequenceKey();
             std::vector<ycsbc::KVPair> pairs;
             db.Insert(key, pairs);

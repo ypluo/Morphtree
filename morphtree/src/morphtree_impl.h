@@ -36,6 +36,7 @@ MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::MorphtreeImpl() {
     switch(INIT_LEAF_TYPE) {
     case NodeType::ROLEAF:
         root_ = new RWLeaf(); // TODO
+        break;
     case NodeType::RWLEAF:
         root_ = new RWLeaf();
         break;
@@ -72,8 +73,6 @@ bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::lookup(const _key_t &key, _val_t &
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 void MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::insert(const _key_t &key, _val_t val) {
-    BaseNode * cur = root_;
-
     _key_t split_k;
     BaseNode * split_node;
     bool splitIf = insert_recursive(root_, key, val, &split_k, &split_node);

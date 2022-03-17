@@ -2,9 +2,10 @@
 #include <fstream>
 #include <cstdint>
 #include <sys/stat.h>
+#include <cmath>
 
 using namespace std;
-const uint64_t LIMIT = 16 * 1024 * 1024;
+const uint64_t LIMIT = 128 * 1024 * 1024;
 
 inline bool file_exist(const char *pool_path) {
     struct stat buffer;
@@ -32,7 +33,7 @@ int main(int argc, char ** argv) {
     while(true) {
         fin >> key;
         if(!fin.good() || count == LIMIT) break;
-        fout << reinterpret_cast<uint64_t &>(key) << endl;
+        fout << uint64_t(std::abs(key) * 10000000) << endl;
         count += 1;
     }
 
