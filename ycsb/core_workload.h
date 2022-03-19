@@ -24,7 +24,7 @@
 namespace ycsbc {
 
 typedef uint64_t _key_t;
-const uint64_t KEYSET_SCALE_DEFAULT = 16 * 1024 * 1024;
+const uint64_t KEYSET_SCALE_DEFAULT = 128 * 1024 * 1024;
 
 enum Operation {
   INSERT,
@@ -112,7 +112,7 @@ class CoreWorkload {
         from_file_ = false;
       } else {
         if(utils::file_exist(filename.c_str())) {
-          fprintf(stderr, "using keyset file %s\n", filename.c_str());
+          //fprintf(stderr, "using keyset file %s\n", filename.c_str());
           from_file_ = true;
           // read keys from file
           keys_.reserve(max_key_num);

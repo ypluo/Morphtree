@@ -10,6 +10,8 @@ enum {
   TYPE_ARTOLC,
   TYPE_STXBTREE,
   TYPE_MORPHTREE_WO,
+  TYPE_MORPHTREE_RO,
+  TYPE_MORPHTREE,
   TYPE_NONE,
 };
 
@@ -47,6 +49,10 @@ Index<KeyType, KeyComparator> *getInstance(const int type) {
     return new BtreeIndex<KeyType, KeyComparator>();
   else if(type == TYPE_MORPHTREE_WO)
     return new WoIndex<KeyType, KeyComparator>();
+  else if(type == TYPE_MORPHTREE_RO)
+    return new RoIndex<KeyType, KeyComparator>();
+  else if(type == TYPE_MORPHTREE)
+    return new MorphTree<KeyType, KeyComparator>();
   else {
     fprintf(stderr, "Unknown index type: %d\n", type);
     exit(1);

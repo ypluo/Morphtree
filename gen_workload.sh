@@ -11,8 +11,8 @@ fi
 eval set -- "$ARGS"
 
 # default workload specifications
-RECORD=4000000
-OPERATION=4000000
+RECORD=100000
+OPERATION=100000
 READ=1
 WRITE=0
 DIST=uniform
@@ -43,7 +43,7 @@ echo "updateproportion=0"            >> workload.spec
 echo "scanproportion=0"              >> workload.spec
 echo "insertproportion=1"            >> workload.spec
 echo "requestdistribution=${DIST}"   >> workload.spec
-echo "skewness=0.9"                  >> workload.spec
+echo "skewness=0.8"                  >> workload.spec
 ${YCSB_BIN} -P workload.spec -F ${KEYSET} > ${BINARY_DIR}/dataset.dat
 
 # generate workload
@@ -54,5 +54,5 @@ echo "updateproportion=0"            >> workload.spec
 echo "scanproportion=0"              >> workload.spec
 echo "insertproportion=${WRITE}"     >> workload.spec
 echo "requestdistribution=${DIST}"   >> workload.spec
-echo "skewness=0.9"                  >> workload.spec
+echo "skewness=0.8"                  >> workload.spec
 ${YCSB_BIN} -P workload.spec -F ${KEYSET} > ${BINARY_DIR}/query.dat

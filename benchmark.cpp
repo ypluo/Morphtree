@@ -47,8 +47,6 @@ inline void load(std::vector<KeyType> &init_keys,
   std::string init_file;
   std::string txn_file;
 
-  // init_file = "build/dataset.dat";
-  // txn_file = "build/query.dat";
   init_file = "../build/dataset.dat";
   txn_file = "../build/query.dat";
 
@@ -82,7 +80,7 @@ inline void load(std::vector<KeyType> &init_keys,
     count++;
   }
   
-  fprintf(stderr, "Loaded %lu keys\n", count);
+  //fprintf(stderr, "Loaded %lu keys\n", count);
 
   count = 0;
   uint64_t value = 0;
@@ -291,6 +289,10 @@ int main(int argc, char *argv[]) {
     index_type = TYPE_STXBTREE;
   else if(strcmp(argv[1], "wotree") == 0)
     index_type = TYPE_MORPHTREE_WO;
+  else if(strcmp(argv[1], "rotree") == 0)
+    index_type = TYPE_MORPHTREE_RO;
+  else if(strcmp(argv[1], "morphtree") == 0)
+    index_type = TYPE_MORPHTREE;
   else {
     fprintf(stderr, "Unknown index type: %d\n", index_type);
     exit(1);

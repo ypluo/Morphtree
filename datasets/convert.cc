@@ -14,12 +14,16 @@ inline bool file_exist(const char *pool_path) {
 
 int main(int argc, char ** argv) {
     char * opt_filename;
+    uint64_t ratio = 10000000;
 
     if(argc < 2 || !file_exist(argv[1])) {
         printf("Specify a valid filename\n");
         exit(-1);
     } else {
         opt_filename = argv[1];
+    }
+    if(argc == 3) {
+        ratio = atoi(argv[2]);
     }
 
     string filename_out = opt_filename;
@@ -33,7 +37,7 @@ int main(int argc, char ** argv) {
     while(true) {
         fin >> key;
         if(!fin.good() || count == LIMIT) break;
-        fout << uint64_t(std::abs(key) * 10000000) << endl;
+        fout << uint64_t(std::abs(key) * ratio) << endl;
         count += 1;
     }
 

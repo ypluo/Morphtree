@@ -164,6 +164,93 @@ private:
     morphtree::MorphtreeImpl<morphtree::NodeType::WOLEAF, false> * idx;
 };
 
+/////////////////////////////////////////////////////////////////////
+// morphtree using read optimized leaf nodes
+/////////////////////////////////////////////////////////////////////
+template<typename KeyType, class KeyComparator>
+class RoIndex : public Index<KeyType, KeyComparator>
+{
+public:
+    RoIndex() {
+        idx = new morphtree::MorphtreeImpl<morphtree::NodeType::ROLEAF, false>();
+    }
+
+    ~RoIndex() {
+        delete idx;
+    }
+
+    bool insert(KeyType key, uint64_t value) {
+        idx->insert(key, reinterpret_cast<void *>(value));
+        return false;
+    }
+
+    bool find(KeyType key, uint64_t *v) {
+        return idx->lookup(key, reinterpret_cast<void * &>(*v));
+    }
+
+    bool upsert(KeyType key, uint64_t value) {
+        idx->update(key, reinterpret_cast<void *>(value));
+        return true;
+    }
+
+    uint64_t scan(KeyType key, int range) {
+        return 0;
+    }
+
+    void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
+        return;
+    }
+
+    int64_t getMemory() const {return 0;}
+    
+private:
+    morphtree::MorphtreeImpl<morphtree::NodeType::ROLEAF, false> * idx;
+};
+
+
+/////////////////////////////////////////////////////////////////////
+// morphtree using read optimized leaf nodes
+/////////////////////////////////////////////////////////////////////
+template<typename KeyType, class KeyComparator>
+class MorphTree : public Index<KeyType, KeyComparator>
+{
+public:
+    MorphTree() {
+        idx = new morphtree::MorphtreeImpl<morphtree::NodeType::WOLEAF, true>();
+    }
+
+    ~MorphTree() {
+        delete idx;
+    }
+
+    bool insert(KeyType key, uint64_t value) {
+        idx->insert(key, reinterpret_cast<void *>(value));
+        return false;
+    }
+
+    bool find(KeyType key, uint64_t *v) {
+        return idx->lookup(key, reinterpret_cast<void * &>(*v));
+    }
+
+    bool upsert(KeyType key, uint64_t value) {
+        idx->update(key, reinterpret_cast<void *>(value));
+        return true;
+    }
+
+    uint64_t scan(KeyType key, int range) {
+        return 0;
+    }
+
+    void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
+        return;
+    }
+
+    int64_t getMemory() const {return 0;}
+    
+private:
+    morphtree::MorphtreeImpl<morphtree::NodeType::WOLEAF, true> * idx;
+};
+
 
 /////////////////////////////////////////////////////////////////////
 // ARTOLC

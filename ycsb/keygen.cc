@@ -19,10 +19,14 @@ using std::ofstream;
 
 void gen_keyset(uint64_t *arr, uint64_t scale, bool uniform) {
     if(uniform) {
+        std::mt19937 gen(utils::rand());
+
         uint64_t step = UINT64_MAX / scale / 2;
         for(uint64_t i = 0; i < scale; i++) {
             arr[i] = i * step + 1;
         }
+
+        std::shuffle(arr, arr + scale, gen);
     } else {
         std::mt19937 gen(utils::rand());
         std::normal_distribution<double> dist(INT64_MAX / 2, INT64_MAX / 8);
@@ -35,7 +39,7 @@ void gen_keyset(uint64_t *arr, uint64_t scale, bool uniform) {
                 arr[i++] = (uint64_t)std::round(val);
             }
         }
-        std::sort(arr, arr + scale);
+        //std::sort(arr, arr + scale);
     }
     return ;
 }
