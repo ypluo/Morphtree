@@ -30,15 +30,7 @@ void UsageMessage(const char *command)  {
 void ParseCommandLine(int argc, const char *argv[], utils::Properties &props) {
     int argindex = 1;
     while (argindex < argc) {
-        if(strcmp(argv[argindex], "load") == 0) {
-            argindex++;
-            props.SetProperty("preload", "true");
-        } 
-        else if (strcmp(argv[argindex], "run") == 0) {
-            argindex++;
-            props.SetProperty("preload", "false");
-        }
-        else if (strcmp(argv[argindex], "-P") == 0) {
+        if (strcmp(argv[argindex], "-P") == 0) {
             argindex++;
             if (argindex >= argc) {
                 UsageMessage(argv[0]);
@@ -80,7 +72,7 @@ int main(const int argc, const char *argv[]) {
     ParseCommandLine(argc, argv, props);
 
     const string filename = props.GetProperty("dataset_file", "");
-    const int recordcount = stoi(props.GetProperty("recordcount", "1000"));
+    const int recordcount = stoi(props.GetProperty("recordcount", "1000")); 
     const int operationcount = stoi(props.GetProperty("operationcount", "0"));
     const float insert_ratio = stof(props.GetProperty(CoreWorkload::INSERT_PROPORTION_PROPERTY, "0"));
 
@@ -89,47 +81,37 @@ int main(const int argc, const char *argv[]) {
 
     wl.Init(props);
 
-    if(props.GetProperty("preload", "true") == "true") {
-        // do loading
-        for (int i = 0; i < operationcount; ++i) {
-            std::string key = wl.NextSequenceKey();
-            std::vector<ycsbc::KVPair> pairs;
-            db.Insert(key, pairs);
-        }
-    } else {
-        // do transactions
-        std::string key;
-        std::vector<KVPair> result;
-        std::vector<KVPair> values;
-        std::vector<std::vector<KVPair>> scanresult;
-        int len;
-        for(int i = 0; i < operationcount; i++) {
-            switch(wl.NextOperation()) {
-                case READ:
-                    key = wl.NextTransactionKey();
-                    db.Read(key, result);
-                    break;
-                case UPDATE:
-                    key = wl.NextTransactionKey();
-                    db.Update(key, values);
-                    break;
-                case INSERT:
-                    key = wl.NextSequenceKey();
-                    db.Insert(key, values);
-                    break;
-                case SCAN:
-                    key = wl.NextTransactionKey();
-                    len = wl.NextScanLength();
-                    db.Scan(key, len, scanresult);
-                    break;
-                case READMODIFYWRITE:
-                    key = wl.NextTransactionKey();
-                    db.Read(key, result);
-                    db.Update(key, values);
-                    break;
-                default:
-                    throw utils::Exception("Operation request is not recognized!");
-            }
+    std::string key;
+    std::vector<KVPair> result;
+    std::vector<KVPair> values;
+    std::vector<std::vector<KVPair>> scanresult;
+    int len;
+    for(int i = 0; i < operationcount; i++) {
+        switch(wl.NextOperation()) {
+            case READ:
+                key = wl.NextTransactionKey();
+                db.Read(key, result);
+                break;
+            case UPDATE:
+                key = wl.NextTransactionKey();
+                db.Update(key, values);
+                break;
+            case INSERT:
+                key = wl.NextSequenceKey();
+                db.Insert(key, values);
+                break;
+            case SCAN:
+                key = wl.NextTransactionKey();
+                len = wl.NextScanLength();
+                db.Scan(key, len, scanresult);
+                break;
+            case READMODIFYWRITE:
+                key = wl.NextTransactionKey();
+                db.Read(key, result);
+                db.Update(key, values);
+                break;
+            default:
+                throw utils::Exception("Operation request is not recognized!");
         }
     }
 }

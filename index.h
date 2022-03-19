@@ -20,6 +20,8 @@ class Index
     virtual uint64_t scan(KeyType key, int range) = 0;
 
     virtual int64_t getMemory() const = 0;
+    
+    virtual void bulkload(std::pair<KeyType, uint64_t> * recs, int len) = 0;
 
     // Destructor must also be virtual
     virtual ~Index() {}
@@ -59,6 +61,10 @@ public:
 
     uint64_t scan(KeyType key, int range) {
         return 0;
+    }
+
+    void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
+        idx->bulk_load(recs, len);
     }
 
     int64_t getMemory() const {return 0;}
@@ -104,6 +110,10 @@ public:
         return 0;
     }
 
+    void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
+        return;
+    }
+
     int64_t getMemory() const {return 0;}
     
 private:
@@ -142,6 +152,10 @@ public:
 
     uint64_t scan(KeyType key, int range) {
         return 0;
+    }
+
+    void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
+        return;
     }
 
     int64_t getMemory() const {return 0;}
@@ -219,6 +233,10 @@ class ArtOLCIndex : public Index<KeyType, KeyComparator>
   int64_t getMemory() const {
     return 0;
   }
+
+    void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
+        return;
+    }
 
   void merge() {
   }

@@ -22,7 +22,6 @@ include_directories(${CMAKE_SOURCE_DIR}/morphtree)
 # link options must be prior to adding sub directories
 add_link_options(-pthread)
 link_libraries(/usr/local/lib/libtbb.so)
-#add_compile_options(-g -fmax-errors=5)
 
 #======= add sub directories =======
 add_subdirectory(ALEX)

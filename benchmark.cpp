@@ -6,7 +6,7 @@
 #include "utils.h"
 #include "index.h"
 
-typedef uint64_t keytype;
+typedef uint64_t KeyType;
 typedef std::less<uint64_t> keycomp;
 
 static const uint64_t value_type=1; // 0 = random pointers, 1 = pointers to keys
@@ -14,7 +14,7 @@ static const uint64_t value_type=1; // 0 = random pointers, 1 = pointers to keys
 static bool insert_only = false;
 
 template <typename Fn, typename... Args>
-void StartThreads(Index<keytype, keycomp> *tree_p,
+void StartThreads(Index<KeyType, keycomp> *tree_p,
                   uint64_t num_threads,
                   Fn &&fn,
                   Args &&...args) {
@@ -39,14 +39,16 @@ void StartThreads(Index<keytype, keycomp> *tree_p,
 //==============================================================
 // LOAD
 //==============================================================
-inline void load(std::vector<keytype> &init_keys, 
-                 std::vector<keytype> &keys, 
+inline void load(std::vector<KeyType> &init_keys, 
+                 std::vector<KeyType> &keys, 
                  std::vector<uint64_t> &values, 
                  std::vector<int> &ranges, 
                  std::vector<int> &ops) {
   std::string init_file;
   std::string txn_file;
 
+  // init_file = "build/dataset.dat";
+  // txn_file = "build/query.dat";
   init_file = "../build/dataset.dat";
   txn_file = "../build/query.dat";
 
@@ -58,7 +60,7 @@ inline void load(std::vector<keytype> &init_keys,
 
   std::string op;
   std::string val;
-  keytype key;
+  KeyType key;
   int range;
 
   std::string insert("INSERT");
@@ -80,7 +82,7 @@ inline void load(std::vector<keytype> &init_keys,
     count++;
   }
   
-  fprintf(stderr, "Loaded %d keys\n", count);
+  fprintf(stderr, "Loaded %lu keys\n", count);
 
   count = 0;
   uint64_t value = 0;
@@ -88,7 +90,7 @@ inline void load(std::vector<keytype> &init_keys,
   uint64_t base = (uint64_t)(base_ptr);
   free(base_ptr);
 
-  keytype *init_keys_data = init_keys.data();
+  KeyType *init_keys_data = init_keys.data();
 
   if (value_type == 0) {
     while (count < init_keys.size()) {
@@ -159,23 +161,45 @@ inline void load(std::vector<keytype> &init_keys,
 //==============================================================
 inline void exec(int index_type, 
                  int num_thread,
-                 std::vector<keytype> &init_keys, 
-                 std::vector<keytype> &keys, 
+                 std::vector<KeyType> &init_keys, 
+                 std::vector<KeyType> &keys, 
                  std::vector<uint64_t> &values, 
                  std::vector<int> &ranges, 
                  std::vector<int> &ops) {
 
-  Index<keytype, keycomp> *idx = getInstance<keytype, keycomp>(index_type);
+  Index<KeyType, keycomp> *idx = getInstance<KeyType, keycomp>(index_type);
 
   //WRITE ONLY TEST-----------------
-  int count = (int)init_keys.size();
+  size_t count = init_keys.size();
+  size_t bulkload_size = 0;
   //fprintf(stderr, "Populating the index with %d keys using %d threads\n", count, num_thread);
 
-  auto func = [idx, &init_keys, num_thread, &values, index_type] \
+  if (index_type == TYPE_ALEX) {
+    bulkload_size = count / 4;
+    std::pair<KeyType, uint64_t> *recs;
+    recs = new std::pair<KeyType, uint64_t>[bulkload_size];
+
+    // sort the keys
+    std::vector<KeyType> bulk_keys;
+    for(int i = 0; i < bulkload_size; i++) {
+      bulk_keys.push_back(init_keys[i]);
+    }
+    std::sort(bulk_keys.begin(), bulk_keys.end());
+    
+    // generate records
+    for (int i = 0; i < bulkload_size; i++) {
+      recs[i] = {bulk_keys[i], values[i]};
+    }
+
+    idx->bulkload(recs, bulkload_size);
+    delete recs;
+  }
+
+  auto func = [idx, &init_keys, num_thread, &values, bulkload_size] \
               (uint64_t thread_id, bool) {
-    size_t total_num_key = init_keys.size();
+    size_t total_num_key = init_keys.size() - bulkload_size;
     size_t key_per_thread = total_num_key / num_thread;
-    size_t start_index = key_per_thread * thread_id;
+    size_t start_index = bulkload_size + key_per_thread * thread_id;
     size_t end_index = start_index + key_per_thread;
 #ifdef INTERLEAVED_INSERT
     for(size_t i = thread_id;i < total_num_key; i += num_thread) {
@@ -191,7 +215,7 @@ inline void exec(int index_type,
   StartThreads(idx, num_thread, func, false);
   double end_time = get_now();
   
-  double tput = count / (end_time - start_time) / 1000000; //Mops/sec
+  double tput = (count - bulkload_size) / (end_time - start_time) / 1000000; //Mops/sec
   std::cout << "insert " << tput << "Mops/s" << "\n";
 
   // If we do not perform other transactions, we can skip txn file
@@ -201,11 +225,6 @@ inline void exec(int index_type,
 
   //READ/UPDATE/SCAN TEST----------------
   int txn_num = ops.size();
-
-  if(values.size() < keys.size()) {
-    fprintf(stderr, "Values array too small\n");
-    exit(1);
-  }
 
   //fprintf(stderr, "# of Txn: %d\n", txn_num);
 
@@ -233,7 +252,7 @@ inline void exec(int index_type,
     for(size_t i = start_index;i < end_index;i++) {
       int op = ops[i];
       if (op == OP_INSERT) { //INSERT
-        idx->insert(keys[i], values[i]);
+        idx->insert(keys[i], uint64_t(keys[i]));
       } else if (op == OP_READ) { //READ
         idx->find(keys[i], &v);
       } else if (op == OP_UPSERT) { //UPDATE
@@ -256,7 +275,7 @@ inline void exec(int index_type,
 }
 
 int main(int argc, char *argv[]) {
-  if (argc < 2) {
+  if (argc == 1) {
     std::cout << "Usage:\n";
     std::cout << "1. index type: alex artolc hydralist\n";
     std::cout << "2. number of threads (integer)\n";
@@ -277,33 +296,13 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
-  // Then read number of threads using command line
-  int num_thread = atoi(argv[2]);
-  if(num_thread < 1 || num_thread > 500) {
-    fprintf(stderr, "Do not support %d threads\n", num_thread);
-    exit(1);
-  } 
-  // else {
-  //   fprintf(stderr, "Number of threads: %d\n", num_thread);
-  // }
-
-  // Then read all remianing arguments
-  char **argv_end = argv + argc;
-  for(char **v = argv + 3;v != argv_end;v++) {
-    if(strcmp(*v, "--insert-only") == 0) {
-      insert_only = true;
-    } else {
-      fprintf(stderr, "Unknown switch: %s\n", *v);
-      exit(1);
-    }
+  int num_thread = 1;
+  if(argc >= 3 && atoi(argv[2]) >= 1) {
+    num_thread = atoi(argv[2]);
   }
 
-  if(insert_only == true) {
-    fprintf(stderr, "Program will exit after insert operation\n");
-  }
-
-  std::vector<keytype> init_keys;
-  std::vector<keytype> keys;
+  std::vector<KeyType> init_keys;
+  std::vector<KeyType> keys;
   std::vector<uint64_t> values;
   std::vector<int> ranges;
   std::vector<int> ops; //INSERT = 0, READ = 1, UPDATE = 2, SCAN = 3
@@ -314,8 +313,8 @@ int main(int argc, char *argv[]) {
   ranges.reserve(10000000);
   ops.reserve(10000000);
 
-  memset(&init_keys[0], 0x00, 100000000 * sizeof(keytype));
-  memset(&keys[0], 0x00, 10000000 * sizeof(keytype));
+  memset(&init_keys[0], 0x00, 100000000 * sizeof(KeyType));
+  memset(&keys[0], 0x00, 10000000 * sizeof(KeyType));
   memset(&values[0], 0x00, 10000000 * sizeof(uint64_t));
   memset(&ranges[0], 0x00, 10000000 * sizeof(int));
   memset(&ops[0], 0x00, 10000000 * sizeof(int));

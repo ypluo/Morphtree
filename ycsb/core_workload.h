@@ -24,7 +24,7 @@
 namespace ycsbc {
 
 typedef uint64_t _key_t;
-const uint64_t KEYSET_SCALE_DEFAULT = 1 * 1024 * 1024;
+const uint64_t KEYSET_SCALE_DEFAULT = 16 * 1024 * 1024;
 
 enum Operation {
   INSERT,
@@ -90,8 +90,8 @@ class CoreWorkload {
   static const std::string SCAN_LENGTH_DISTRIBUTION_PROPERTY;
   static const std::string SCAN_LENGTH_DISTRIBUTION_DEFAULT;
   
-  static const std::string RECORD_COUNT_PROPERTY;
-  static const std::string OPERATION_COUNT_PROPERTY;
+  static const std::string RECORD_COUNT_PROPERTY;    // the number of data records that are populated already 
+  static const std::string OPERATION_COUNT_PROPERTY; // the operation number of transactions to query against db
 
   ///
   /// Initialize the scenario.
@@ -104,7 +104,7 @@ class CoreWorkload {
   virtual Operation NextOperation() { return op_chooser_.Next(); }
   virtual size_t NextScanLength() { return scan_len_chooser_->Next(); }
 
-  CoreWorkload(std::string filename, uint64_t max_key_num = UINT64_MAX) :
+  CoreWorkload(std::string filename, uint64_t max_key_num = (uint64_t)128 * 1024 * 1024) :
     key_generator_(NULL), key_chooser_(NULL), 
     scan_len_chooser_(NULL), insert_key_sequence_(3),
     record_count_(0), filename_(filename) {

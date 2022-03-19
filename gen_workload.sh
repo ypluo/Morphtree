@@ -11,12 +11,12 @@ fi
 eval set -- "$ARGS"
 
 # default workload specifications
-RECORD=1000000
-OPERATION=1000000
+RECORD=4000000
+OPERATION=4000000
 READ=1
 WRITE=0
 DIST=uniform
-KEYSET=../datasets/lognormal_u64.dat
+KEYSET=../datasets/normal_u64.dat
 
 # parse options
 while true ; do
@@ -26,7 +26,7 @@ while true ; do
         -r|--read_ratio)        READ=$2;      shift 2 ;;
         -w|--write_ratio)       WRITE=$2;     shift 2 ;;
         -d|--distribution)      DIST=$2;      shift 2 ;;
-        -k|--keyset)            KEYSET=$2     shift 2 ;;
+        -k|--keyset)            KEYSET=$2;     shift 2 ;;
         --) shift ; break ;;
         *) echo "Internal error!" ; exit 1 ;;
     esac
@@ -44,7 +44,7 @@ echo "scanproportion=0"              >> workload.spec
 echo "insertproportion=1"            >> workload.spec
 echo "requestdistribution=${DIST}"   >> workload.spec
 echo "skewness=0.9"                  >> workload.spec
-${YCSB_BIN} load -P workload.spec -F ${KEYSET} > ${BINARY_DIR}/dataset.dat
+${YCSB_BIN} -P workload.spec -F ${KEYSET} > ${BINARY_DIR}/dataset.dat
 
 # generate workload
 echo "recordcount=${RECORD}"         > workload.spec
@@ -55,4 +55,4 @@ echo "scanproportion=0"              >> workload.spec
 echo "insertproportion=${WRITE}"     >> workload.spec
 echo "requestdistribution=${DIST}"   >> workload.spec
 echo "skewness=0.9"                  >> workload.spec
-${YCSB_BIN} run -P workload.spec -F ${KEYSET} > ${BINARY_DIR}/query.dat
+${YCSB_BIN} -P workload.spec -F ${KEYSET} > ${BINARY_DIR}/query.dat

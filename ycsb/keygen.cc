@@ -19,8 +19,9 @@ using std::ofstream;
 
 void gen_keyset(uint64_t *arr, uint64_t scale, bool uniform) {
     if(uniform) {
+        uint64_t step = UINT64_MAX / scale / 2;
         for(uint64_t i = 0; i < scale; i++) {
-            arr[i] = i + 1;
+            arr[i] = i * step + 1;
         }
     } else {
         std::mt19937 gen(utils::rand());
@@ -48,13 +49,13 @@ int main(int argc, char ** argv) {
     }
 
     uint64_t * arr = new uint64_t[scale];
-    if(!utils::file_exist("keyset.dat")) {
-        remove("keyset.dat");
+    if(!utils::file_exist("../datasets/keyset.dat")) {
+        remove("../datasets/keyset.dat");
     }
     // generate a ordered keyset
     gen_keyset(arr, scale, opt_uniform);
     // output the keyset into ascii-encoded file
-    ofstream fout("keyset.dat");
+    ofstream fout("../datasets/keyset.dat");
     for(int i = 0; i < scale; i++) {
         fout << arr[i] << endl;
     }
