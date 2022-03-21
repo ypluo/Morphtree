@@ -220,9 +220,9 @@ void WOLeaf::Print(string prefix) {
     Dump(out);
 
     printf("%s(%d)[", prefix.c_str(), node_type);
-    for(int i = 0; i < out.size(); i++) {
-        printf("%lu, ", out[i].key);
-    }
+    // for(int i = 0; i < out.size(); i++) {
+    //     printf("%lu, ", out[i].key);
+    // }
     printf("]\n");
 }
 

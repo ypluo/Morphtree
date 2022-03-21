@@ -49,6 +49,9 @@ const string CoreWorkload::SCAN_LENGTH_DISTRIBUTION_DEFAULT = "uniform";
 const string CoreWorkload::RECORD_COUNT_PROPERTY = "recordcount";
 const string CoreWorkload::OPERATION_COUNT_PROPERTY = "operationcount";
 
+const string CoreWorkload::INSERT_START_PROPERTY = "insertstart";
+const string CoreWorkload::INSERT_START_DEFAULT = "0";
+
 void CoreWorkload::Init(const utils::Properties &p) {
   double read_proportion = std::stod(p.GetProperty(READ_PROPORTION_PROPERTY,
                                                    READ_PROPORTION_DEFAULT));
@@ -62,6 +65,10 @@ void CoreWorkload::Init(const utils::Properties &p) {
       READMODIFYWRITE_PROPORTION_PROPERTY, READMODIFYWRITE_PROPORTION_DEFAULT));
   
   record_count_ = std::stoi(p.GetProperty(RECORD_COUNT_PROPERTY));
+
+  int insert_start = std::stoi(p.GetProperty(INSERT_START_PROPERTY,
+                                                INSERT_START_DEFAULT));
+
   std::string request_dist = p.GetProperty(REQUEST_DISTRIBUTION_PROPERTY,
                                            REQUEST_DISTRIBUTION_DEFAULT);
   
@@ -72,12 +79,9 @@ void CoreWorkload::Init(const utils::Properties &p) {
                                              MAX_SCAN_LENGTH_DEFAULT));
   std::string scan_len_dist = p.GetProperty(SCAN_LENGTH_DISTRIBUTION_PROPERTY,
                                             SCAN_LENGTH_DISTRIBUTION_DEFAULT);
-  
-  // int insert_start = std::stoi(p.GetProperty(INSERT_START_PROPERTY,
-  //                                            INSERT_START_DEFAULT));
 
-  key_generator_ = new CounterGenerator(record_count_);
-  insert_key_sequence_.Set(std::max((size_t)3, record_count_));
+  key_generator_ = new CounterGenerator(insert_start);
+  insert_key_sequence_.Set(std::max(3, insert_start));
 
   op_chooser_.Clear(); // before initializing each portion
   if (read_proportion > 0) {
@@ -97,7 +101,7 @@ void CoreWorkload::Init(const utils::Properties &p) {
   }
 
   if (request_dist == "uniform") {
-    key_chooser_ = new UniformGenerator(0, record_count_ - 1);
+    key_chooser_ = new UniformGenerator(0, insert_start + record_count_ - 1);
   } else if (request_dist == "zipfian") {
     // If the number of keys changes, we don't want to change popular keys.
     // So we construct the scrambled zipfian generator with a keyspace
@@ -106,7 +110,7 @@ void CoreWorkload::Init(const utils::Properties &p) {
     // and pick another key.
     int op_count = std::stoi(p.GetProperty(OPERATION_COUNT_PROPERTY));
     int new_keys = (int)(op_count * insert_proportion * 2); // a fudge factor
-    key_chooser_ = new ScrambledZipfianGenerator(record_count_ + new_keys, zipfian_skewness);
+    key_chooser_ = new ScrambledZipfianGenerator(insert_start + record_count_ + new_keys, zipfian_skewness);
   } else if (request_dist == "latest") {
     key_chooser_ = new SkewedLatestGenerator(insert_key_sequence_, zipfian_skewness);
   } else {

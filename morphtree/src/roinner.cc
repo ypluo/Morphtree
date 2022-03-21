@@ -35,14 +35,12 @@ struct OFNode {
     }
 };
 
-ROInner::ROInner() {
+ROInner::ROInner(Record * recs_in, int num, int expand) {
     node_type = NodeType::ROINNER;
     count = 0;
     of_count= 0;
     recs = nullptr;
-}
 
-ROInner::ROInner(Record * recs_in, int num, int expand) : ROInner() {
     LinearModelBuilder model;
     for(int i = 0; i < num; i++) {
         model.add(recs_in[i].key, MARGIN + i);
@@ -135,12 +133,12 @@ ROInner::~ROInner() {
             OFNode * ofnode = (OFNode *) recs[i].val;
             for(int i = 0; i < ofnode->len; i++) {
                 BaseNode * child = (BaseNode *)ofnode->recs_[i].val;
-                free_child(child);
+                child->DeleteNode();
             }
             delete ofnode;
         } else if(recs[i].key != MAX_KEY) {
             BaseNode * child = (BaseNode *)recs[i].val;
-            free_child(child);
+            child->DeleteNode();
         }
     }
 
@@ -148,8 +146,12 @@ ROInner::~ROInner() {
 }
 
 void ROInner::Print(string prefix) {
-    printf("%s[", prefix.c_str());
+    printf("%s[(%d)", prefix.c_str(), of_count);
     for(int i = 0; i < capacity; i++) {
+        if(i % PROBE_SIZE == 0) {
+            printf("||");
+        }
+
         if(i % PROBE_SIZE == PROBE_SIZE - 1 && recs[i].val != nullptr) {
             OFNode * ofnode = (OFNode *) recs[i].val;
             for(int i = 0; i < ofnode->len; i++) {
@@ -304,7 +306,7 @@ void ROInner::Expand(_key_t k, _val_t v) {
         records.push_back(Record(k, v));
     }
 
-    ROInner * new_inner = new ROInner(records.data(), count + 1, 6);
+    ROInner * new_inner = new ROInner(records.data(), count + 1, 4);
     SwapNode(this, new_inner);
 
     new_inner->Clear();

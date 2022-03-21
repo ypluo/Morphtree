@@ -19,7 +19,7 @@ class Index
 
     virtual uint64_t scan(KeyType key, int range) = 0;
 
-    virtual int64_t getMemory() const = 0;
+    virtual int64_t printTree() const = 0;
     
     virtual void bulkload(std::pair<KeyType, uint64_t> * recs, int len) = 0;
 
@@ -67,7 +67,7 @@ public:
         idx->bulk_load(recs, len);
     }
 
-    int64_t getMemory() const {return 0;}
+    int64_t printTree() const {return 0;}
 
 private:
     alex::Alex<KeyType, uint64_t> * idx;
@@ -114,7 +114,7 @@ public:
         return;
     }
 
-    int64_t getMemory() const {return 0;}
+    int64_t printTree() const {return 0;}
     
 private:
     stx::btree<KeyType, uint64_t> * idx;
@@ -158,7 +158,7 @@ public:
         return;
     }
 
-    int64_t getMemory() const {return 0;}
+    int64_t printTree() const {return 0;}
     
 private:
     morphtree::MorphtreeImpl<morphtree::NodeType::WOLEAF, false> * idx;
@@ -201,7 +201,10 @@ public:
         return;
     }
 
-    int64_t getMemory() const {return 0;}
+    int64_t printTree() const {
+        idx->Print();
+        return 0;
+    }
     
 private:
     morphtree::MorphtreeImpl<morphtree::NodeType::ROLEAF, false> * idx;
@@ -245,7 +248,10 @@ public:
         return;
     }
 
-    int64_t getMemory() const {return 0;}
+    int64_t printTree() const {
+        idx->Print();
+        return 0;
+    }
     
 private:
     morphtree::MorphtreeImpl<morphtree::NodeType::WOLEAF, true> * idx;
@@ -317,7 +323,7 @@ class ArtOLCIndex : public Index<KeyType, KeyComparator>
     return resultCount;
   }
 
-  int64_t getMemory() const {
+  int64_t printTree() const {
     return 0;
   }
 

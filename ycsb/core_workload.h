@@ -23,8 +23,9 @@
 
 namespace ycsbc {
 
+#define DEBUG 
 typedef uint64_t _key_t;
-const uint64_t KEYSET_SCALE_DEFAULT = 128 * 1024 * 1024;
+const uint64_t KEYSET_SCALE_DEFAULT = (uint64_t) 128 * 1024 * 1024;
 
 enum Operation {
   INSERT,
@@ -93,6 +94,9 @@ class CoreWorkload {
   static const std::string RECORD_COUNT_PROPERTY;    // the number of data records that are populated already 
   static const std::string OPERATION_COUNT_PROPERTY; // the operation number of transactions to query against db
 
+  static const std::string INSERT_START_PROPERTY;
+  static const std::string INSERT_START_DEFAULT;
+
   ///
   /// Initialize the scenario.
   /// Called once, in the main client thread, before any operations are started.
@@ -104,10 +108,10 @@ class CoreWorkload {
   virtual Operation NextOperation() { return op_chooser_.Next(); }
   virtual size_t NextScanLength() { return scan_len_chooser_->Next(); }
 
-  CoreWorkload(std::string filename, uint64_t max_key_num = (uint64_t)128 * 1024 * 1024) :
+  CoreWorkload(std::string filename, uint64_t max_key_num = KEYSET_SCALE_DEFAULT) :
     key_generator_(NULL), key_chooser_(NULL), 
     scan_len_chooser_(NULL), insert_key_sequence_(3),
-    record_count_(0), filename_(filename) {
+    record_count_(0) {
       if(filename == "") {
         from_file_ = false;
       } else {
@@ -116,7 +120,7 @@ class CoreWorkload {
           from_file_ = true;
           // read keys from file
           keys_.reserve(max_key_num);
-          std::ifstream infile_load(filename_.c_str());
+          std::ifstream infile_load(filename.c_str());
           max_seq_id_ = 0;
           _key_t key;
           while (true) {
@@ -147,7 +151,6 @@ class CoreWorkload {
   CounterGenerator insert_key_sequence_;
   size_t record_count_;
   bool from_file_;
-  std::string filename_;
   uint64_t max_seq_id_;
   std::vector<_key_t> keys_;
 };

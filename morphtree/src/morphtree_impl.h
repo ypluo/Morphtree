@@ -35,7 +35,7 @@ template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::MorphtreeImpl() {
     switch(INIT_LEAF_TYPE) {
     case NodeType::ROLEAF:
-        root_ = new RWLeaf(); // TODO
+        root_ = new ROLeaf(); // TODO
         break;
     case NodeType::RWLEAF:
         root_ = new RWLeaf();

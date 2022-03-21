@@ -11,11 +11,11 @@ fi
 eval set -- "$ARGS"
 
 # default workload specifications
-RECORD=100000
-OPERATION=100000
+RECORD=2000000
+OPERATION=2000000
 READ=1
 WRITE=0
-DIST=uniform
+DIST=zipfian
 KEYSET=../datasets/normal_u64.dat
 
 # parse options
@@ -32,21 +32,7 @@ while true ; do
     esac
 done
 
-BINARY_DIR=.
-YCSB_BIN=${BINARY_DIR}/ycsb/ycsbc
-
-# generate datatset
-echo "recordcount=0"                 > workload.spec
-echo "operationcount=${RECORD}"      >> workload.spec
-echo "readproportion=0"              >> workload.spec
-echo "updateproportion=0"            >> workload.spec
-echo "scanproportion=0"              >> workload.spec
-echo "insertproportion=1"            >> workload.spec
-echo "requestdistribution=${DIST}"   >> workload.spec
-echo "skewness=0.8"                  >> workload.spec
-${YCSB_BIN} -P workload.spec -F ${KEYSET} > ${BINARY_DIR}/dataset.dat
-
-# generate workload
+# generate workload specific file
 echo "recordcount=${RECORD}"         > workload.spec
 echo "operationcount=${OPERATION}"   >> workload.spec
 echo "readproportion=${READ}"        >> workload.spec
@@ -54,5 +40,6 @@ echo "updateproportion=0"            >> workload.spec
 echo "scanproportion=0"              >> workload.spec
 echo "insertproportion=${WRITE}"     >> workload.spec
 echo "requestdistribution=${DIST}"   >> workload.spec
-echo "skewness=0.8"                  >> workload.spec
-${YCSB_BIN} -P workload.spec -F ${KEYSET} > ${BINARY_DIR}/query.dat
+
+# generate dataset and workload
+./ycsb/ycsbc -P workload.spec -F ${KEYSET} > query.dat

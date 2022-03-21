@@ -56,9 +56,22 @@ struct OFNode {
     }
 };
 
-ROLeaf::ROLeaf(Record * recs_in, int num) {
+ROLeaf::ROLeaf() {
     node_type = ROLEAF;
     stats = ROSTATS;
+    of_count = 0;
+    count = 0;
+
+    slope = (double)(NODE_SIZE - 1) / MAX_KEY;
+    intercept = 0;
+    recs = new Record[NODE_SIZE];
+}
+
+ROLeaf::ROLeaf(Record * recs_in, int num){
+    node_type = ROLEAF;
+    stats = ROSTATS;
+    of_count = 0;
+    count = 0;
 
     LinearModelBuilder model;
     for(int i = 0; i < num; i++) {
@@ -70,9 +83,6 @@ ROLeaf::ROLeaf(Record * recs_in, int num) {
     slope = model.a_ * NODE_SIZE / (2 * MARGIN + num);
     intercept = model.b_ * NODE_SIZE / (2 * MARGIN + num);
     recs = new Record[NODE_SIZE];
-    
-    of_count = 0;
-    count = 0;
 
     for(int i = 0; i < num; i++) {
         this->Store(recs_in[i].key, recs_in[i].val, nullptr, nullptr);
@@ -193,10 +203,10 @@ void ROLeaf::Print(string prefix) {
     std::vector<Record> out;
     Dump(out);
 
-    printf("%s[", prefix.c_str());
-    for(int i = 0; i < out.size(); i++) {
-        printf("%lu, ", out[i].key);
-    }
+    printf("%s(%d)[(%f)", prefix.c_str(), node_type, (float)of_count / count);
+    // for(int i = 0; i < out.size(); i++) {
+    //     printf("%lu, ", out[i].key);
+    // }
     printf("]\n");
 }
 

@@ -218,6 +218,7 @@ inline void exec(int index_type,
 
   // If we do not perform other transactions, we can skip txn file
   if(insert_only == true) {
+    idx->printTree();
     return;
   }
 
@@ -309,15 +310,15 @@ int main(int argc, char *argv[]) {
   std::vector<int> ranges;
   std::vector<int> ops; //INSERT = 0, READ = 1, UPDATE = 2, SCAN = 3
 
-  init_keys.reserve(100000000);
-  keys.reserve(10000000);
-  values.reserve(10000000);
+  init_keys.reserve(40000000);
+  keys.reserve(40000000);
+  values.reserve(40000000);
   ranges.reserve(10000000);
   ops.reserve(10000000);
 
-  memset(&init_keys[0], 0x00, 100000000 * sizeof(KeyType));
-  memset(&keys[0], 0x00, 10000000 * sizeof(KeyType));
-  memset(&values[0], 0x00, 10000000 * sizeof(uint64_t));
+  memset(&init_keys[0], 0x00, 40000000 * sizeof(KeyType));
+  memset(&keys[0], 0x00, 40000000 * sizeof(KeyType));
+  memset(&values[0], 0x00, 40000000 * sizeof(uint64_t));
   memset(&ranges[0], 0x00, 10000000 * sizeof(int));
   memset(&ops[0], 0x00, 10000000 * sizeof(int));
 

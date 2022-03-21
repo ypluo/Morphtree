@@ -12,45 +12,60 @@
 #ifndef YCSB_C_BASIC_DB_H_
 #define YCSB_C_BASIC_DB_H_
 
-#include <iostream>
+#include <fstream>
 #include <string>
 #include <vector>
+#include <cassert>
 
-using std::cout;
+using std::string;
+using std::ofstream;
 using std::endl;
 
 namespace ycsbc {
 
 typedef std::pair<std::string, std::string> KVPair;
 
-class BasicDB{
+class BasicDB {
+ public:
+    BasicDB(const string & filename) {
+      fout.open(filename.c_str(), std::ios::out);
+      assert(fout.good());
+    }
+
+    ~BasicDB() {
+      fout.close();
+    }
+
  public:
   int Read(const std::string &key, std::vector<KVPair> &result) {
-    cout << "READ " << key << endl;
+    fout << "READ " << key << endl;
     return 0;
   }
 
   int Scan(const std::string &key, int len, std::vector<std::vector<KVPair>> &result) {
-    cout << "SCAN " << key << " " << len << endl;
+    fout << "SCAN " << key << " " << len << endl;
     return 0;
   }
 
   int Update(const std::string &key,
              std::vector<KVPair> &values) {
-    cout << "UPDATE " << key << " " << endl;
+    fout << "UPDATE " << key << " " << endl;
     return 0;
   }
 
   int Insert(const std::string &key,
              std::vector<KVPair> &values) {
-    cout << "INSERT " << key << endl;
+    fout << "INSERT " << key << endl;
     return 0;
   }
 
   int Delete(const std::string &key) {
-    cout << "DELETE " << key << endl;
+    fout << "DELETE " << key << endl;
     return 0; 
   }
+
+private:
+  ofstream fout;
 };
 
 } // ycsbc

@@ -83,27 +83,25 @@ int main(int argc, const char *argv[]) {
     props.SetProperty(CoreWorkload::INSERT_PROPORTION_PROPERTY, to_string(0));
     props.SetProperty(CoreWorkload::UPDATE_PROPORTION_PROPERTY, to_string(0));
     props.SetProperty(CoreWorkload::SCAN_PROPORTION_PROPERTY, to_string(0));
-    props.SetProperty(CoreWorkload::REQUEST_DISTRIBUTION_PROPERTY, "zipfian");
-    props.SetProperty(CoreWorkload::ZIPFIAN_SKEWNESS_PROPERTY, to_string(0.8));
-
     ParseCommandLine(argc, argv, props);
 
     // for each stage, generate a piece of workloads
     const string filename = props.GetProperty("dataset_file", "");
     int stage_count = stoi(props.GetProperty("stage_count", "6"));
     int stage_width = stoi(props.GetProperty("stage_width", "1000"));
-    int initial_record_count = 1000000;
-    int max_record_count = initial_record_count + (stage_count * stage_width) / 2;
+    int insert_start = 1000000;
+    int max_record_count = insert_start + (stage_count * stage_width) / 2;
 
     // basic workload and basic db
     ycsbc::CoreWorkload wl(filename, max_record_count);
-    ycsbc::BasicDB db;
+    ycsbc::BasicDB db("query.dat");
 
     for(int i = 0; i < stage_count; i++) { 
         // change the read and write properties
         float read_portion = 1.0 / (stage_count - 1) * i;
         float write_portion = 1 - read_portion;
-        props.SetProperty(CoreWorkload::RECORD_COUNT_PROPERTY, to_string(initial_record_count));
+        props.SetProperty(CoreWorkload::INSERT_START_PROPERTY, to_string(insert_start));
+        props.SetProperty(CoreWorkload::RECORD_COUNT_PROPERTY, to_string(0));
         props.SetProperty(CoreWorkload::OPERATION_COUNT_PROPERTY, to_string(stage_width));
         props.SetProperty(CoreWorkload::READ_PROPORTION_PROPERTY, to_string(read_portion));
         props.SetProperty(CoreWorkload::INSERT_PROPORTION_PROPERTY, to_string(write_portion));
@@ -113,8 +111,6 @@ int main(int argc, const char *argv[]) {
         Stage(wl, db, stage_width);
 
         // update inital_record_count
-        initial_record_count += stage_width * write_portion;
-        printf("\n\n");
-        //printf("----------------------------------------------------\n\n");
+        insert_start += stage_width * write_portion;
     }
 }

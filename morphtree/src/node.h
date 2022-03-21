@@ -23,7 +23,7 @@ const uint64_t ROSTATS = 0x0000000000000000; // default statistic of RONode
 const uint64_t RWSTATS = 0x5555555555555555; // default statistic of RWNode
 const uint64_t WOSTATS = 0xFFFFFFFFFFFFFFFF; // default statistic of WONode
 const int GLOBAL_LEAF_SIZE    = 4096;    // the maximum node size of a leaf node
-const int MORPH_FREQ          = 8;      // FREQ must be power of 2
+const int MORPH_FREQ          = 4;      // FREQ must be power of 2
 const uint8_t RO_RW_LINE      = 40;     // read times that distinguishs RONode and RWNode
 const uint8_t RW_WO_LINE      = 16;     // read times that distinguishs RWNode and WONode
 
@@ -31,7 +31,9 @@ const uint8_t RW_WO_LINE      = 16;     // read times that distinguishs RWNode a
 // as it brings extra overhead of searching virtual table
 class BaseNode {
 public:
-    BaseNode() { stats = RWSTATS; }
+    BaseNode() = default;
+    
+    void DeleteNode();
 
 public:
     bool Store(_key_t k, _val_t v, _key_t * split_key, BaseNode ** split_node);
@@ -55,7 +57,7 @@ public:
 // Node structure with high read performance
 class ROInner : public BaseNode {
 public:
-    ROInner();
+    ROInner() = delete;
 
     ROInner(Record * recs_in, int num, int expand = 3);
 
@@ -81,14 +83,14 @@ private:
     }
 
     inline bool ShouldExpand() {
-        // fill factor > 0.5 or 
-        // fill factor < 0.5 but count < MUST_EXPAND_COUNT or
-        // count > MUST_EXPAND_COUNT but fill factor > 0.25
-        return count > (capacity >> 1) || count < MUST_EXPAND_COUNT || count > (capacity >> 2);
+        // fill factor > 0.25 or 
+        // fill factor < 0.25 but count < MUST_EXPAND_COUNT or
+        // count > MUST_EXPAND_COUNT but fill factor > 0.125
+        return count > (capacity >> 2) || count < MUST_EXPAND_COUNT || count > (capacity >> 3);
     }
     
 public:
-    static const int MUST_EXPAND_COUNT = 256;
+    static const int MUST_EXPAND_COUNT = 512;
     static const int PROBE_SIZE        = 8;
 
     int32_t capacity;
@@ -107,7 +109,7 @@ public:
 // Node structure with high read performance
 class ROLeaf : public BaseNode {
 public:
-    ROLeaf() = delete;
+    ROLeaf();
 
     ROLeaf(Record * recs_in, int num);
 
