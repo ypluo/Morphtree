@@ -42,14 +42,3 @@ taskset -c 1-4 ./benchmark btree
 taskset -c 1-4 ./benchmark wotree
 taskset -c 1-4 ./benchmark rotree
 taskset -c 1-4 ./benchmark morphtree
-
-
-echo -e "\nUsing dataset file: ../datasets/lonlat_u64.dat"
-cp ../workloads/lonlat_dataset.dat dataset.dat
-cp ../workloads/lonlat_query.dat query.dat
-taskset -c 1-4 ./benchmark artolc 
-taskset -c 1-4 ./benchmark alex
-taskset -c 1-4 ./benchmark btree
-taskset -c 1-4 ./benchmark wotree
-taskset -c 1-4 ./benchmark rotree
-taskset -c 1-4 ./benchmark morphtree

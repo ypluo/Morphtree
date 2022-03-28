@@ -20,10 +20,8 @@ using std::ofstream;
 void gen_keyset(uint64_t *arr, uint64_t scale, bool uniform) {
     if(uniform) {
         std::mt19937 gen(utils::rand());
-
-        uint64_t step = UINT64_MAX / scale / 2;
         for(uint64_t i = 0; i < scale; i++) {
-            arr[i] = i * step + 1;
+            arr[i] = utils::FNVHash64(i + 1);
         }
 
         std::shuffle(arr, arr + scale, gen);

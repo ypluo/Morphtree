@@ -9,7 +9,7 @@
 
 namespace morphtree {
 
-static const int MARGIN = ROInner::PROBE_SIZE * 4;
+static const int MARGIN = ROInner::PROBE_SIZE * 2;
 
 // Overflow node
 struct OFNode {

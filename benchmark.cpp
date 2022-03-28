@@ -210,7 +210,8 @@ inline void exec(int index_type,
   };
  
   double start_time = get_now(); 
-  StartThreads(idx, num_thread, func, false);
+  func(0, false);
+  //StartThreads(idx, num_thread, func, false);
   double end_time = get_now();
   
   double tput = (count - bulkload_size) / (end_time - start_time) / 1000000; //Mops/sec
@@ -218,7 +219,7 @@ inline void exec(int index_type,
 
   // If we do not perform other transactions, we can skip txn file
   if(insert_only == true) {
-    idx->printTree();
+    //idx->printTree();
     return;
   }
 
@@ -264,7 +265,8 @@ inline void exec(int index_type,
   };
 
   start_time = get_now();  
-  StartThreads(idx, num_thread, func2, false);
+  func2(0, false);
+  //StartThreads(idx, num_thread, func2, false);
   end_time = get_now();
 
   tput = txn_num / (end_time - start_time) / 1000000; //Mops/sec

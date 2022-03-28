@@ -158,7 +158,10 @@ public:
         return;
     }
 
-    int64_t printTree() const {return 0;}
+    int64_t printTree() const {
+        idx->Print();
+        return 0;
+    }
     
 private:
     morphtree::MorphtreeImpl<morphtree::NodeType::WOLEAF, false> * idx;

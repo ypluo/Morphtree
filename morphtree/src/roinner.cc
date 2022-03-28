@@ -35,7 +35,7 @@ struct OFNode {
     }
 };
 
-ROInner::ROInner(Record * recs_in, int num, int expand) {
+ROInner::ROInner(Record * recs_in, int num, int recommend_cap) {
     node_type = NodeType::ROINNER;
     count = 0;
     of_count= 0;
@@ -48,7 +48,10 @@ ROInner::ROInner(Record * recs_in, int num, int expand) {
     model.build();
 
     // caculate the linear model
-    capacity = (num * expand) / PROBE_SIZE * PROBE_SIZE + PROBE_SIZE;
+    if(recommend_cap == 0)
+        recommend_cap = num * 2;
+    
+    capacity = recommend_cap / PROBE_SIZE * PROBE_SIZE + PROBE_SIZE;
     slope = model.a_ * capacity / (2 * MARGIN + num);
     intercept = model.b_ * capacity / (2 * MARGIN + num);
     recs = new Record[capacity];
@@ -146,10 +149,10 @@ ROInner::~ROInner() {
 }
 
 void ROInner::Print(string prefix) {
-    printf("%s[(%d)", prefix.c_str(), of_count);
+    printf("%s[(%d, %d, %d)", prefix.c_str(), capacity, count, of_count);
     for(int i = 0; i < capacity; i++) {
         if(i % PROBE_SIZE == 0) {
-            printf("||");
+            printf("><");
         }
 
         if(i % PROBE_SIZE == PROBE_SIZE - 1 && recs[i].val != nullptr) {
@@ -169,11 +172,11 @@ void ROInner::Print(string prefix) {
             OFNode * ofnode = (OFNode *) recs[i].val;
             for(int i = 0; i < ofnode->len; i++) {
                 BaseNode * child = (BaseNode *)ofnode->recs_[i].val;
-                child->Print("");
+                child->Print(prefix + "\t");
             }
         } else if(recs[i].key != MAX_KEY) {
             BaseNode * child = (BaseNode *)recs[i].val;
-            child->Print("");
+            child->Print(prefix + "\t");
         }
     }
 }
@@ -306,7 +309,7 @@ void ROInner::Expand(_key_t k, _val_t v) {
         records.push_back(Record(k, v));
     }
 
-    ROInner * new_inner = new ROInner(records.data(), count + 1, 4);
+    ROInner * new_inner = new ROInner(records.data(), count + 1, (count + 1) * 3);
     SwapNode(this, new_inner);
 
     new_inner->Clear();
