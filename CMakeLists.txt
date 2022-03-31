@@ -27,6 +27,7 @@ add_subdirectory(ALEX)
 add_subdirectory(ARTOLC)
 add_subdirectory(stxbtree)
 add_subdirectory(morphtree)
+add_subdirectory(lipp)
 
 # add YCSB
 add_subdirectory(ycsb)

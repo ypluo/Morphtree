@@ -11,8 +11,8 @@ fi
 eval set -- "$ARGS"
 
 # default workload specifications
-RECORD=32000000
-OPERATION=32000000
+RECORD=8000000
+OPERATION=8000000
 READ=1
 WRITE=0
 DIST=zipfian

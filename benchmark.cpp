@@ -7,14 +7,14 @@
 #include "index.h"
 
 typedef uint64_t KeyType;
-typedef std::less<uint64_t> keycomp;
+typedef uint64_t ValType;
 
 static const uint64_t value_type=1; // 0 = random pointers, 1 = pointers to keys
 // Whether we only perform insert
 static bool insert_only = false;
 
 template <typename Fn, typename... Args>
-void StartThreads(Index<KeyType, keycomp> *tree_p,
+void StartThreads(Index<KeyType, ValType> *tree_p,
                   uint64_t num_threads,
                   Fn &&fn,
                   Args &&...args) {
@@ -165,14 +165,14 @@ inline void exec(int index_type,
                  std::vector<int> &ranges, 
                  std::vector<int> &ops) {
 
-  Index<KeyType, keycomp> *idx = getInstance<KeyType, keycomp>(index_type);
+  Index<KeyType, ValType> *idx = getInstance<KeyType, ValType>(index_type);
 
   //WRITE ONLY TEST-----------------
   size_t count = init_keys.size();
   size_t bulkload_size = 0;
   //fprintf(stderr, "Populating the index with %d keys using %d threads\n", count, num_thread);
 
-  if (index_type == TYPE_ALEX) {
+  if (index_type == TYPE_ALEX || index_type == TYPE_LIPP) {
     bulkload_size = count / 4;
     std::pair<KeyType, uint64_t> *recs;
     recs = new std::pair<KeyType, uint64_t>[bulkload_size];
@@ -288,6 +288,8 @@ int main(int argc, char *argv[]) {
     index_type = TYPE_ARTOLC;
   else if(strcmp(argv[1], "alex") == 0) 
     index_type = TYPE_ALEX;
+  else if(strcmp(argv[1], "lipp") == 0)
+    index_type = TYPE_LIPP;
   else if(strcmp(argv[1], "btree") == 0)
     index_type = TYPE_STXBTREE;
   else if(strcmp(argv[1], "wotree") == 0)

@@ -8,6 +8,7 @@
 enum {
   TYPE_ALEX,
   TYPE_ARTOLC,
+  TYPE_LIPP,
   TYPE_STXBTREE,
   TYPE_MORPHTREE_WO,
   TYPE_MORPHTREE_RO,
@@ -23,36 +24,26 @@ enum {
   OP_SCAN,
 };
 
-// These are YCSB workloads
-enum {
-  WORKLOAD_A,
-  WORKLOAD_B,
-  WORKLOAD_C,
-  WORKLOAD_E,
-  WORKLOAD_F,
-  WORKLOAD_D,
-};
-
 //==============================================================
 // GET INSTANCE
 //==============================================================
 template<typename KeyType, 
-         typename KeyComparator=std::less<KeyType>, 
-         typename KeyEuqal=std::equal_to<KeyType>, 
-         typename KeyHash=std::hash<KeyType>>
-Index<KeyType, KeyComparator> *getInstance(const int type) {
+         typename ValType>
+Index<KeyType, ValType> *getInstance(const int type) {
   if (type == TYPE_ALEX)
-    return new AlexIndex<KeyType, KeyComparator>();
+    return new AlexIndex<KeyType, ValType>();
   else if (type == TYPE_ARTOLC)
-    return new ArtOLCIndex<KeyType, KeyComparator>();
+    return new ArtOLCIndex<KeyType, ValType>();
+  else if (type == TYPE_LIPP) 
+    return new LippIndex<KeyType, ValType>();
   else if (type == TYPE_STXBTREE) 
-    return new BtreeIndex<KeyType, KeyComparator>();
+    return new BtreeIndex<KeyType, ValType>();
   else if(type == TYPE_MORPHTREE_WO)
-    return new WoIndex<KeyType, KeyComparator>();
+    return new WoIndex<KeyType, ValType>();
   else if(type == TYPE_MORPHTREE_RO)
-    return new RoIndex<KeyType, KeyComparator>();
+    return new RoIndex<KeyType, ValType>();
   else if(type == TYPE_MORPHTREE)
-    return new MorphTree<KeyType, KeyComparator>();
+    return new MorphTree<KeyType, ValType>();
   else {
     fprintf(stderr, "Unknown index type: %d\n", type);
     exit(1);

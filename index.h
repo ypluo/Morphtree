@@ -6,22 +6,23 @@
 #include "ALEX/src/core/alex.h"
 #include "stxbtree/btree.h"
 #include "morphtree/src/morphtree_impl.h"
+#include "lipp/src/core/lipp.h"
 
-template<typename KeyType, class KeyComparator>
+template<typename KeyType, typename ValType>
 class Index
 {
  public:
-    virtual bool insert(KeyType key, uint64_t value) = 0;
+    virtual bool insert(KeyType key, ValType value) = 0;
 
-    virtual bool find(KeyType key, uint64_t *v) = 0;
+    virtual bool find(KeyType key, ValType *v) = 0;
 
-    virtual bool upsert(KeyType key, uint64_t value) = 0;
+    virtual bool upsert(KeyType key, ValType value) = 0;
 
     virtual uint64_t scan(KeyType key, int range) = 0;
 
     virtual int64_t printTree() const = 0;
     
-    virtual void bulkload(std::pair<KeyType, uint64_t> * recs, int len) = 0;
+    virtual void bulkload(std::pair<KeyType, ValType> * recs, int len) = 0;
 
     // Destructor must also be virtual
     virtual ~Index() {}
@@ -30,8 +31,8 @@ class Index
 /////////////////////////////////////////////////////////////////////
 // ALEX
 /////////////////////////////////////////////////////////////////////
-template<typename KeyType, class KeyComparator>
-class AlexIndex : public Index<KeyType, KeyComparator>
+template<typename KeyType, typename ValType>
+class AlexIndex : public Index<KeyType, ValType>
 {
 public:
     AlexIndex() {
@@ -75,10 +76,53 @@ private:
 
 
 /////////////////////////////////////////////////////////////////////
+// LIPP
+/////////////////////////////////////////////////////////////////////
+template<typename KeyType, typename ValType>
+class LippIndex : public Index<KeyType, ValType>
+{
+public:
+    LippIndex() {
+        idx = new LIPP<KeyType, uint64_t>;
+    }
+
+    ~LippIndex() {
+        delete idx;
+    }
+
+    bool insert(KeyType key, uint64_t value) {
+        idx->insert(key, value);
+        return false;
+    }
+
+    bool find(KeyType key, uint64_t *v) {
+        *v = idx->at(key);
+        return true;
+    }
+
+    bool upsert(KeyType key, uint64_t value) {
+        return true;
+    }
+
+    uint64_t scan(KeyType key, int range) {
+        return 0;
+    }
+
+    void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
+        idx->bulk_load(recs, len);
+    }
+
+    int64_t printTree() const {return 0;}
+
+private:
+    LIPP<KeyType, uint64_t> * idx;
+};
+
+/////////////////////////////////////////////////////////////////////
 // stxbtree
 /////////////////////////////////////////////////////////////////////
-template<typename KeyType, class KeyComparator>
-class BtreeIndex : public Index<KeyType, KeyComparator>
+template<typename KeyType, typename ValType>
+class BtreeIndex : public Index<KeyType, ValType>
 {
 public:
     BtreeIndex() {
@@ -124,8 +168,8 @@ private:
 /////////////////////////////////////////////////////////////////////
 // morphtree using write optimized leaf nodes
 /////////////////////////////////////////////////////////////////////
-template<typename KeyType, class KeyComparator>
-class WoIndex : public Index<KeyType, KeyComparator>
+template<typename KeyType, typename ValType>
+class WoIndex : public Index<KeyType, ValType>
 {
 public:
     WoIndex() {
@@ -167,11 +211,12 @@ private:
     morphtree::MorphtreeImpl<morphtree::NodeType::WOLEAF, false> * idx;
 };
 
+
 /////////////////////////////////////////////////////////////////////
 // morphtree using read optimized leaf nodes
 /////////////////////////////////////////////////////////////////////
-template<typename KeyType, class KeyComparator>
-class RoIndex : public Index<KeyType, KeyComparator>
+template<typename KeyType, typename ValType>
+class RoIndex : public Index<KeyType, ValType>
 {
 public:
     RoIndex() {
@@ -217,8 +262,8 @@ private:
 /////////////////////////////////////////////////////////////////////
 // morphtree using read optimized leaf nodes
 /////////////////////////////////////////////////////////////////////
-template<typename KeyType, class KeyComparator>
-class MorphTree : public Index<KeyType, KeyComparator>
+template<typename KeyType, typename ValType>
+class MorphTree : public Index<KeyType, ValType>
 {
 public:
     MorphTree() {
@@ -264,8 +309,8 @@ private:
 /////////////////////////////////////////////////////////////////////
 // ARTOLC
 /////////////////////////////////////////////////////////////////////
-template<typename KeyType, class KeyComparator>
-class ArtOLCIndex : public Index<KeyType, KeyComparator>
+template<typename KeyType, typename ValType>
+class ArtOLCIndex : public Index<KeyType, ValType>
 {
  public:
   ArtOLCIndex() {
