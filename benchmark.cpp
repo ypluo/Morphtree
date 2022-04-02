@@ -254,7 +254,7 @@ inline void exec(int index_type,
       if (op == OP_INSERT) { //INSERT
         idx->insert(keys[i], uint64_t(keys[i]));
       } else if (op == OP_READ) { //READ
-        idx->find(keys[i], &v);
+        assert(idx->find(keys[i], &v));
       } else if (op == OP_UPSERT) { //UPDATE
         idx->upsert(keys[i], reinterpret_cast<uint64_t>(&keys[i]));
       } else if (op == OP_SCAN) { //SCAN
@@ -294,6 +294,8 @@ int main(int argc, char *argv[]) {
     index_type = TYPE_STXBTREE;
   else if(strcmp(argv[1], "wotree") == 0)
     index_type = TYPE_MORPHTREE_WO;
+  else if(strcmp(argv[1], "rwtree") == 0)
+    index_type = TYPE_MORPHTREE_RW;
   else if(strcmp(argv[1], "rotree") == 0)
     index_type = TYPE_MORPHTREE_RO;
   else if(strcmp(argv[1], "morphtree") == 0)

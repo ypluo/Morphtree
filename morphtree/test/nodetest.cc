@@ -48,16 +48,19 @@ TEST(SingleNode, rwleaf) {
     for(uint64_t i = 0; i < SCALE1; i++) {
         tmp[i] = i;
     }
+    // std::shuffle(tmp, tmp + SCALE1 - 1, std::default_random_engine(997));
     std::shuffle(tmp, tmp + SCALE1 - 1, std::default_random_engine(getRandom()));
 
     // insert data into nodes
     for(uint64_t i = 0; i < SCALE1; i++) {
+        // printf("inserting %lu\n", tmp[i]);
         n->Store(tmp[i], _val_t(tmp[i]), &split_key, &split_node);
     }
 
     // test lookup
     _val_t res;
     for(uint64_t i = 0; i < SCALE1; i++) {
+        // printf("%lu\n", i);
         ASSERT_TRUE(n->Lookup(i, res));
         ASSERT_EQ(res, _val_t(i));
     }
@@ -85,6 +88,7 @@ TEST(SingleNode, roleaf) {
 
     // test insert
     for(uint64_t i = load_size; i < SCALE1; i++) {
+        // printf("%lu\n", tmp[i].key);
         ASSERT_FALSE(n->Store(tmp[i].key, tmp[i].val, &split_key, &split_node));
     }
 
@@ -211,7 +215,7 @@ TEST(TwoNode, roleaf) {
         tmp[i].key = i;
         tmp[i].val = (_val_t)i;
     }
-    std::shuffle(tmp, tmp + SCALE2 - 1, std::default_random_engine(getRandom()));
+    std::shuffle(tmp, tmp + SCALE2 - 1, std::default_random_engine(997));
     std::sort(tmp, tmp + SCALE2 / 2);
 
     // bulk load

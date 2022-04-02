@@ -9,7 +9,7 @@
 
 namespace morphtree {
 
-static const int MARGIN = ROInner::PROBE_SIZE * 2;
+static const int MARGIN = ROLeaf::PROBE_SIZE * 4;
 
 // Overflow node
 struct OFNode {
@@ -40,18 +40,23 @@ struct OFNode {
     }
 
     bool Lookup(_key_t k, _val_t & v) {
-        uint16_t i;
-        for(i = 0; i < len; i++) {
-            if(recs_[i].key >= k) {
-                break;
+        if(len < 64) {
+            // scan search
+            uint16_t i;
+            for(i = 0; i < len; i++) {
+                if(recs_[i].key >= k) {
+                    break;
+                }
             }
-        }
 
-        if (recs_[i].key == k) {
-            v = recs_[i].val;
-            return true;
+            if (recs_[i].key == k) {
+                v = recs_[i].val;
+                return true;
+            } else {
+                return false;
+            }
         } else {
-            return false;
+            return BinSearch(recs_, len, k, v);
         }
     }
 };
@@ -60,6 +65,7 @@ ROLeaf::ROLeaf() {
     node_type = ROLEAF;
     stats = ROSTATS;
     of_count = 0;
+    max_of = 0;
     count = 0;
 
     slope = (double)(NODE_SIZE - 1) / MAX_KEY;
@@ -71,6 +77,7 @@ ROLeaf::ROLeaf(Record * recs_in, int num){
     node_type = ROLEAF;
     stats = ROSTATS;
     of_count = 0;
+    max_of = 0;
     count = 0;
 
     LinearModelBuilder model;
@@ -139,12 +146,13 @@ bool ROLeaf::Store(_key_t k, _val_t v, _key_t * split_key, ROLeaf ** split_node)
             OFNode * old_ofnode = ofnode;
             
             // create a new overflow node, two times the formal one
-            int newlen = old_ofnode->len * 2;
+            int16_t newlen = old_ofnode->len * 2;
             ofnode = (OFNode *) new char[sizeof(OFNode) + newlen * sizeof(Record)];
             Record * _discard = new(ofnode->recs_) Record[newlen]; // just for initializition
             
             // copy records into it
             ofnode->len = newlen;
+            max_of = std::max(max_of, newlen);
             memcpy(ofnode->recs_, old_ofnode->recs_, sizeof(Record) * old_ofnode->len);
             ofnode->Store(k, v);
             recs[predict + PROBE_SIZE - 1].val = (_val_t) ofnode;
@@ -155,7 +163,7 @@ bool ROLeaf::Store(_key_t k, _val_t v, _key_t * split_key, ROLeaf ** split_node)
     }
     count += 1;
 
-    if(split_key != nullptr && ShouldSplit()) {
+    if(split_node != nullptr && ShouldSplit()) {
         DoSplit(split_key, split_node);
         return true;
     } else {
@@ -204,9 +212,9 @@ void ROLeaf::Print(string prefix) {
     Dump(out);
 
     printf("%s(%d)[(%f)", prefix.c_str(), node_type, (float)of_count / count);
-    // for(int i = 0; i < out.size(); i++) {
-    //     printf("%lu, ", out[i].key);
-    // }
+    for(int i = 0; i < out.size(); i++) {
+        printf("%lu, ", out[i].key);
+    }
     printf("]\n");
 }
 

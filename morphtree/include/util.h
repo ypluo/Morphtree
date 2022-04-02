@@ -3,13 +3,15 @@
 
 #include <queue>
 #include <vector>
+#include <cmath>
+#include <cstdint>
+#include <limits>
 #include <sys/time.h>
 #include <sys/stat.h>
 
 typedef uint64_t _key_t;
 typedef void * _val_t;
 
-#define MILLION (1024 * 1024)
 #define MAX_KEY UINT64_MAX
 #define MIN_KEY 0
 
@@ -110,53 +112,12 @@ private:
     double y_max_ = std::numeric_limits<double>::lowest();
 };
 
-template <typename T>
-T GetMedian(std::vector<T> & medians) {
-    int num = medians.size();
-    std::priority_queue<T, std::vector<T>> q; // max heap
+extern _key_t GetMedian(std::vector<_key_t> & medians);
 
-    for(int i = 0; i < num / 2; i++) {
-        q.push(medians[i]);
-    }
+extern void KWayMerge(Record ** runs, int * run_lens, int k, std::vector<Record> & out);
 
-    for(int i = num / 2; i < num; i++) {
-        if(medians[i] < q.top()) {
-            q.pop();
-            q.push(medians[i]);
-        }
-    }
+extern bool BinSearch(Record * recs, int len, _key_t k, _val_t &v);// do binary search
 
-    return q.top();
-}
-
-template<typename T>
-void KWayMerge(T ** runs, int * run_lens, int k, std::vector<T> & out) {
-    struct HeapEle {
-        int run_id;
-        T val;
-
-        bool operator < (const HeapEle & oth) const {
-            return val > oth.val; // this will make a min heap
-        }
-    };
-
-    int * run_idxs = new int[k];
-    std::priority_queue<HeapEle, std::vector<HeapEle>> q; // min heap
-
-    for(int i = 0; i < k; i++) {
-        q.push({i, runs[i][0]});
-        run_idxs[i] = 1;
-    }
-
-    while(!q.empty()) {
-        HeapEle e = q.top(); q.pop();
-
-        out.push_back(e.val);
-        int & cur_pos = run_idxs[e.run_id];
-        if (cur_pos < run_lens[e.run_id]) {
-            q.push({e.run_id, runs[e.run_id][cur_pos++]});
-        }
-    }
-}
+extern bool ExpSearch(Record * recs, int len, int predict, _key_t k, _val_t &v); // do exponential search
 
 #endif // __MORPHTREE_UTIL_H__

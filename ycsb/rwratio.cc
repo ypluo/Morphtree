@@ -78,6 +78,9 @@ void Stage(ycsbc::CoreWorkload & wl, ycsbc::BasicDB & db, int opcount) {
 }
 
 int main(int argc, const char *argv[]) {
+    const int INITIAL_SIZE_DEFAULT = 100000;
+    const int SATGE_WIDTH_DEFAULT  = 100000;
+    
     utils::Properties props;
     props.SetProperty(CoreWorkload::READ_PROPORTION_PROPERTY, to_string(0));
     props.SetProperty(CoreWorkload::INSERT_PROPORTION_PROPERTY, to_string(0));
@@ -88,19 +91,31 @@ int main(int argc, const char *argv[]) {
     // for each stage, generate a piece of workloads
     const string filename = props.GetProperty("dataset_file", "");
     int stage_count = stoi(props.GetProperty("stage_count", "6"));
-    int stage_width = stoi(props.GetProperty("stage_width", "1000"));
-    int insert_start = 1000000;
-    int max_record_count = insert_start + (stage_count * stage_width) / 2;
+    int stage_width = stoi(props.GetProperty("stage_width", to_string(SATGE_WIDTH_DEFAULT)));
+    int max_record_count = INITIAL_SIZE_DEFAULT + (stage_count * stage_width) / 2;
 
     // basic workload and basic db
     ycsbc::CoreWorkload wl(filename, max_record_count);
-    ycsbc::BasicDB db("query.dat");
+    
+    // generate load
+    BasicDB db_load("dataset.dat");
+    std::string key;
+    std::vector<KVPair> values;
+    props.SetProperty(CoreWorkload::INSERT_START_PROPERTY, to_string(0));
+    props.SetProperty(CoreWorkload::RECORD_COUNT_PROPERTY, to_string(INITIAL_SIZE_DEFAULT));
+    wl.Init(props);
+    for(int i = 0; i < INITIAL_SIZE_DEFAULT; i++) {
+        key = wl.NextSequenceKey();
+        db_load.Insert(key, values);
+    }
 
+    uint32_t cur_start = INITIAL_SIZE_DEFAULT;
+    ycsbc::BasicDB db_txn("query.dat");
     for(int i = 0; i < stage_count; i++) { 
         // change the read and write properties
         float read_portion = 1.0 / (stage_count - 1) * i;
         float write_portion = 1 - read_portion;
-        props.SetProperty(CoreWorkload::INSERT_START_PROPERTY, to_string(insert_start));
+        props.SetProperty(CoreWorkload::INSERT_START_PROPERTY, to_string(cur_start));
         props.SetProperty(CoreWorkload::RECORD_COUNT_PROPERTY, to_string(0));
         props.SetProperty(CoreWorkload::OPERATION_COUNT_PROPERTY, to_string(stage_width));
         props.SetProperty(CoreWorkload::READ_PROPORTION_PROPERTY, to_string(read_portion));
@@ -108,9 +123,9 @@ int main(int argc, const char *argv[]) {
         wl.Init(props);
 
         // fire a stage
-        Stage(wl, db, stage_width);
+        Stage(wl, db_txn, stage_width);
 
         // update inital_record_count
-        insert_start += stage_width * write_portion;
+        cur_start += stage_width * write_portion;
     }
 }

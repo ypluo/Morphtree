@@ -8,198 +8,146 @@
 
 namespace morphtree {
 
-// B+ tree Node, used by RWLeaf
-struct BNode {
-    // header
-    uint16_t version;
-    uint8_t lock;
-    uint8_t count;
-    char dummy[4];
-    BNode * sibling;
-    
-    // records
-    Record recs[BNODE_SIZE + 1];
-
-    BNode() : count(0), sibling(nullptr) {}
-    
-    void Append(const Record & r) {
-        recs[count++] = r;
-    }
-
-    bool Store(_key_t k, _val_t v, _key_t * split_key, BNode ** split_node) {
-        uint8_t i;
-        for(i = 0; i < count; i++) {
-            if(recs[i].key > k) {
-                break;
-            }
-        }
-
-        memmove(&recs[i + 1], &recs[i], sizeof(Record) * (count - i));
-        recs[i] = Record(k, v);
-        count += 1;
-
-        if(count > BNODE_SIZE) {
-            // copy half of records into new RWLeaf
-            uint8_t m = count / 2, copy_count = count - m;
-
-            *split_key = recs[m].key;
-            *split_node = new BNode;
-            
-            (*split_node)->count = copy_count;
-            memcpy((*split_node)->recs, &(recs[m]), sizeof(Record) * copy_count);
-            
-            // update the count of old RWLeaf
-            count = m;
-
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    bool Lookup(_key_t k, _val_t & v) {
-        uint8_t i;
-        for(i = 0; i < count; i++) {
-            if(recs[i].key >= k) {
-                break;
-            }
-        }
-
-        if (recs[i].key == k) {
-            v = recs[i].val;
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    void Print(string prefix) {
-        printf("%s[", prefix.c_str());
-        for(int i = 0; i < count; i++) {
-            printf("(%lu, %lu) ", recs[i].key, (uint64_t)recs[i].val);
-        }
-        printf("]\n");
-    }
-};
-
 RWLeaf::RWLeaf() {
     node_type = NodeType::RWLEAF;
     stats = RWSTATS;
+    count = 0;
+    buf_count = 0;
+    sorted_count = 0;
 
-    child_num = 1;
-    sibling = nullptr;
-    keys = new _key_t[INNER_SIZE + 1];
-    vals = new _val_t[INNER_SIZE + 1];
-    keys[0] = MIN_KEY;
-    vals[0] = new BNode;
+    recs = new Record[NODE_SIZE];
+    buffer = new Record[BUFFER_SIZE];
+    slope = 0;
+    intercept = 0;
 }
 
-RWLeaf::RWLeaf(Record * recs, int num) {
+RWLeaf::RWLeaf(Record * recs_in, int num) {
     node_type = NodeType::RWLEAF;
+    stats = RWSTATS;
+    count = num;
+    buf_count = 0;
+    sorted_count = 0;
 
-    static const int lfary = BNODE_SIZE;
-    child_num = num / lfary + ((num % lfary) == 0 ? 0 : 1);
-    keys = new _key_t[INNER_SIZE + 1];
-    vals = new _val_t[INNER_SIZE + 1];
-    //assert(child_num < INNER_SIZE + 1);
-    
-    for(int i = 0; i < child_num; i++) {
-        BNode * leaf = new BNode;
-        if (i == child_num - 1) {
-            memcpy(leaf->recs, &recs[i * lfary], sizeof(Record) * (num - i * lfary));
-            leaf->count = num - i * lfary;
-        } else {
-            memcpy(leaf->recs, &recs[i * lfary], sizeof(Record) * lfary);
-            leaf->count = lfary;
-        }
-        
-        keys[i] = recs[i * lfary].key;
-        vals[i] = leaf;
+    recs = new Record[NODE_SIZE];
+    buffer = new Record[BUFFER_SIZE];
+    LinearModelBuilder model;
+    for(int i = 0; i < num; i++) {
+        recs[i] = recs_in[i];
+        model.add(recs_in[i].key, i);
     }
-    keys[0] = MIN_KEY;
+    model.build();
+
+    // caculate the linear model
+    slope = model.a_ ;
+    intercept = model.b_;
 }
 
 RWLeaf::~RWLeaf() {
-    for(int i = 0; i < child_num; i++) {
-        delete (BNode *)vals[i];
-    }
-    delete keys;
-    delete vals;
+    delete [] recs;
+    delete [] buffer;
 }
 
 bool RWLeaf::Store(_key_t k, _val_t v, _key_t * split_key, RWLeaf ** split_node) {
-    //assert(child_num < INNER_SIZE + 1);
+    buffer[buf_count++] = {k, v};
+    count += 1;
 
-    uint8_t i;
-    for (i = 0; i < child_num; i++) {
-        if(keys[i] > k) {
-            break;
-        }
+    if(buf_count % PIECE_SIZE == 0) {
+        std::sort(buffer + sorted_count, buffer + buf_count);
+        sorted_count = buf_count;
     }
 
-    BNode * child = (BNode *)vals[i - 1];
-    _key_t split_k_child;
-    BNode * split_n_child;
-    if(child->Store(k, v, &split_k_child, &split_n_child)) {
-        memmove(&keys[i + 1], &keys[i], sizeof(_key_t) * (child_num - i));
-        memmove(&vals[i + 1], &vals[i], sizeof(_val_t) * (child_num - i));
-        keys[i] = split_k_child;
-        vals[i] = split_n_child;
-        child_num += 1;
+    if(count == GLOBAL_LEAF_SIZE) { // to do split
+        DoSplit(split_key, split_node);
+        return true;
+    } else if (buf_count == BUFFER_SIZE) { // buffer is full, merge it with recs
+        std::vector<Record> data;
+        data.reserve(count);
+        Dump(data);
 
-        if(child_num > INNER_SIZE) {
-            // copy half of records into new RWLeaf
-            uint8_t m = child_num / 2, copy_count = child_num - m;
+        RWLeaf * new_node = new RWLeaf(data.data(), data.size());
+        SwapNode(this, new_node);
+        delete new_node;
 
-            *split_key = keys[m];
-            *split_node = new RWLeaf;
-            
-            (*split_node)->child_num = copy_count;
-            memcpy((*split_node)->keys, &(keys[m]), sizeof(_key_t) * copy_count);
-            memcpy((*split_node)->vals, &(vals[m]), sizeof(_val_t) * copy_count);
-            
-            // update the count of old RWLeaf
-            child_num = m;
-
-            return true;
-        } else {
-            return false;
-        }
+        return false;
+    } else {
+        return false;
     }
-
-    return false;
 }
 
 bool RWLeaf::Lookup(_key_t k, _val_t & v) {
-    uint8_t i;
-    for(i = 0; i < child_num; i++) {
-        if(keys[i] > k) {
-            break;
+    int predict = Predict(k);
+    if(ExpSearch(recs, count - buf_count, predict, k, v)) {
+        // search in the learned records
+        return true;
+    } else {
+        // search in the buffer
+        for(int i = 0; i < sorted_count; i += PIECE_SIZE) {
+            if(BinSearch(buffer + i, PIECE_SIZE, k, v)) {
+                return true;
+            }
         }
-    }
 
-    return ((BNode *)vals[i - 1])->Lookup(k, v);
+        // second part of the buffer
+        for(int i = sorted_count; i < buf_count; i++) {
+            if(buffer[i].key == k) {
+                v = buffer[i].val;
+                return true;
+            }
+        }
+        return false;
+    }
 }
 
 void RWLeaf::Dump(std::vector<Record> & out) {
-    for(int i = 0; i < child_num; i++){
-        BNode * child = (BNode *) vals[i];
+    static const int MAX_RUN_NUM = BUFFER_SIZE / PIECE_SIZE;
+    static Record * sort_runs[MAX_RUN_NUM + 1];
+    static int lens[MAX_RUN_NUM + 1];
 
-        for(int j = 0; j < child->count; j++) {
-            out.push_back(child->recs[j]);
-        }
+    std::sort(buffer + sorted_count, buffer + buf_count);
+
+    // prepare three sorted runs
+    sort_runs[0] = recs;
+    lens[0] = count - buf_count;
+
+    int run_cnt = 1;
+    for(int i = 0; i < buf_count; i += PIECE_SIZE) {
+        sort_runs[run_cnt] = buffer + i;
+        lens[run_cnt] = (i + PIECE_SIZE <= buf_count ? PIECE_SIZE : buf_count - i);
+        run_cnt += 1;
     }
+
+    KWayMerge(sort_runs, lens, run_cnt, out);
 }
 
 void RWLeaf::Print(string prefix) {
     std::vector<Record> out;
+    out.reserve(count);
     Dump(out);
 
     printf("%s(%d)[", prefix.c_str(), node_type);
-    // for(int i = 0; i < out.size(); i++) {
-    //     printf("%lu, ", out[i].key);
-    // }
+    for(int i = 0; i < out.size(); i++) {
+        printf("%lu, ", out[i].key);
+    }
     printf("]\n");
+}
+
+void RWLeaf::DoSplit(_key_t * split_key, RWLeaf ** split_node) {
+    std::vector<Record> data;
+    data.reserve(count);
+    Dump(data);
+
+    // creat two new nodes
+    RWLeaf * left = new RWLeaf(data.data(), count / 2);
+    RWLeaf * right = new RWLeaf(data.data() + count / 2, count - count / 2);
+    left->sibling = right;
+    right->sibling = sibling;
+
+    // update splitting info
+    *split_key = data[count / 2].key;
+    *split_node = right;
+
+    SwapNode(this, left);
+    delete left;
 }
 
 } // namespace morphtree

@@ -11,8 +11,8 @@ fi
 eval set -- "$ARGS"
 
 # default workload specifications
-RECORD=8000000
-OPERATION=8000000
+RECORD=32000000
+OPERATION=64000000
 READ=1
 WRITE=0
 DIST=zipfian
@@ -42,4 +42,4 @@ echo "insertproportion=${WRITE}"     >> workload.spec
 echo "requestdistribution=${DIST}"   >> workload.spec
 
 # generate dataset and workload
-./ycsb/ycsbc -P workload.spec -F ${KEYSET} > query.dat
+./ycsb/ycsbc -P workload.spec -F ${KEYSET}

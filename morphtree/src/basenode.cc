@@ -10,8 +10,10 @@ bool do_morphing;
 static NodeType PredictNodeType(uint64_t status) {
     uint8_t zero_count = 64 - __builtin_popcountl(status);
     
-    if(zero_count > RW_WO_LINE)
+    if(zero_count > RO_RW_LINE)
         return NodeType::ROLEAF;
+    else if (zero_count > RW_WO_LINE)
+        return NodeType::RWLEAF;
     else 
         return NodeType::WOLEAF;
 }

@@ -19,13 +19,13 @@ using std::string;
 enum NodeType {ROINNER = 0, ROLEAF, RWLEAF, WOLEAF};
 
 // hyper parameters of Morphtree
-const uint64_t ROSTATS = 0x0000000000000000; // default statistic of RONode
-const uint64_t RWSTATS = 0x5555555555555555; // default statistic of RWNode
+const uint64_t ROSTATS = 0x000000000000FFFF; // default statistic of RONode
+const uint64_t RWSTATS = 0x0000FFFFFFFFFFFF; // default statistic of RWNode
 const uint64_t WOSTATS = 0xFFFFFFFFFFFFFFFF; // default statistic of WONode
-const int GLOBAL_LEAF_SIZE    = 4096;    // the maximum node size of a leaf node
-const int MORPH_FREQ          = 8;      // FREQ must be power of 2
-const uint8_t RO_RW_LINE      = 32;     // read times that distinguishs RONode and RWNode
-const uint8_t RW_WO_LINE      = 12;     // read times that distinguishs RWNode and WONode
+const int GLOBAL_LEAF_SIZE    = 8192;    // the maximum node size of a leaf node
+const int MORPH_FREQ          = 4;      // FREQ must be power of 2
+const uint8_t RO_RW_LINE      = 16;     // read times that distinguishs RONode and RWNode
+const uint8_t RW_WO_LINE      = 2;      // read times that distinguishs RWNode and WONode
 
 // We do NOT use virtual function here, 
 // as it brings extra overhead of searching virtual table
@@ -54,7 +54,7 @@ public:
     uint64_t stats;
 };
 
-// Node structure with high read performance
+// Inner node structures
 class ROInner : public BaseNode {
 public:
     ROInner() = delete;
@@ -83,12 +83,12 @@ private:
     }
 
     inline bool ShouldExpand() {
-        return (count < COUNT_CHECK || of_count <= (count >> 3)) && count >= (capacity / 5);
+        //return (count < COUNT_CHECK || of_count <= (count >> 3)) && count >= (capacity / 5);
+        return count <= COUNT_CHECK || (of_count <= (count >> 3) && max_of <= 64);
     }
     
 public:
-    static const int COUNT_CHECK      = 128;
-    static const int CAPACITY_CHECK   = 8096;
+    static const int COUNT_CHECK      = 64;
     static const int PROBE_SIZE       = 8;
 
     int32_t capacity;
@@ -101,10 +101,11 @@ public:
     // data
     Record *recs;
     int32_t of_count;
+    int16_t max_of;
     char dummy[4];
 };
 
-// Node structure with high read performance
+// read optimized leaf nodes
 class ROLeaf : public BaseNode {
 public:
     ROLeaf();
@@ -125,7 +126,7 @@ private:
     void DoSplit(_key_t * split_key, ROLeaf ** split_node);
 
     inline bool ShouldSplit() {
-        return (of_count > (NODE_SIZE >> 3)) || (count == NODE_CAP);
+        return count == GLOBAL_LEAF_SIZE || of_count >= (GLOBAL_LEAF_SIZE >> 3) || max_of >= MAX_OFNODE;
     }
 
     inline int Predict(_key_t k) {
@@ -134,25 +135,26 @@ private:
 
 public:
     static const int PROBE_SIZE = 8;
-    static const int NODE_CAP  = GLOBAL_LEAF_SIZE; 
-    static const int NODE_SIZE = NODE_CAP * 2; // without overflow, it can hold roughly 4096 Records
+    static const int NODE_SIZE = GLOBAL_LEAF_SIZE * 2;
+    static const int MAX_OFNODE = 256;
 
-    int32_t of_count;
-    int32_t count;
-    ROLeaf *sibling;
-    
-    // model
+    // meta data
     double slope;
     double intercept;
-    // data
     Record *recs;
+    int16_t of_count;
+    int16_t max_of;
+    int32_t count;
+    ROLeaf *sibling;
     char dummy[8];
 };
 
-// Node structure with balanced read and write performance
-const int BNODE_SIZE = 64;
+
+// read write leaf nodes
 class RWLeaf : public BaseNode {
 public:
+    struct BNode;
+
     RWLeaf();
     
     RWLeaf(Record * recs, int num);
@@ -168,24 +170,34 @@ public:
     void Print(string prefix);
 
 private:
-    static const int INNER_SIZE = GLOBAL_LEAF_SIZE / BNODE_SIZE;
+    bool Populate(_key_t k, _val_t v);
 
-    int64_t child_num;
-    // the sibling of the RWLeaf
-    RWLeaf * sibling;
-    // key value are seperated for better search performance in a larger node
-    _key_t * keys;
-    _val_t * vals;
-    char dummy[16]; // placeholder
+    void DoSplit(_key_t * split_key, RWLeaf ** split_node);
+
+    inline int Predict(_key_t k) {
+        return std::min(std::max(0, int(slope * k + intercept)), count - buf_count - 1);
+    }
+
+private:
+    static const int NODE_SIZE    = GLOBAL_LEAF_SIZE;
+    static const int BUFFER_SIZE  = GLOBAL_LEAF_SIZE >> 2;
+    static const int PIECE_SIZE   = 512;
+
+    // meta data
+    double slope;
+    double intercept;
+    Record * recs;
+    Record * buffer;
+    int32_t count;
+    int16_t buf_count;
+    int16_t sorted_count;
+    RWLeaf *sibling;
 };
 
-// Node structure with high write performance
-struct SortedRun;
-struct Buffer;
-const uint16_t BUFFER_SIZE = 256;
+// write optimzied leaf nodes
 class WOLeaf : public BaseNode {
 public:
-    WOLeaf(bool isLeaf = true);
+    WOLeaf();
 
     WOLeaf(Record * recs_in, int num);
 
@@ -199,15 +211,16 @@ public:
 
     void Print(string prefix);
 
-public:
-    static const int MAX_RUN_NUM = GLOBAL_LEAF_SIZE / BUFFER_SIZE; 
+private:
+    static const int NODE_SIZE = GLOBAL_LEAF_SIZE;
+    static const int PIECE_SIZE = 512;
 
-    int64_t sorted_num;
+    // meta data
+    Record * recs; 
     WOLeaf * sibling;
-    // data
-    Buffer * insert_buf;
-    SortedRun * head;
-    char dummy[16]; // placeholder
+    int32_t count;
+    int32_t sorted_count;
+    char dummy[24];
 };
 
 // Swap the metadata of two nodes
@@ -218,14 +231,10 @@ inline void SwapNode(BaseNode * a, BaseNode *b) {
     memcpy(a, b, COMMON_SIZE);
     memcpy(b, tmp, COMMON_SIZE);
 }
-
-/*
-    Global variables and functions controling the morphing of Morphtree 
-*/
+// Global variables and functions controling the morphing of Morphtree 
 extern uint64_t access_count;
 extern bool do_morphing;
 extern void MorphNode(BaseNode * leaf, NodeType from, NodeType to);
-
 } // namespace morphtree
 
 #endif // __MORPHTREE_BASENODE__

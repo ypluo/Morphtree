@@ -11,6 +11,7 @@ enum {
   TYPE_LIPP,
   TYPE_STXBTREE,
   TYPE_MORPHTREE_WO,
+  TYPE_MORPHTREE_RW,
   TYPE_MORPHTREE_RO,
   TYPE_MORPHTREE,
   TYPE_NONE,
@@ -40,6 +41,8 @@ Index<KeyType, ValType> *getInstance(const int type) {
     return new BtreeIndex<KeyType, ValType>();
   else if(type == TYPE_MORPHTREE_WO)
     return new WoIndex<KeyType, ValType>();
+  else if(type == TYPE_MORPHTREE_RW)
+    return new RwIndex<KeyType, ValType>();
   else if(type == TYPE_MORPHTREE_RO)
     return new RoIndex<KeyType, ValType>();
   else if(type == TYPE_MORPHTREE)
