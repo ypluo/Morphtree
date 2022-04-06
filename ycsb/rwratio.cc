@@ -78,8 +78,8 @@ void Stage(ycsbc::CoreWorkload & wl, ycsbc::BasicDB & db, int opcount) {
 }
 
 int main(int argc, const char *argv[]) {
-    const int INITIAL_SIZE_DEFAULT = 100000;
-    const int SATGE_WIDTH_DEFAULT  = 100000;
+    const int INITIAL_SIZE_DEFAULT = 1000;
+    const int SATGE_WIDTH_DEFAULT  = 1000;
     
     utils::Properties props;
     props.SetProperty(CoreWorkload::READ_PROPORTION_PROPERTY, to_string(0));

@@ -52,6 +52,7 @@ ROInner::ROInner(Record * recs_in, int num, int recommend_cap) {
     if(recommend_cap == 0)
         recommend_cap = num * 2;
     
+    recommend_cap = std::max(recommend_cap, 512);
     capacity = recommend_cap / PROBE_SIZE * PROBE_SIZE + PROBE_SIZE;
     slope = model.a_ * capacity / (2 * MARGIN + num);
     intercept = model.b_ * capacity / (2 * MARGIN + num);
@@ -115,22 +116,6 @@ void ROInner::Clear() {
         }
     }
     capacity = 0;
-}
-
-static void free_child(BaseNode * child) {
-    /* it will invalid the children of current nodes
-        In some cases, we do not want that happen
-    */
-    switch(child->node_type) {
-    case NodeType::ROINNER:
-        delete reinterpret_cast<ROInner *>(child);
-    case NodeType::ROLEAF: 
-        delete reinterpret_cast<ROLeaf *>(child);
-    case NodeType::RWLEAF:
-        delete reinterpret_cast<RWLeaf *>(child);
-    case NodeType::WOLEAF:
-        delete reinterpret_cast<WOLeaf *>(child);
-    }
 }
 
 ROInner::~ROInner() {

@@ -19,6 +19,8 @@
 using namespace std;
 using namespace ycsbc;
 
+static bool query_only = false;
+
 void UsageMessage(const char *command)  {
     cout << "Usage: " << command << " [options]" << endl;
     cout << "Options:" << endl;
@@ -55,6 +57,10 @@ void ParseCommandLine(int argc, const char *argv[], utils::Properties &props) {
             props.SetProperty("dataset_file", argv[argindex]);
             argindex++;
         } 
+        else if (strcmp(argv[argindex], "--query_only") == 0) {
+            argindex++;
+            query_only = true;
+        } 
         else {
             cout << "Unknown option '" << argv[argindex] << "'" << endl;
             exit(0);
@@ -73,22 +79,25 @@ int main(const int argc, const char *argv[]) {
 
     const string filename = props.GetProperty("dataset_file", "");
     const int insertstart = stoi(props.GetProperty(CoreWorkload::INSERT_START_PROPERTY, CoreWorkload::INSERT_START_DEFAULT));
-    const int recordcount = stoi(props.GetProperty(CoreWorkload::RECORD_COUNT_PROPERTY, "1000")); 
-    const int operationcount = stoi(props.GetProperty(CoreWorkload::OPERATION_COUNT_PROPERTY, "1000"));
+    const int recordcount = stoi(props.GetProperty(CoreWorkload::RECORD_COUNT_PROPERTY, "0")); 
+    const int operationcount = stoi(props.GetProperty(CoreWorkload::OPERATION_COUNT_PROPERTY, "0"));
     const float insert_ratio = stof(props.GetProperty(CoreWorkload::INSERT_PROPORTION_PROPERTY, "0"));
 
     ycsbc::CoreWorkload wl(filename, insertstart + recordcount + operationcount * insert_ratio);
     wl.Init(props);
     
-    // generate load
-    BasicDB db_load("dataset.dat");
     std::string key;
     std::vector<KVPair> values;
-    for(int i = 0; i < recordcount; i++) {
-        key = wl.NextSequenceKey();
-        db_load.Insert(key, values);
-    }
 
+    // generate load
+    if(query_only == false) {
+        BasicDB db_load("dataset.dat");
+        for(int i = 0; i < recordcount; i++) {
+            key = wl.NextSequenceKey();
+            db_load.Insert(key, values);
+        }
+    }
+    
     // generate query workload
     BasicDB db_txn("query.dat");
     std::vector<KVPair> result;

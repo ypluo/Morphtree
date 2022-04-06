@@ -23,7 +23,6 @@
 
 namespace ycsbc {
 
-#define DEBUG 
 typedef uint64_t _key_t;
 const uint64_t KEYSET_SCALE_DEFAULT = (uint64_t) 128 * 1024 * 1024;
 

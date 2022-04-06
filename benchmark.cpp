@@ -11,7 +11,7 @@ typedef uint64_t ValType;
 
 static const uint64_t value_type=1; // 0 = random pointers, 1 = pointers to keys
 // Whether we only perform insert
-static bool insert_only = false;
+static bool insert_only = true;
 
 template <typename Fn, typename... Args>
 void StartThreads(Index<KeyType, ValType> *tree_p,
@@ -52,7 +52,7 @@ inline void load(std::vector<KeyType> &init_keys,
 
   std::ifstream infile_load(init_file);
   if(!infile_load) {
-    fprintf(stderr, "dataset.dat is not found");
+    fprintf(stderr, "dataset.dat is not found\n");
     exit(-1);
   }
 
@@ -113,7 +113,7 @@ inline void load(std::vector<KeyType> &init_keys,
   // transacton file here
   std::ifstream infile_txn(txn_file);
   if(!infile_txn) {
-    fprintf(stderr, "query.dat is not found");
+    fprintf(stderr, "query.dat is not found\n");
     exit(-1);
   }
   
@@ -219,7 +219,7 @@ inline void exec(int index_type,
 
   // If we do not perform other transactions, we can skip txn file
   if(insert_only == true) {
-    //idx->printTree();
+    idx->printTree();
     return;
   }
 

@@ -19,8 +19,6 @@ endif()
 
 include_directories(src/core)
 
-add_subdirectory(src)
-
 add_executable(example src/examples/main.cpp)
 # add_executable(benchmark src/benchmark/main.cpp)
 
