@@ -22,8 +22,8 @@ enum NodeType {ROINNER = 0, ROLEAF, RWLEAF, WOLEAF};
 const uint64_t ROSTATS = 0x000000000000FFFF; // default statistic of RONode
 const uint64_t RWSTATS = 0x0000FFFFFFFFFFFF; // default statistic of RWNode
 const uint64_t WOSTATS = 0xFFFFFFFFFFFFFFFF; // default statistic of WONode
-const int GLOBAL_LEAF_SIZE    = 8192;    // the maximum node size of a leaf node
-const int MORPH_FREQ          = 4;      // FREQ must be power of 2
+const int GLOBAL_LEAF_SIZE    = 10240;    // the maximum node size of a leaf node
+const int MORPH_FREQ          = 1;      // FREQ must be power of 2
 const uint8_t RO_RW_LINE      = 16;     // read times that distinguishs RONode and RWNode
 const uint8_t RW_WO_LINE      = 2;      // read times that distinguishs RWNode and WONode
 
@@ -136,7 +136,7 @@ private:
 public:
     static const int PROBE_SIZE = 8;
     static const int NODE_SIZE = GLOBAL_LEAF_SIZE * 2;
-    static const int MAX_OFNODE = 256;
+    static const int MAX_OFNODE = 128;
 
     // meta data
     double slope;
@@ -149,46 +149,50 @@ public:
     char dummy[8];
 };
 
-
 // read write leaf nodes
 class RWLeaf : public BaseNode {
 public:
-    struct BNode;
-
     RWLeaf();
-    
-    RWLeaf(Record * recs, int num);
+
+    RWLeaf(Record * recs_in, int num);
 
     ~RWLeaf();
 
     bool Store(_key_t k, _val_t v, _key_t * split_key, RWLeaf ** split_node);
 
-    bool Lookup(_key_t k, _val_t & v);
+    bool Lookup(_key_t k, _val_t &v);
 
-    void Dump(std::vector<Record> &out);
+    void Dump(std::vector<Record> & out);
 
     void Print(string prefix);
 
 private:
-    bool Populate(_key_t k, _val_t v);
-
     void DoSplit(_key_t * split_key, RWLeaf ** split_node);
 
-    inline int Predict(_key_t k) {
-        return std::min(std::max(0, int(slope * k + intercept)), count - buf_count - 1);
+    void Populate(_key_t k, _val_t v);
+
+    inline bool ShouldSplit() {
+        return (initial_count + buf_count) == GLOBAL_LEAF_SIZE || buf_count == BUFFER_SIZE || of_count >= (GLOBAL_LEAF_SIZE >> 4);
     }
 
-private:
-    static const int NODE_SIZE    = GLOBAL_LEAF_SIZE;
-    static const int BUFFER_SIZE  = GLOBAL_LEAF_SIZE >> 2;
-    static const int PIECE_SIZE   = 512;
+    inline int Predict(_key_t k) {
+        return std::min(std::max(0, int(slope * k + intercept)), NODE_SIZE - 1);
+    }
+
+public:
+    static const int PROBE_SIZE = 8;
+    static const int NODE_SIZE = GLOBAL_LEAF_SIZE;
+    static const int BUFFER_SIZE = GLOBAL_LEAF_SIZE * 2 / 5;
+    static const int PIECE_SIZE = 1024;
+    static const int MAX_OFNODE = 128;
 
     // meta data
     double slope;
     double intercept;
-    Record * recs;
-    Record * buffer;
-    int32_t count;
+    Record *recs;
+    Record *buffer;
+    int16_t initial_count;
+    int16_t of_count;
     int16_t buf_count;
     int16_t sorted_count;
     RWLeaf *sibling;
@@ -213,7 +217,7 @@ public:
 
 private:
     static const int NODE_SIZE = GLOBAL_LEAF_SIZE;
-    static const int PIECE_SIZE = 512;
+    static const int PIECE_SIZE = 1024;
 
     // meta data
     Record * recs; 

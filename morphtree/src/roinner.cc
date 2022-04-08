@@ -39,7 +39,6 @@ ROInner::ROInner(Record * recs_in, int num, int recommend_cap) {
     node_type = NodeType::ROINNER;
     count = 0;
     of_count= 0;
-    max_of = 0;
     recs = nullptr;
 
     LinearModelBuilder model;
@@ -52,7 +51,6 @@ ROInner::ROInner(Record * recs_in, int num, int recommend_cap) {
     if(recommend_cap == 0)
         recommend_cap = num * 2;
     
-    recommend_cap = std::max(recommend_cap, 512);
     capacity = recommend_cap / PROBE_SIZE * PROBE_SIZE + PROBE_SIZE;
     slope = model.a_ * capacity / (2 * MARGIN + num);
     intercept = model.b_ * capacity / (2 * MARGIN + num);
@@ -69,13 +67,12 @@ ROInner::ROInner(Record * recs_in, int num, int recommend_cap) {
                 memcpy(&recs[cid * PROBE_SIZE], &recs_in[last_i], c * sizeof(Record));
             } else {
                 // add an overflow node
-                int16_t oc = c - PROBE_SIZE + 1;
+                int oc = c - PROBE_SIZE + 1;
                 of_count += oc;
                 OFNode * ofnode = (OFNode *) new char[sizeof(OFNode) + oc * sizeof(Record)];
                 Record * _discard = new(ofnode->recs_) Record[oc]; // just for initializition
                 recs[cid * PROBE_SIZE + PROBE_SIZE - 1] = {recs_in[last_i + PROBE_SIZE - 1].key, ofnode};
                 ofnode->len = oc;
-                max_of = std::max(max_of, oc);
 
                 memcpy(&recs[cid * PROBE_SIZE], &recs_in[last_i], (PROBE_SIZE - 1) * sizeof(Record));
                 memcpy(&ofnode->recs_[0], &recs_in[last_i + PROBE_SIZE - 1], oc * sizeof(Record));
@@ -92,13 +89,12 @@ ROInner::ROInner(Record * recs_in, int num, int recommend_cap) {
             memcpy(&recs[cid * PROBE_SIZE], &recs_in[last_i], c * sizeof(Record));
         } else {
             // add an overflow node
-            int16_t oc = c - PROBE_SIZE + 1;
+            int oc = c - PROBE_SIZE + 1;
             of_count += oc;
             OFNode * ofnode = (OFNode *) new char[sizeof(OFNode) + oc * sizeof(Record)];
             Record * _discard = new(ofnode->recs_) Record[oc]; // just for initializition
             recs[cid * PROBE_SIZE + PROBE_SIZE - 1] = {recs_in[last_i + PROBE_SIZE - 1].key, ofnode};
             ofnode->len = oc;
-            max_of = std::max(max_of, oc);
             
             memcpy(&recs[cid * PROBE_SIZE], &recs_in[last_i], (PROBE_SIZE - 1) * sizeof(Record));
             memcpy(&ofnode->recs_[0], &recs_in[last_i + PROBE_SIZE - 1], oc * sizeof(Record));
@@ -116,6 +112,22 @@ void ROInner::Clear() {
         }
     }
     capacity = 0;
+}
+
+static void free_child(BaseNode * child) {
+    /* it will invalid the children of current nodes
+        In some cases, we do not want that happen
+    */
+    switch(child->node_type) {
+    case NodeType::ROINNER:
+        delete reinterpret_cast<ROInner *>(child);
+    case NodeType::ROLEAF: 
+        delete reinterpret_cast<ROLeaf *>(child);
+    case NodeType::RWLEAF:
+        delete reinterpret_cast<RWLeaf *>(child);
+    case NodeType::WOLEAF:
+        delete reinterpret_cast<WOLeaf *>(child);
+    }
 }
 
 ROInner::~ROInner() {

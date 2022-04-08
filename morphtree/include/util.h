@@ -114,7 +114,11 @@ private:
 
 extern _key_t GetMedian(std::vector<_key_t> & medians);
 
+extern void TwoWayMerge(Record * a, Record * b, int lena, int lenb, std::vector<Record> & out);
+
 extern void KWayMerge(Record ** runs, int * run_lens, int k, std::vector<Record> & out);
+
+extern void KWayMerge_nodup(Record ** runs, int * run_lens, int k, std::vector<Record> & out);
 
 extern bool BinSearch(Record * recs, int len, _key_t k, _val_t &v);// do binary search
 

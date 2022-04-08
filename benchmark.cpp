@@ -11,7 +11,7 @@ typedef uint64_t ValType;
 
 static const uint64_t value_type=1; // 0 = random pointers, 1 = pointers to keys
 // Whether we only perform insert
-static bool insert_only = true;
+static bool insert_only = false;
 
 template <typename Fn, typename... Args>
 void StartThreads(Index<KeyType, ValType> *tree_p,
@@ -254,7 +254,10 @@ inline void exec(int index_type,
       if (op == OP_INSERT) { //INSERT
         idx->insert(keys[i], uint64_t(keys[i]));
       } else if (op == OP_READ) { //READ
-        assert(idx->find(keys[i], &v));
+        if(!idx->find(keys[i], &v)) {
+          printf("%lu\n", keys[i]);
+          exit(0);
+        }
       } else if (op == OP_UPSERT) { //UPDATE
         idx->upsert(keys[i], reinterpret_cast<uint64_t>(&keys[i]));
       } else if (op == OP_SCAN) { //SCAN

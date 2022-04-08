@@ -9,7 +9,7 @@
 
 namespace morphtree {
 
-static const int MARGIN = ROLeaf::PROBE_SIZE * 4;
+static const int MARGIN = ROLeaf::PROBE_SIZE * 2;
 
 // Overflow node
 struct OFNode {
@@ -146,7 +146,7 @@ bool ROLeaf::Store(_key_t k, _val_t v, _key_t * split_key, ROLeaf ** split_node)
             OFNode * old_ofnode = ofnode;
             
             // create a new overflow node, two times the formal one
-            int16_t newlen = old_ofnode->len * 2;
+            int16_t newlen = old_ofnode->len * 3 / 2;
             ofnode = (OFNode *) new char[sizeof(OFNode) + newlen * sizeof(Record)];
             Record * _discard = new(ofnode->recs_) Record[newlen]; // just for initializition
             

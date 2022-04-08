@@ -27,7 +27,7 @@ TEST_F(tree_test, load) {
 
     _key_t * keys = new _key_t[TEST_SCALE];
     for(int i = 0; i < TEST_SCALE; i++) {
-        // keys[i] = _key_t(i);
+        //keys[i] = _key_t(i);
         keys[i] = _key_t(i) * STEP + ((i | 0x5a5a5a5a) % 0xff);
     }
 

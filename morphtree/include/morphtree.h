@@ -10,11 +10,11 @@ using namespace morphtree;
 
 class Morphtree {
 private:
-    MorphtreeImpl<NodeType::RWLEAF, false> *mt_;
+    MorphtreeImpl<NodeType::RWLEAF, true> *mt_;
 
 public:
     Morphtree() {
-        mt_ = new MorphtreeImpl<NodeType::RWLEAF, false>();
+        mt_ = new MorphtreeImpl<NodeType::RWLEAF, true>();
     }
 
     ~Morphtree() {

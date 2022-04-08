@@ -21,7 +21,8 @@ WOLeaf::WOLeaf() {
 }
 
 WOLeaf::WOLeaf(Record * recs_in, int num) {
-    assert(num <= NODE_SIZE);
+    node_type = NodeType::WOLEAF;
+    stats = WOSTATS;
 
     recs = new Record[NODE_SIZE];
     memcpy(recs, recs_in, sizeof(Record) * num);
@@ -128,7 +129,6 @@ void WOLeaf::Dump(std::vector<Record> & out) {
     }
 
     KWayMerge(sort_runs, lens, run_cnt, out);
-
     return ;
 }
 
