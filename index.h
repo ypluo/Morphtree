@@ -2,7 +2,6 @@
 #define _INDEX_H
 
 #include <iostream>
-#include "ARTOLC/Tree.h"
 #include "ALEX/src/core/alex.h"
 #include "stxbtree/btree.h"
 #include "morphtree/src/morphtree_impl.h"
@@ -306,14 +305,14 @@ private:
 
 
 /////////////////////////////////////////////////////////////////////
-// morphtree using read optimized leaf nodes
+// morphtree
 /////////////////////////////////////////////////////////////////////
 template<typename KeyType, typename ValType>
 class MorphTree : public Index<KeyType, ValType>
 {
 public:
     MorphTree() {
-        idx = new morphtree::MorphtreeImpl<morphtree::NodeType::WOLEAF, true>();
+        idx = new morphtree::MorphtreeImpl<morphtree::NodeType::RWLEAF, true>();
     }
 
     ~MorphTree() {
@@ -348,89 +347,6 @@ public:
     }
     
 private:
-    morphtree::MorphtreeImpl<morphtree::NodeType::WOLEAF, true> * idx;
+    morphtree::MorphtreeImpl<morphtree::NodeType::RWLEAF, true> * idx;
 };
-
-
-/////////////////////////////////////////////////////////////////////
-// ARTOLC
-/////////////////////////////////////////////////////////////////////
-template<typename KeyType, typename ValType>
-class ArtOLCIndex : public Index<KeyType, ValType>
-{
- public:
-  ArtOLCIndex() {
-    if (sizeof(KeyType)==8) {
-      idx = new ART_OLC::Tree([](TID tid, Key &key) { key.setInt(*reinterpret_cast<uint64_t*>(tid)); });
-      maxKey.setInt(~0ull);
-    } else {
-      idx = new ART_OLC::Tree([](TID tid, Key &key) { key.set(reinterpret_cast<char*>(tid),31); });
-      uint8_t m[] = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,
-		     0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,
-		     0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,
-		     0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
-      maxKey.set((char*)m,31);
-    }
-  }
-
-  ~ArtOLCIndex() {
-    delete idx;
-  }
-
-  void UpdateThreadLocal(size_t thread_num) {}
-  void AssignGCID(size_t thread_id) {}
-  void UnregisterThread(size_t thread_id) {}
-
-  void setKey(Key& k, uint64_t key) { k.setInt(key); }
-
-  bool insert(KeyType key, uint64_t value) {
-    auto t = idx->getThreadInfo();
-    Key k; setKey(k, key);
-    idx->insert(k, value, t);
-    return true;
-  }
-
-  bool find(KeyType key, uint64_t *v) {
-    auto t = idx->getThreadInfo();
-    Key k; setKey(k, key);
-    *v=idx->lookup(k, t);
-    return true;
-  }
-
-  bool upsert(KeyType key, uint64_t value) {
-    std::atomic_thread_fence(std::memory_order_acq_rel);
-    auto t = idx->getThreadInfo();
-    Key k; setKey(k, key);
-    idx->insert(k, value, t);
-    return true;
-  }
-
-  uint64_t scan(KeyType key, int range) {
-    auto t = idx->getThreadInfo();
-    Key startKey; setKey(startKey, key);
-
-    TID results[range];
-    size_t resultCount;
-    Key continueKey;
-    idx->lookupRange(startKey, maxKey, continueKey, results, range, resultCount, t);
-
-    return resultCount;
-  }
-
-  int64_t printTree() const {
-    return 0;
-  }
-
-    void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
-        return;
-    }
-
-  void merge() {
-  }
-
- private:
-  Key maxKey;
-  ART_OLC::Tree *idx;
-};
-
 #endif

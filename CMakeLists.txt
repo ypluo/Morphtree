@@ -13,7 +13,6 @@ endif()
 
 #======= include directories =======
 include_directories(${CMAKE_SOURCE_DIR}/ALEX/src/core)
-include_directories(${CMAKE_SOURCE_DIR}/ARTOLC)
 include_directories(${CMAKE_SOURCE_DIR}/stxbtree)
 include_directories(${CMAKE_SOURCE_DIR}/morphtree)
 
@@ -24,7 +23,6 @@ link_libraries(/usr/local/lib/libtbb.so)
 
 #======= add sub directories =======
 add_subdirectory(ALEX)
-add_subdirectory(ARTOLC)
 add_subdirectory(morphtree)
 add_subdirectory(lipp)
 
@@ -33,4 +31,4 @@ add_subdirectory(ycsb)
 
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 add_executable(benchmark benchmark.cpp)
-target_link_libraries(benchmark artolc morphtree)
+target_link_libraries(benchmark morphtree)

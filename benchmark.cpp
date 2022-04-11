@@ -9,8 +9,6 @@
 typedef uint64_t KeyType;
 typedef uint64_t ValType;
 
-static const uint64_t value_type=1; // 0 = random pointers, 1 = pointers to keys
-// Whether we only perform insert
 static bool insert_only = false;
 
 template <typename Fn, typename... Args>
@@ -37,13 +35,10 @@ void StartThreads(Index<KeyType, ValType> *tree_p,
 }
 
 //==============================================================
-// LOAD
+// LOAD DATA FROM FILE
 //==============================================================
-inline void load(std::vector<KeyType> &init_keys, 
-                 std::vector<KeyType> &keys, 
-                 std::vector<uint64_t> &values, 
-                 std::vector<int> &ranges, 
-                 std::vector<int> &ops) {
+void load(std::vector<KeyType> &init_keys, std::vector<KeyType> &keys, 
+          std::vector<int> &ranges, std::vector<int> &ops) {
   std::string init_file;
   std::string txn_file;
 
@@ -78,30 +73,6 @@ inline void load(std::vector<KeyType> &init_keys,
     }
     init_keys.push_back(key);
     count++;
-  }
-  
-  //fprintf(stderr, "Loaded %lu keys\n", count);
-
-  count = 0;
-  uint64_t value = 0;
-  void *base_ptr = malloc(8);
-  uint64_t base = (uint64_t)(base_ptr);
-  free(base_ptr);
-
-  KeyType *init_keys_data = init_keys.data();
-
-  if (value_type == 0) {
-    while (count < init_keys.size()) {
-      value = base + rand();
-      values.push_back(value);
-      count++;
-    }
-  }
-  else {
-    while (count < init_keys.size()) {
-      values.push_back(reinterpret_cast<uint64_t>(init_keys_data+count));
-      count++;
-    }
   }
 
   // If we do not perform other transactions, we can skip txn file
@@ -155,25 +126,12 @@ inline void load(std::vector<KeyType> &init_keys,
 }
 
 //==============================================================
-// EXEC
+// POPULATE THE INDEX
 //==============================================================
-inline void exec(int index_type, 
-                 int num_thread,
-                 std::vector<KeyType> &init_keys, 
-                 std::vector<KeyType> &keys, 
-                 std::vector<uint64_t> &values, 
-                 std::vector<int> &ranges, 
-                 std::vector<int> &ops) {
-
+Index<KeyType, ValType> * populate(int index_type, std::vector<KeyType> &init_keys, int bulkload_size) {
   Index<KeyType, ValType> *idx = getInstance<KeyType, ValType>(index_type);
-
-  //WRITE ONLY TEST-----------------
-  size_t count = init_keys.size();
-  size_t bulkload_size = 0;
-  //fprintf(stderr, "Populating the index with %d keys using %d threads\n", count, num_thread);
-
+  
   if (index_type == TYPE_ALEX || index_type == TYPE_LIPP) {
-    bulkload_size = count / 4;
     std::pair<KeyType, uint64_t> *recs;
     recs = new std::pair<KeyType, uint64_t>[bulkload_size];
 
@@ -186,59 +144,51 @@ inline void exec(int index_type,
     
     // generate records
     for (int i = 0; i < bulkload_size; i++) {
-      recs[i] = {bulk_keys[i], values[i]};
+      recs[i] = {bulk_keys[i], ValType(bulk_keys[i])};
     }
 
     idx->bulkload(recs, bulkload_size);
     delete recs;
-  }
-
-  auto func = [idx, &init_keys, num_thread, &values, bulkload_size] \
-              (uint64_t thread_id, bool) {
-    size_t total_num_key = init_keys.size() - bulkload_size;
-    size_t key_per_thread = total_num_key / num_thread;
-    size_t start_index = bulkload_size + key_per_thread * thread_id;
-    size_t end_index = start_index + key_per_thread;
-#ifdef INTERLEAVED_INSERT
-    for(size_t i = thread_id;i < total_num_key; i += num_thread) {
-#else
-    for(size_t i = start_index;i < end_index;i++) {
-#endif
-        idx->insert(init_keys[i], values[i]);
+  } else {
+    for(size_t i = 0; i < bulkload_size; i++) {
+      idx->insert(init_keys[i], ValType(init_keys[i]));
     } 
-    return;
-  };
+  }
  
   double start_time = get_now(); 
-  func(0, false);
-  //StartThreads(idx, num_thread, func, false);
+  size_t total_num_key = init_keys.size() - bulkload_size;
+  size_t end_index = bulkload_size + total_num_key;
+  for(size_t i = bulkload_size; i < end_index;i++) {
+      idx->insert(init_keys[i], ValType(init_keys[i]));
+  } 
   double end_time = get_now();
   
-  double tput = (count - bulkload_size) / (end_time - start_time) / 1000000; //Mops/sec
-  std::cout << "insert " << tput << "Mops/s" << "\n";
+  double tput = (init_keys.size() - bulkload_size) / (end_time - start_time) / 1000000; //Mops/sec
+  std::cout << tput << "\t";
 
+  return idx;
+}
+
+//==============================================================
+// EXEC
+//==============================================================
+void exec(int index_type, 
+                 int num_thread,
+                 std::vector<KeyType> &init_keys, 
+                 std::vector<KeyType> &keys, 
+                 std::vector<int> &ranges, 
+                 std::vector<int> &ops) {
+  Index<KeyType, ValType> *idx = populate(index_type, init_keys, std::min(int(init_keys.size() / 4), 8 * 1024 * 1024));
+  
   // If we do not perform other transactions, we can skip txn file
   if(insert_only == true) {
-    idx->printTree();
     return;
   }
 
-  //READ/UPDATE/SCAN TEST----------------
   int txn_num = ops.size();
-
-  //fprintf(stderr, "# of Txn: %d\n", txn_num);
-
-  // This is used to count how many read misses we have found
-  std::atomic<size_t> read_miss_counter{}, read_hit_counter{};
-  read_miss_counter.store(0UL);
-  read_hit_counter.store(0UL);
-
   auto func2 = [num_thread, 
-                idx, index_type, 
-                &read_miss_counter,
-                &read_hit_counter,
+                idx, index_type,
                 &keys,
-                &values,
                 &ranges,
                 &ops](uint64_t thread_id, bool) {
     size_t total_num_op = ops.size();
@@ -254,10 +204,7 @@ inline void exec(int index_type,
       if (op == OP_INSERT) { //INSERT
         idx->insert(keys[i], uint64_t(keys[i]));
       } else if (op == OP_READ) { //READ
-        if(!idx->find(keys[i], &v)) {
-          printf("%lu\n", keys[i]);
-          exit(0);
-        }
+        assert(idx->find(keys[i], &v) == true);
       } else if (op == OP_UPSERT) { //UPDATE
         idx->upsert(keys[i], reinterpret_cast<uint64_t>(&keys[i]));
       } else if (op == OP_SCAN) { //SCAN
@@ -267,13 +214,14 @@ inline void exec(int index_type,
     return;
   };
 
-  start_time = get_now();  
+  auto start_time = get_now();  
   func2(0, false);
   //StartThreads(idx, num_thread, func2, false);
-  end_time = get_now();
+  auto end_time = get_now();
 
-  tput = txn_num / (end_time - start_time) / 1000000; //Mops/sec
-  std::cout << "query " << tput << "Mops/s" << "\n";
+  double tput = txn_num / (end_time - start_time) / 1000000; //Mops/sec
+  // std::cout << "query " << tput << "Mops/s" << "\n";
+  std::cout << tput << std::endl;
   delete idx;
   return;
 }
@@ -281,15 +229,13 @@ inline void exec(int index_type,
 int main(int argc, char *argv[]) {
   if (argc == 1) {
     std::cout << "Usage:\n";
-    std::cout << "1. index type: alex artolc hydralist\n";
+    std::cout << "1. index type \n";
     std::cout << "2. number of threads (integer)\n";
     return 1;
   }
 
   int index_type;
-  if (strcmp(argv[1], "artolc") == 0)
-    index_type = TYPE_ARTOLC;
-  else if(strcmp(argv[1], "alex") == 0) 
+  if(strcmp(argv[1], "alex") == 0) 
     index_type = TYPE_ALEX;
   else if(strcmp(argv[1], "lipp") == 0)
     index_type = TYPE_LIPP;
@@ -315,26 +261,21 @@ int main(int argc, char *argv[]) {
 
   std::vector<KeyType> init_keys;
   std::vector<KeyType> keys;
-  std::vector<uint64_t> values;
   std::vector<int> ranges;
   std::vector<int> ops; //INSERT = 0, READ = 1, UPDATE = 2, SCAN = 3
 
   init_keys.reserve(40000000);
   keys.reserve(40000000);
-  values.reserve(40000000);
   ranges.reserve(10000000);
   ops.reserve(10000000);
 
   memset(&init_keys[0], 0x00, 40000000 * sizeof(KeyType));
   memset(&keys[0], 0x00, 40000000 * sizeof(KeyType));
-  memset(&values[0], 0x00, 40000000 * sizeof(uint64_t));
   memset(&ranges[0], 0x00, 10000000 * sizeof(int));
   memset(&ops[0], 0x00, 10000000 * sizeof(int));
 
-  load(init_keys, keys, values, ranges, ops);
-  //printf("Finished loading workload file (mem = %lu)\n", MemUsage());
-  exec(index_type, num_thread, init_keys, keys, values, ranges, ops);
-  //printf("Finished running benchmark (mem = %lu)\n", MemUsage());
+  load(init_keys, keys, ranges, ops);
 
+  exec(index_type, num_thread, init_keys, keys, ranges, ops);
   return 0;
 }

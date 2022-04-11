@@ -7,14 +7,12 @@
 //This enum enumerates index types we support
 enum {
   TYPE_ALEX,
-  TYPE_ARTOLC,
   TYPE_LIPP,
   TYPE_STXBTREE,
   TYPE_MORPHTREE_WO,
   TYPE_MORPHTREE_RW,
   TYPE_MORPHTREE_RO,
   TYPE_MORPHTREE,
-  TYPE_NONE,
 };
 
 // These are workload operations
@@ -33,8 +31,6 @@ template<typename KeyType,
 Index<KeyType, ValType> *getInstance(const int type) {
   if (type == TYPE_ALEX)
     return new AlexIndex<KeyType, ValType>();
-  else if (type == TYPE_ARTOLC)
-    return new ArtOLCIndex<KeyType, ValType>();
   else if (type == TYPE_LIPP) 
     return new LippIndex<KeyType, ValType>();
   else if (type == TYPE_STXBTREE) 

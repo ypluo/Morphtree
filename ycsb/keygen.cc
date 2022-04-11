@@ -17,16 +17,27 @@ using std::cout;
 using std::endl;
 using std::ofstream;
 
-void gen_keyset(uint64_t *arr, uint64_t scale, bool uniform) {
-    if(uniform) {
-        std::mt19937 gen(utils::rand());
+string WorkloadName[] = {"random", "lognormal", "normal"};
+enum WorkloadDist {RANDOM, LOGNORMAL, NORMAL};
+
+void generate(uint64_t *arr, uint64_t scale, WorkloadDist d) {
+    std::mt19937 gen(utils::rand());
+    if(d == WorkloadDist::RANDOM) {
         for(uint64_t i = 0; i < scale; i++) {
             arr[i] = utils::FNVHash64(i + 1);
         }
-
-        std::shuffle(arr, arr + scale, gen);
+    } else if (d == WorkloadDist::LOGNORMAL) {
+        std::lognormal_distribution<double> dist(22.123456789, 5.123456789);
+        uint64_t i = 0;
+        while (i < scale) {
+            double val = (uint64_t)dist(gen);
+            if(val <= 0 || val > (double) UINT64_MAX) {
+                continue;
+            } else {
+                arr[i++] = (uint64_t)std::round(val);
+            }
+        }
     } else {
-        std::mt19937 gen(utils::rand());
         std::normal_distribution<double> dist(INT64_MAX / 2, INT64_MAX / 8);
         uint64_t i = 0;
         while (i < scale) {
@@ -37,31 +48,41 @@ void gen_keyset(uint64_t *arr, uint64_t scale, bool uniform) {
                 arr[i++] = (uint64_t)std::round(val);
             }
         }
-        //std::sort(arr, arr + scale);
     }
     return ;
 }
 
 int main(int argc, char ** argv) {
     uint64_t scale = ycsbc::KEYSET_SCALE_DEFAULT;
-    bool opt_uniform = true;
-
-    if(argc > 1 && strcmp(argv[1], "real") == 0) {
-        opt_uniform = false;
+    WorkloadDist dist;
+    if(argc < 2) {
+        cout << "please give a dataset distribution: (random, lognormal, normal)" << endl;
+        exit(-1);
     }
-
+    if(strcmp(argv[1], "RANDOM") == 0) 
+        dist = WorkloadDist::RANDOM;
+    else if(strcmp(argv[1], "lognormal") == 0)
+        dist = WorkloadDist::LOGNORMAL;
+    else if(strcmp(argv[1], "normal") == 0)
+        dist = WorkloadDist::NORMAL;
+    else 
+        dist = WorkloadDist::RANDOM;
+    
     uint64_t * arr = new uint64_t[scale];
-    if(!utils::file_exist("../datasets/keyset.dat")) {
-        remove("../datasets/keyset.dat");
+    string filename = string("../datasets/") + WorkloadName[dist] + ".dat";
+    if(!utils::file_exist(filename.c_str())) {
+        remove(filename.c_str());
     }
-    // generate a ordered keyset
-    gen_keyset(arr, scale, opt_uniform);
+
+    // generate dataset file
+    generate(arr, scale, dist);
+
     // output the keyset into ascii-encoded file
-    ofstream fout("../datasets/keyset.dat");
+    ofstream fout(filename);
     for(int i = 0; i < scale; i++) {
         fout << arr[i] << endl;
     }
-    cout << "Generate a keyset file | scale:" << scale << endl;
+    cout << "Generate a keyset file " << filename << "| scale:" << scale << endl;
 
     delete [] arr;
     fout.close();

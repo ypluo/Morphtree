@@ -40,4 +40,4 @@ add_compile_options(-O3)
 
 # Now add what we want to compile
 add_subdirectory(src)
-add_subdirectory(test)
+# add_subdirectory(test)
