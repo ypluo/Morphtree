@@ -9,7 +9,7 @@
 
 namespace morphtree {
 
-static const int MARGIN = ROInner::PROBE_SIZE;
+static const int MARGIN = 2 * ROInner::PROBE_SIZE;
 
 struct OFNode {
     uint32_t len;
@@ -43,7 +43,7 @@ ROInner::ROInner(Record * recs_in, int num, int recommend_cap) {
 
     LinearModelBuilder model;
     for(int i = 0; i < num; i++) {
-        model.add(recs_in[i].key, MARGIN + i);
+        model.add(recs_in[i].key, i);
     }
     model.build();
 
@@ -51,9 +51,10 @@ ROInner::ROInner(Record * recs_in, int num, int recommend_cap) {
     if(recommend_cap == 0)
         recommend_cap = num * 2;
     
-    capacity = recommend_cap / PROBE_SIZE * PROBE_SIZE + PROBE_SIZE;
-    slope = model.a_ * capacity / (2 * MARGIN + num);
-    intercept = model.b_ * capacity / (2 * MARGIN + num);
+    recommend_cap = std::max(128, recommend_cap);
+    capacity = (recommend_cap + PROBE_SIZE - 1) / PROBE_SIZE * PROBE_SIZE;
+    slope = model.a_ * (capacity - 2 * MARGIN) / num;
+    intercept = model.b_ * (capacity - 2 * MARGIN) / num + MARGIN;
     recs = new Record[capacity];
 
     int i, last_i = 0, cid = Predict(recs_in[0].key) / PROBE_SIZE;
@@ -114,22 +115,6 @@ void ROInner::Clear() {
     capacity = 0;
 }
 
-static void free_child(BaseNode * child) {
-    /* it will invalid the children of current nodes
-        In some cases, we do not want that happen
-    */
-    switch(child->node_type) {
-    case NodeType::ROINNER:
-        delete reinterpret_cast<ROInner *>(child);
-    case NodeType::ROLEAF: 
-        delete reinterpret_cast<ROLeaf *>(child);
-    case NodeType::RWLEAF:
-        delete reinterpret_cast<RWLeaf *>(child);
-    case NodeType::WOLEAF:
-        delete reinterpret_cast<WOLeaf *>(child);
-    }
-}
-
 ROInner::~ROInner() {
     for (int i = 0; i < capacity; i++) {
         if(i % PROBE_SIZE == PROBE_SIZE - 1 && recs[i].val != nullptr) {
@@ -158,11 +143,11 @@ void ROInner::Print(string prefix) {
         if(i % PROBE_SIZE == PROBE_SIZE - 1 && recs[i].val != nullptr) {
             OFNode * ofnode = (OFNode *) recs[i].val;
             for(int i = 0; i < ofnode->len; i++) {
-                printf("(%lu, 0x%lx) ", ofnode->recs_[i].key, (uint64_t)ofnode->recs_[i].val);
+                printf("(%lf, 0x%lx) ", ofnode->recs_[i].key, (uint64_t)ofnode->recs_[i].val);
             }
         }
         if(recs[i].key != MAX_KEY) {
-            printf("(%lu, 0x%lx) ", recs[i].key, (uint64_t)recs[i].val);
+            printf("(%lf, 0x%lx) ", recs[i].key, (uint64_t)recs[i].val);
         }
     }
     printf("]\n");

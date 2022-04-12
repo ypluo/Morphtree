@@ -9,11 +9,12 @@
 #include <sys/time.h>
 #include <sys/stat.h>
 
-typedef uint64_t _key_t;
-typedef void * _val_t;
+using _key_t = double;
+using _val_t = void *; // less than 8 bytes
 
-#define MAX_KEY UINT64_MAX
-#define MIN_KEY 0
+const _key_t MAX_KEY = std::numeric_limits<_key_t>::max();
+const _key_t MIN_KEY = typeid(_key_t) == typeid(double) || typeid(_key_t) == typeid(float) 
+                            ? -1 * MAX_KEY : std::numeric_limits<_key_t>::min();
 
 struct Record {
     _key_t key;

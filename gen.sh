@@ -6,7 +6,7 @@ DATASIZE=64000000
 QUERYSIZE=96000000
 READ=1
 WRITE=0
-KEYSET=../datasets/${DATASET}_u64.dat
+KEYSET=/data/lyp/datasets/${DATASET}.dat
 
 # generate dataset.dat and query.dat
 echo "recordcount=${DATASIZE}"      > workload.spec

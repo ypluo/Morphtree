@@ -78,7 +78,7 @@ void Stage(ycsbc::CoreWorkload & wl, ycsbc::BasicDB & db, int opcount) {
 }
 
 int main(int argc, const char *argv[]) {
-    const int INITIAL_SIZE_DEFAULT = 8000000;
+    const int INITIAL_SIZE_DEFAULT = 16000000;
     const int SATGE_WIDTH_DEFAULT  = 32000000;
     
     utils::Properties props;

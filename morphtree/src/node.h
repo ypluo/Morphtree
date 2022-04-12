@@ -79,11 +79,10 @@ private:
     void Split(_key_t k, _val_t v, _key_t * split_key, ROInner ** split_node);
 
     inline int Predict(_key_t k) {
-        return std::min(std::max(0, int(slope * k + intercept)), capacity - 1);
+        return std::min(std::max(0.0, slope * k + intercept), capacity - 1.0);
     }
 
     inline bool ShouldExpand() {
-        //return (count < COUNT_CHECK || of_count <= (count >> 3)) && count >= (capacity / 5);
         return count <= COUNT_CHECK || (of_count <= (count >> 3) && max_of <= 64);
     }
     
@@ -130,7 +129,7 @@ private:
     }
 
     inline int Predict(_key_t k) {
-        return std::min(std::max(0, int(slope * k + intercept)), NODE_SIZE - 1);
+        return std::min(std::max(0.0, slope * k + intercept), NODE_SIZE - 1.0);
     }
 
 public:
@@ -176,7 +175,7 @@ private:
     }
 
     inline int Predict(_key_t k) {
-        return std::min(std::max(0, int(slope * k + intercept)), NODE_SIZE - 1);
+        return std::min(std::max(0.0, slope * k + intercept), NODE_SIZE - 1.0);
     }
 
 public:

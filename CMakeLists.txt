@@ -8,7 +8,7 @@ elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     set(CMAKE_CXX_FLAGS "-O3 -xHost")
 else()
     # clang and gcc
-    set(CMAKE_CXX_FLAGS "-march=native -O3 -fmax-errors=5")
+    set(CMAKE_CXX_FLAGS "-march=native -g -fmax-errors=5")
 endif()
 
 #======= include directories =======
@@ -19,7 +19,7 @@ include_directories(${CMAKE_SOURCE_DIR}/morphtree)
 #==== set compile and link options =====
 # link options must be prior to adding sub directories
 add_link_options(-pthread)
-link_libraries(/usr/local/lib/libtbb.so)
+link_libraries(/usr/lib/x86_64-linux-gnu/libtbb.so)
 
 #======= add sub directories =======
 add_subdirectory(ALEX)

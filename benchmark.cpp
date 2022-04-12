@@ -6,10 +6,12 @@
 #include "utils.h"
 #include "index.h"
 
-typedef uint64_t KeyType;
+typedef double KeyType;
 typedef uint64_t ValType;
 
 static bool insert_only = false;
+static bool detail_tp = false;
+static const int INTERVAL = 1000000;
 
 template <typename Fn, typename... Args>
 void StartThreads(Index<KeyType, ValType> *tree_p,
@@ -164,8 +166,8 @@ Index<KeyType, ValType> * populate(int index_type, std::vector<KeyType> &init_ke
   double end_time = get_now();
   
   double tput = (init_keys.size() - bulkload_size) / (end_time - start_time) / 1000000; //Mops/sec
-  std::cout << tput << "\t";
-
+  if(detail_tp == false)
+    std::cout << tput << "\t";
   return idx;
 }
 
@@ -199,6 +201,7 @@ void exec(int index_type,
     uint64_t v;
 
     int counter = 0;
+    double last_ts = get_now(), cur_ts;
     for(size_t i = start_index;i < end_index;i++) {
       int op = ops[i];
       if (op == OP_INSERT) { //INSERT
@@ -210,18 +213,25 @@ void exec(int index_type,
       } else if (op == OP_SCAN) { //SCAN
         idx->scan(keys[i], ranges[i]);
       }
+
+      if(detail_tp == true && (i + 1) % INTERVAL == 0) {
+        cur_ts = get_now();
+        double tput = INTERVAL / (cur_ts - last_ts) / 1000000; //Mops/sec
+        std::cout << tput << std::endl;
+        last_ts = cur_ts;
+      }
     }
     return;
   };
 
   auto start_time = get_now();  
   func2(0, false);
-  //StartThreads(idx, num_thread, func2, false);
   auto end_time = get_now();
 
   double tput = txn_num / (end_time - start_time) / 1000000; //Mops/sec
-  // std::cout << "query " << tput << "Mops/s" << "\n";
-  std::cout << tput << std::endl;
+  if(detail_tp == false)
+    std::cout << tput << std::endl;
+  
   delete idx;
   return;
 }

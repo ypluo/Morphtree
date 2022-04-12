@@ -27,7 +27,7 @@ WOLeaf::WOLeaf(Record * recs_in, int num) {
     recs = new Record[NODE_SIZE];
     memcpy(recs, recs_in, sizeof(Record) * num);
     count = num;
-    sorted_count = 0;
+    sorted_count = num;
 }
 
 WOLeaf::~WOLeaf() {
@@ -138,7 +138,7 @@ void WOLeaf::Print(string prefix) {
 
     printf("%s(%d)[", prefix.c_str(), node_type);
     for(int i = 0; i < out.size(); i++) {
-        printf("%lu, ", out[i].key);
+        printf("%lf, ", out[i].key);
     }
     printf("]\n");
 }

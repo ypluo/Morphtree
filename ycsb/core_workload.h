@@ -23,8 +23,8 @@
 
 namespace ycsbc {
 
-typedef uint64_t _key_t;
-const uint64_t KEYSET_SCALE_DEFAULT = (uint64_t) 512 * 1024 * 1024;
+typedef double _key_t;
+const uint64_t KEYSET_SCALE_DEFAULT = (uint64_t) 64 * 1024 * 1024;
 
 enum Operation {
   INSERT,

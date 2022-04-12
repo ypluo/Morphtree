@@ -23,7 +23,7 @@ TEST(SingleNode, woleaf) {
 
     // insert data into nodes
     for(uint64_t i = 0; i < SCALE1; i++) {
-        n->Store(tmp[i], _val_t(tmp[i]), &split_key, &split_node);
+        n->Store(tmp[i], _val_t((uint64_t)tmp[i]), &split_key, &split_node);
     }
 
     // test lookup
@@ -58,7 +58,7 @@ TEST(SingleNode, rwleaf) {
     // insert data into nodes
     for(uint64_t i = load_size; i < SCALE1; i++) {
         // printf("inserting %lu\n", tmp[i].key);
-        n->Store(tmp[i].key, _val_t(tmp[i].key), &split_key, &split_node);
+        n->Store(tmp[i].key, _val_t((uint64_t)tmp[i].key), &split_key, &split_node);
     }
 
     // n->Print("  ");
@@ -93,8 +93,8 @@ TEST(SingleNode, roleaf) {
 
     // test insert
     for(uint64_t i = load_size; i < SCALE1; i++) {
-        // printf("%lu\n", tmp[i].key);
-        ASSERT_FALSE(n->Store(tmp[i].key, tmp[i].val, &split_key, &split_node));
+        // printf("%lu\n", (uint64_t)tmp[i].key);
+        ASSERT_FALSE(n->Store((uint64_t)tmp[i].key, tmp[i].val, &split_key, &split_node));
     }
 
     // test lookup
@@ -119,7 +119,7 @@ TEST(SingleNode, roinner) {
     Record * tmp = new Record[SCALE1];
     for(uint64_t i = 0; i < SCALE1; i++) {
         tmp[i].key = dist(gen);
-        tmp[i].val = (_val_t)tmp[i].key;
+        tmp[i].val = (_val_t)(uint64_t)tmp[i].key;
     }
 
     // bulk load
@@ -131,7 +131,7 @@ TEST(SingleNode, roinner) {
     _val_t res;
     for(uint64_t i = 0; i < SCALE1; i++) {
         ASSERT_TRUE(n->Lookup(tmp[i].key, res));
-        ASSERT_EQ(res, _val_t(tmp[i].key));
+        ASSERT_EQ(res, _val_t((uint64_t)tmp[i].key));
     }
 
     delete tmp;
@@ -155,9 +155,9 @@ TEST(TwoNode, wonode) {
     // insert data into nodes
     for(int i = 0; i < SCALE2; i++) {
         if(tmp[i] < split_key) {
-            n->Store(tmp[i], _val_t(tmp[i]), &split_key, &split_node);
+            n->Store(tmp[i], _val_t((uint64_t)tmp[i]), &split_key, &split_node);
         } else {
-            split_node->Store(tmp[i], _val_t(tmp[i]), nullptr, nullptr);
+            split_node->Store(tmp[i], _val_t((uint64_t)tmp[i]), nullptr, nullptr);
         }
     }
 
@@ -194,9 +194,9 @@ TEST(TwoNode, rwleaf) {
     // insert data into nodes
     for(int i = SCALE2 / 2; i < SCALE2; i++) {
         if(tmp[i].key < split_key) {
-            n->Store(tmp[i].key, _val_t(tmp[i].key), &split_key, &split_node);
+            n->Store(tmp[i].key, _val_t((uint64_t)tmp[i].key), &split_key, &split_node);
         } else {
-            split_node->Store(tmp[i].key, _val_t(tmp[i].key), nullptr, nullptr);
+            split_node->Store((uint64_t)tmp[i].key, _val_t((uint64_t)tmp[i].key), nullptr, nullptr);
         }
     }
     //n->Print("\n");

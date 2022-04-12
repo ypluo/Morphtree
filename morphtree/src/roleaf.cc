@@ -87,8 +87,8 @@ ROLeaf::ROLeaf(Record * recs_in, int num){
     model.build();
 
     // caculate the linear model
-    slope = model.a_ * NODE_SIZE / (2 * MARGIN + num);
-    intercept = model.b_ * NODE_SIZE / (2 * MARGIN + num);
+    slope = model.a_ * (NODE_SIZE - 2 * MARGIN) / num;
+    intercept = model.b_ * (NODE_SIZE - 2 * MARGIN) / num + MARGIN;
     recs = new Record[NODE_SIZE];
 
     for(int i = 0; i < num; i++) {
@@ -213,7 +213,7 @@ void ROLeaf::Print(string prefix) {
 
     printf("%s(%d)[(%f)", prefix.c_str(), node_type, (float)of_count / count);
     for(int i = 0; i < out.size(); i++) {
-        printf("%lu, ", out[i].key);
+        printf("%lf, ", out[i].key);
     }
     printf("]\n");
 }

@@ -8,7 +8,7 @@ OPERATION=2000000
 READ=1
 WRITE=0
 DIST=zipfian
-KEYSET=../datasets/${DATASET}_u64.dat
+KEYSET=/data/lyp/datasets/${DATASET}.dat
 
 # generate workload specific file
 echo "recordcount=${RECORD}"         > workload.spec

@@ -21,7 +21,7 @@ protected:
     }
 };
 
-TEST_F(tree_test, load) {
+TEST_F(tree_test, DISABLED_load) {
     const int TEST_SCALE = 1000000;
     uint64_t STEP = UINT64_MAX / TEST_SCALE;
 
@@ -65,7 +65,7 @@ TEST_F(tree_test, ycsb) {
         if(!infile_load.good()) {
             break;
         }
-        tree->insert(_key_t(key), _val_t(key));
+        tree->insert(_key_t(key), _val_t((uint64_t)key));
         count += 1;
     }
 
@@ -77,10 +77,10 @@ TEST_F(tree_test, ycsb) {
             break;
         }
         if (op.compare("INSERT") == 0) {
-            tree->insert(_key_t(key), _val_t(key));
+            tree->insert(_key_t(key), _val_t((uint64_t)key));
         }
         else if (op.compare("READ") == 0) {
-            ASSERT_EQ(tree->lookup(_key_t(key)), _val_t(key));
+            ASSERT_EQ(tree->lookup(_key_t(key)), _val_t((uint64_t)key));
         }
     }
 

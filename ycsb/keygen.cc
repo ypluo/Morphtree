@@ -17,12 +17,15 @@ using std::cout;
 using std::endl;
 using std::ofstream;
 
+using _key_t = double;
+
 string WorkloadName[] = {"random", "lognormal", "normal"};
 enum WorkloadDist {RANDOM, LOGNORMAL, NORMAL};
 
-void generate(uint64_t *arr, uint64_t scale, WorkloadDist d) {
+void generate(_key_t *arr, uint64_t scale, WorkloadDist d) {
     std::mt19937 gen(utils::rand());
     if(d == WorkloadDist::RANDOM) {
+        std::uniform_real_distribution<double> dist(0, 64000000);
         for(uint64_t i = 0; i < scale; i++) {
             arr[i] = utils::FNVHash64(i + 1);
         }
@@ -30,23 +33,13 @@ void generate(uint64_t *arr, uint64_t scale, WorkloadDist d) {
         std::lognormal_distribution<double> dist(22.123456789, 5.123456789);
         uint64_t i = 0;
         while (i < scale) {
-            double val = (uint64_t)dist(gen);
-            if(val <= 0 || val > (double) UINT64_MAX) {
-                continue;
-            } else {
-                arr[i++] = (uint64_t)std::round(val);
-            }
+            arr[i++] = (uint64_t)dist(gen);
         }
     } else {
-        std::normal_distribution<double> dist(INT64_MAX / 2, INT64_MAX / 8);
+        std::normal_distribution<double> dist(0, 1000000);
         uint64_t i = 0;
         while (i < scale) {
-            double val = (uint64_t)dist(gen);
-            if(val < 0 || val > (double) UINT64_MAX) {
-                continue;
-            } else {
-                arr[i++] = (uint64_t)std::round(val);
-            }
+            arr[i++] = (uint64_t)dist(gen);
         }
     }
     return ;
@@ -68,7 +61,7 @@ int main(int argc, char ** argv) {
     else 
         dist = WorkloadDist::RANDOM;
     
-    uint64_t * arr = new uint64_t[scale];
+    _key_t * arr = new _key_t[scale];
     string filename = string("../datasets/") + WorkloadName[dist] + ".dat";
     if(!utils::file_exist(filename.c_str())) {
         remove(filename.c_str());
