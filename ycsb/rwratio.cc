@@ -80,6 +80,7 @@ void Stage(ycsbc::CoreWorkload & wl, ycsbc::BasicDB & db, int opcount) {
 int main(int argc, const char *argv[]) {
     const int INITIAL_SIZE_DEFAULT = 16000000;
     const int SATGE_WIDTH_DEFAULT  = 32000000;
+    const int STAGE_COUNT_DEFAULT  = 6;
     
     utils::Properties props;
     props.SetProperty(CoreWorkload::READ_PROPORTION_PROPERTY, to_string(0));
@@ -90,7 +91,7 @@ int main(int argc, const char *argv[]) {
 
     // for each stage, generate a piece of workloads
     const string filename = props.GetProperty("dataset_file", "");
-    int stage_count = stoi(props.GetProperty("stage_count", "4"));
+    int stage_count = stoi(props.GetProperty("stage_count", to_string(STAGE_COUNT_DEFAULT)));
     int stage_width = stoi(props.GetProperty("stage_width", to_string(SATGE_WIDTH_DEFAULT)));
     int max_record_count = INITIAL_SIZE_DEFAULT + (stage_count * stage_width) / 2;
 

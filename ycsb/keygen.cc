@@ -62,7 +62,7 @@ int main(int argc, char ** argv) {
         dist = WorkloadDist::RANDOM;
     
     _key_t * arr = new _key_t[scale];
-    string filename = string("../datasets/") + WorkloadName[dist] + ".dat";
+    string filename = string("/data/lyp/datasets/") + WorkloadName[dist] + ".dat";
     if(!utils::file_exist(filename.c_str())) {
         remove(filename.c_str());
     }
