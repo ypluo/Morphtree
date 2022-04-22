@@ -184,6 +184,7 @@ void exec(int index_type,
   
   // If we do not perform other transactions, we can skip txn file
   if(insert_only == true) {
+    idx->printTree();
     return;
   }
 
@@ -249,8 +250,6 @@ int main(int argc, char *argv[]) {
     index_type = TYPE_ALEX;
   else if(strcmp(argv[1], "lipp") == 0)
     index_type = TYPE_LIPP;
-  else if(strcmp(argv[1], "btree") == 0)
-    index_type = TYPE_STXBTREE;
   else if(strcmp(argv[1], "wotree") == 0)
     index_type = TYPE_MORPHTREE_WO;
   else if(strcmp(argv[1], "rwtree") == 0)

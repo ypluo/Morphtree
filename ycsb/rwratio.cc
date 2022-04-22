@@ -87,6 +87,7 @@ int main(int argc, const char *argv[]) {
     props.SetProperty(CoreWorkload::INSERT_PROPORTION_PROPERTY, to_string(0));
     props.SetProperty(CoreWorkload::UPDATE_PROPORTION_PROPERTY, to_string(0));
     props.SetProperty(CoreWorkload::SCAN_PROPORTION_PROPERTY, to_string(0));
+    props.SetProperty(CoreWorkload::REQUEST_DISTRIBUTION_PROPERTY, "zipfian");
     ParseCommandLine(argc, argv, props);
 
     // for each stage, generate a piece of workloads
@@ -104,6 +105,7 @@ int main(int argc, const char *argv[]) {
     std::vector<KVPair> values;
     props.SetProperty(CoreWorkload::INSERT_START_PROPERTY, to_string(0));
     props.SetProperty(CoreWorkload::RECORD_COUNT_PROPERTY, to_string(INITIAL_SIZE_DEFAULT));
+    props.SetProperty(CoreWorkload::OPERATION_COUNT_PROPERTY, to_string(0));
     wl.Init(props);
     for(int i = 0; i < INITIAL_SIZE_DEFAULT; i++) {
         key = wl.NextSequenceKey();

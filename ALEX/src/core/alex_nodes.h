@@ -60,6 +60,7 @@ class AlexNode {
   AlexNode(short level, bool is_leaf) : is_leaf_(is_leaf), level_(level) {}
   virtual ~AlexNode() = default;
 
+  //virtual void Print(std::string & prefix);
   // The size in bytes of all member variables in this class
   virtual long long node_size() const = 0;
 };
@@ -272,6 +273,12 @@ class AlexModelNode : public AlexNode<T, P> {
 
     return true;
   }
+
+  // void Print(std::string & prefix) {
+  //   for(int i = 0; i < num_children_; i++) {
+
+  //   }
+  // }
 };
 
 /*

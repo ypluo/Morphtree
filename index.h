@@ -3,7 +3,6 @@
 
 #include <iostream>
 #include "ALEX/src/core/alex.h"
-#include "stxbtree/btree.h"
 #include "morphtree/src/morphtree_impl.h"
 #include "lipp/src/core/lipp.h"
 
@@ -116,53 +115,6 @@ public:
 private:
     LIPP<KeyType, uint64_t> * idx;
 };
-
-/////////////////////////////////////////////////////////////////////
-// stxbtree
-/////////////////////////////////////////////////////////////////////
-template<typename KeyType, typename ValType>
-class BtreeIndex : public Index<KeyType, ValType>
-{
-public:
-    BtreeIndex() {
-        idx = new stx::btree<KeyType, uint64_t>;
-    }
-
-    ~BtreeIndex() {
-        delete idx;
-    }
-
-    bool insert(KeyType key, uint64_t value) {
-        idx->insert(key, value);
-        return false;
-    }
-
-    bool find(KeyType key, uint64_t *v) {
-        auto it = idx->find(key);
-        if (it != idx->end()) {
-            *v = it.data();
-        }
-        return true;
-    }
-
-    bool upsert(KeyType key, uint64_t value) {
-        return true;
-    }
-
-    uint64_t scan(KeyType key, int range) {
-        return 0;
-    }
-
-    void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
-        return;
-    }
-
-    int64_t printTree() const {return 0;}
-    
-private:
-    stx::btree<KeyType, uint64_t> * idx;
-};
-
 
 /////////////////////////////////////////////////////////////////////
 // morphtree using write optimized leaf nodes

@@ -8,7 +8,7 @@
 
 namespace morphtree {
 
-static const int MARGIN = ROLeaf::PROBE_SIZE * 2;
+static const int MARGIN = ROLeaf::PROBE_SIZE;
 
 struct OFNode {
     uint16_t len;

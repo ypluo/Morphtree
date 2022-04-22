@@ -2996,5 +2996,10 @@ class Alex {
 
     bool is_end() const { return cur_node_ == nullptr; }
   };
+
+  public:
+    // print() {
+    //   root_node_->Print("");
+    // }
 };
 }  // namespace alex

@@ -21,13 +21,13 @@ protected:
     }
 };
 
-TEST_F(tree_test, DISABLED_load) {
+TEST_F(tree_test, load) {
     const int TEST_SCALE = 1000000;
     uint64_t STEP = UINT64_MAX / TEST_SCALE;
 
     _key_t * keys = new _key_t[TEST_SCALE];
     for(int i = 0; i < TEST_SCALE; i++) {
-        //keys[i] = _key_t(i);
+        // keys[i] = _key_t(i);
         keys[i] = _key_t(i) * STEP + ((i | 0x5a5a5a5a) % 0xff);
     }
 
@@ -36,12 +36,12 @@ TEST_F(tree_test, DISABLED_load) {
     std::shuffle(keys, &keys[TEST_SCALE - 1], gen);
 
     for(int i = 0; i < TEST_SCALE; i++) {
-        // printf("insert %lu\n", keys[i]);
+        // printf("insert %d %lf\n",i, keys[i]);
         tree->insert(_key_t(keys[i]), _val_t((uint64_t)i));
     }
     
     for(int i = 0; i < TEST_SCALE; i++) {
-        // printf("%lu\n", keys[i]);
+        // printf("%lf\n", keys[i]);
         ASSERT_EQ(tree->lookup(_key_t(keys[i])), _val_t((uint64_t)i));
     }
 

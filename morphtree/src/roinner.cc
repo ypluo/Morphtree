@@ -9,74 +9,50 @@
 
 namespace morphtree {
 
-static const int MARGIN = 2 * ROInner::PROBE_SIZE;
+static const int MARGIN = ROInner::PROBE_SIZE;
 
-struct OFNode {
-    uint32_t len;
-    char dummy[4];
-    Record recs_[0];
-
-    bool Lookup(_key_t k, _val_t last_v, _val_t & v) {
-        uint16_t i;
-        if(recs_[0].key > k) {
-            v = last_v;
-            return true;
-        }
-
-        for(i = 1; i < len; i++) {
-            if(recs_[i].key > k) {
-                v = recs_[i - 1].val;
-                return true;
-            }
-        }
-
-        v = recs_[i - 1].val;
-        return true;
-    }
-};
-
-ROInner::ROInner(Record * recs_in, int num, int recommend_cap) {
+ROInner::ROInner(Record * recs_in, int num) {
     node_type = NodeType::ROINNER;
-    count = 0;
-    of_count= 0;
+    count = num;
+    of_count = 0;
     recs = nullptr;
 
+    if(num < BNODE_SIZE) {
+        // Use Btree Node
+        capacity = BNODE_SIZE;
+        recs = new Record[capacity];
+        memcpy(recs, recs_in, num * sizeof(Record));
+        return ;
+    } else {
+        capacity = (num * 4 + PROBE_SIZE - 1) / PROBE_SIZE * PROBE_SIZE;
+        recs = new Record[capacity];
+    }
+
+    // train a model
     LinearModelBuilder model;
-    for(int i = 0; i < num; i++) {
+    for(int i = PROBE_SIZE; i < num - PROBE_SIZE; i++) {
         model.add(recs_in[i].key, i);
     }
     model.build();
 
-    // caculate the linear model
-    if(recommend_cap == 0)
-        recommend_cap = num * 2;
-    
-    recommend_cap = std::max(128, recommend_cap);
-    capacity = (recommend_cap + PROBE_SIZE - 1) / PROBE_SIZE * PROBE_SIZE;
+    // store the model 
     slope = model.a_ * (capacity - 2 * MARGIN) / num;
     intercept = model.b_ * (capacity - 2 * MARGIN) / num + MARGIN;
-    recs = new Record[capacity];
 
-    int i, last_i = 0, cid = Predict(recs_in[0].key) / PROBE_SIZE;
     // populate the node with records
+    int i, last_i = 0, cid = Predict(recs_in[0].key) / PROBE_SIZE;
     for(i = 1; i < num; i++) {
         int predict = Predict(recs_in[i].key);
         if((predict / PROBE_SIZE) != cid) {
-            // copy records in [last_i, i) into cid-th cacheline
             int c = i - last_i;
-            if(c <= PROBE_SIZE - 1) {
+
+            if(c <= PROBE_SIZE) {
                 memcpy(&recs[cid * PROBE_SIZE], &recs_in[last_i], c * sizeof(Record));
             } else {
-                // add an overflow node
-                int oc = c - PROBE_SIZE + 1;
-                of_count += oc;
-                OFNode * ofnode = (OFNode *) new char[sizeof(OFNode) + oc * sizeof(Record)];
-                Record * _discard = new(ofnode->recs_) Record[oc]; // just for initializition
-                recs[cid * PROBE_SIZE + PROBE_SIZE - 1] = {recs_in[last_i + PROBE_SIZE - 1].key, ofnode};
-                ofnode->len = oc;
-
                 memcpy(&recs[cid * PROBE_SIZE], &recs_in[last_i], (PROBE_SIZE - 1) * sizeof(Record));
-                memcpy(&ofnode->recs_[0], &recs_in[last_i + PROBE_SIZE - 1], oc * sizeof(Record));
+                recs[cid * PROBE_SIZE + PROBE_SIZE - 1].key = recs_in[last_i + PROBE_SIZE - 1].key;
+                recs[cid * PROBE_SIZE + PROBE_SIZE - 1].val = new ROInner(&recs_in[last_i + PROBE_SIZE - 1], c - PROBE_SIZE + 1);
+                of_count += c - PROBE_SIZE + 1;
             }
 
             // go next cacheline
@@ -84,49 +60,23 @@ ROInner::ROInner(Record * recs_in, int num, int recommend_cap) {
             cid = predict / PROBE_SIZE;
         }
     }
-    {
-        int c = i - last_i;
-        if(c <= PROBE_SIZE - 1) {
-            memcpy(&recs[cid * PROBE_SIZE], &recs_in[last_i], c * sizeof(Record));
-        } else {
-            // add an overflow node
-            int oc = c - PROBE_SIZE + 1;
-            of_count += oc;
-            OFNode * ofnode = (OFNode *) new char[sizeof(OFNode) + oc * sizeof(Record)];
-            Record * _discard = new(ofnode->recs_) Record[oc]; // just for initializition
-            recs[cid * PROBE_SIZE + PROBE_SIZE - 1] = {recs_in[last_i + PROBE_SIZE - 1].key, ofnode};
-            ofnode->len = oc;
-            
-            memcpy(&recs[cid * PROBE_SIZE], &recs_in[last_i], (PROBE_SIZE - 1) * sizeof(Record));
-            memcpy(&ofnode->recs_[0], &recs_in[last_i + PROBE_SIZE - 1], oc * sizeof(Record));
-        }
+    int c = i - last_i;
+    if(c <= PROBE_SIZE) {
+        memcpy(&recs[cid * PROBE_SIZE], &recs_in[last_i], c * sizeof(Record));
+    } else {
+        memcpy(&recs[cid * PROBE_SIZE], &recs_in[last_i], (PROBE_SIZE - 1) * sizeof(Record));
+        recs[cid * PROBE_SIZE + PROBE_SIZE - 1].key = recs_in[last_i + PROBE_SIZE - 1].key;
+        recs[cid * PROBE_SIZE + PROBE_SIZE - 1].val = new ROInner(&recs_in[last_i + PROBE_SIZE - 1], c - PROBE_SIZE + 1);
+        of_count += c - PROBE_SIZE + 1;
     }
-
-    count = num;
-}
-
-void ROInner::Clear() {
-    // free all overflow records
-    for(int i = 0; i < capacity; i += PROBE_SIZE) {
-        if(recs[i + PROBE_SIZE - 1].val != nullptr) {
-            delete [] (char *) recs[i + PROBE_SIZE - 1].val;
-        }
-    }
-    capacity = 0;
 }
 
 ROInner::~ROInner() {
-    for (int i = 0; i < capacity; i++) {
-        if(i % PROBE_SIZE == PROBE_SIZE - 1 && recs[i].val != nullptr) {
-            OFNode * ofnode = (OFNode *) recs[i].val;
-            for(int i = 0; i < ofnode->len; i++) {
-                BaseNode * child = (BaseNode *)ofnode->recs_[i].val;
-                child->DeleteNode();
-            }
-            delete ofnode;
-        } else if(recs[i].key != MAX_KEY) {
-            BaseNode * child = (BaseNode *)recs[i].val;
-            child->DeleteNode();
+    for(int i = PROBE_SIZE - 1; i < capacity; i += PROBE_SIZE) {
+        BaseNode * child = (ROInner *) recs[i].val;
+        if(child != nullptr && !child->Leaf()) {
+            ((ROInner *)child)->Clear();
+            delete child;
         }
     }
 
@@ -134,171 +84,177 @@ ROInner::~ROInner() {
 }
 
 void ROInner::Print(string prefix) {
-    printf("%s[(%d, %d, %d)", prefix.c_str(), capacity, count, of_count);
+    printf("%s(%d, %d %d)[", prefix.c_str(), node_type, count, capacity);
     for(int i = 0; i < capacity; i++) {
-        if(i % PROBE_SIZE == 0) {
+        if(i % PROBE_SIZE == PROBE_SIZE - 1) {
             printf("><");
         }
-
-        if(i % PROBE_SIZE == PROBE_SIZE - 1 && recs[i].val != nullptr) {
-            OFNode * ofnode = (OFNode *) recs[i].val;
-            for(int i = 0; i < ofnode->len; i++) {
-                printf("(%lf, 0x%lx) ", ofnode->recs_[i].key, (uint64_t)ofnode->recs_[i].val);
-            }
-        }
-        if(recs[i].key != MAX_KEY) {
-            printf("(%lf, 0x%lx) ", recs[i].key, (uint64_t)recs[i].val);
-        }
+        if(recs[i].key != MAX_KEY)
+            printf("%lf, ", recs[i].key);
     }
     printf("]\n");
-    
     for(int i = 0; i < capacity; i++) {
-        if(i % PROBE_SIZE == PROBE_SIZE - 1 && recs[i].val != nullptr) {
-            OFNode * ofnode = (OFNode *) recs[i].val;
-            for(int i = 0; i < ofnode->len; i++) {
-                BaseNode * child = (BaseNode *)ofnode->recs_[i].val;
-                child->Print(prefix + "\t");
-            }
-        } else if(recs[i].key != MAX_KEY) {
-            BaseNode * child = (BaseNode *)recs[i].val;
+        if(recs[i].key != MAX_KEY) {
+            BaseNode * child = (BaseNode *) recs[i].val;
             child->Print(prefix + "\t");
         }
     }
 }
 
-bool ROInner::Insert(_key_t k, _val_t v) {
-    int predict = Predict(k);
-    predict = predict / PROBE_SIZE * PROBE_SIZE;
-
-    int i;
-    for (i = predict; i < predict + PROBE_SIZE - 1; i++) {
-        if(recs[i].key > k)
-            break;
-    }
-
-    // try to find a empty slot
-    Record last_one = recs[predict + PROBE_SIZE - 2];
-    if(last_one.key == MAX_KEY) { 
-        // there is an empty slot
-        memmove(&recs[i + 1], &recs[i], sizeof(Record) * (predict + PROBE_SIZE - 2 - i));
-        recs[i] = Record(k, v);
-        count += 1;
-        return true;
-    } else {
-        return false;
-    }
-}
-
 bool ROInner::Store(_key_t k, _val_t v, _key_t * split_key, ROInner ** split_node) {
-    if(Insert(k, v))
-        return false;
+    if(count < BNODE_SIZE) {
+        int i;
+        for(i = 0; i < count; i++) {
+            if(recs[i].key > k) {
+                break;
+            }
+        }
 
-    // there is no empty slot
-    if(ShouldExpand()) {
-        Expand(k, v);
-        return false;
+        memmove(&recs[i + 1], &recs[i], sizeof(Record) * (count - i));
+        recs[i] = {k, (char *) v};
+        count += 1;
+
+        if(count == BNODE_SIZE) { // create a new inner node
+            ROInner * new_inner = new ROInner(recs, count);
+            SwapNode(new_inner, this);
+            new_inner->Clear();
+            delete new_inner;
+        }
     } else {
-        Split(k, v, split_key, split_node);
-        return true;
+        int predict = Predict(k);
+        predict = (predict / PROBE_SIZE) * PROBE_SIZE;
+
+        int i;
+        for (i = predict; i < predict + PROBE_SIZE; i++) {
+            if(recs[i].key > k)
+                break;
+        }
+
+        Record last_one = recs[predict + PROBE_SIZE - 1];
+        if(last_one.key == MAX_KEY) { // there is an empty slot
+            memmove(&recs[i + 1], &recs[i], sizeof(Record) * (predict + PROBE_SIZE - 1 - i));
+            recs[i] = Record(k, v);
+        } else {
+            BaseNode * rightmost = (BaseNode *)last_one.val;
+            if(rightmost->Leaf()) { // has no overflow inner node
+                // copy records in this bucket into a tmp array
+                Record tmp[PROBE_SIZE + 1];
+                memcpy(tmp, &recs[predict], sizeof(Record) * PROBE_SIZE);
+                memmove(&tmp[i + 1 - predict], &tmp[i - predict], sizeof(Record) * (predict + PROBE_SIZE - i));
+                tmp[i - predict] = Record(k, v);
+                
+                // rearange the records in this bucket
+                memcpy(&recs[predict], tmp, sizeof(Record) * (PROBE_SIZE - 1));
+                ROInner * new_inner = new ROInner(&tmp[PROBE_SIZE - 1], 2);
+                recs[predict + PROBE_SIZE - 1].key = tmp[PROBE_SIZE - 1].key;
+                recs[predict + PROBE_SIZE - 1].val = new_inner;
+                of_count += 2;
+            } else { // has a overflow inner node
+                if(i < predict + PROBE_SIZE - 1) {
+                    _key_t new_k = recs[predict + PROBE_SIZE - 2].key;
+                    _val_t new_v = recs[predict + PROBE_SIZE - 2].val;
+                    memmove(&recs[i + 1], &recs[i], sizeof(Record) * (predict + PROBE_SIZE - 2 - i));
+                    recs[i] = Record(k, v);
+                    
+                    rightmost->Store(new_k, new_v, nullptr, nullptr);
+                    recs[predict + PROBE_SIZE - 1].key = new_k; // update the split key of bucket and overflow node
+                } else if(i == predict + PROBE_SIZE - 1) { 
+                    rightmost->Store(k, v, nullptr, nullptr);
+                    recs[predict + PROBE_SIZE - 1].key = k; // update the split key of bucket and overflow node
+                } else {
+                    rightmost->Store(k, v, nullptr, nullptr);
+                }
+                of_count += 1;
+            }
+        }
+        count += 1;
+
+        if(shouldRebuild()) {
+            RebuildSubTree();
+        }
     }
+
+    return false;
 }
 
 bool ROInner::Lookup(_key_t k, _val_t &v) {
-    int predict = Predict(k);
-    predict = (predict / PROBE_SIZE) * PROBE_SIZE;
-
-    // probe left by PROBE_SIZE: keys less than the first key should be direct to the previous index record 
-    while(recs[predict].key > k) {
-        predict -= PROBE_SIZE;
-    }
-    // probe right by 1 to find a proper index record
-    int i = predict + 1;
-    for (; i < predict + PROBE_SIZE; i++) {
-        if(recs[i].key > k) {
-            v = recs[i - 1].val;
-            return true;
+    if(count < BNODE_SIZE) {
+        int i;
+        for(i = 0; i < BNODE_SIZE; i++) {
+            if(recs[i].key > k) {
+                break;
+            }
         }
-    }
+        v = recs[i - 1].val;
+        return true;
+    } else {
+        int predict = Predict(k);
+        predict = (predict / PROBE_SIZE) * PROBE_SIZE;
 
-    OFNode * ofnode = (OFNode *) recs[i - 1].val;
-    ofnode->Lookup(k, recs[i - 2].val, v);
-    return true;
+        // probe left: if k is less than the minimal key in current bucket
+        while(recs[predict].key > k) {
+            predict -= PROBE_SIZE;
+        }
+
+        // probe right by 1 to find a proper index record
+        int i = predict + 1;
+        for (; i < predict + PROBE_SIZE; i++) {
+            if(recs[i].key > k) {
+                v = recs[i - 1].val;
+                return true;
+            }
+        }
+
+        // this bucket is probed
+        v = recs[i - 1].val;
+        return true;
+    }
 }
 
-void ROInner::Split(_key_t k, _val_t v, _key_t * split_key, ROInner ** split_node) {
-    std::vector<Record> records;
-    records.reserve(count + 1);
+void ROInner::RebuildSubTree() {
+    std::vector<Record> all_record;
+    all_record.reserve(count);
 
-    bool merged = false;
-    for(int i = 0; i < capacity; i++) {
-        if(i % PROBE_SIZE == PROBE_SIZE - 1 && recs[i].val != nullptr) {
-            OFNode * ofnode = (OFNode *)recs[i].val;
-            for(int j = 0; j < ofnode->len; j++) {
-                if(!merged && ofnode->recs_[j].key > k) {
-                    records.push_back(Record(k, v));
-                    merged = true;
+    // gather all the records start with this node
+    for(int i = 0; i < capacity; i += PROBE_SIZE) {
+        for(int j = 0; j < PROBE_SIZE; j++) {
+            if(recs[i + j].key == MAX_KEY) {
+                break;
+            } else if(j == PROBE_SIZE - 1) {
+                BaseNode * node = (BaseNode *) recs[i + j].val;
+                if(!node->Leaf()) {
+                    ((ROInner *)node)->Dump(all_record);
+                } else {
+                    all_record.push_back(recs[i + j]);
                 }
-                records.push_back(ofnode->recs_[j]);
+            } else {
+                all_record.push_back(recs[i + j]);
             }
-        } else if(recs[i].key != MAX_KEY) {
-            if(!merged && recs[i].key > k) {
-                records.push_back(Record(k, v));
-                merged = true;
-            }
-            records.push_back(recs[i]);
         }
     }
-    if(!merged) {
-        records.push_back(Record(k, v));
-    }
 
-    int new_count = count + 1;
-    ROInner * left = new ROInner(records.data(), new_count / 2);
-    ROInner * right = new ROInner(records.data() + new_count / 2, new_count - new_count / 2);
-    left->sibling = right;
-    right->sibling = sibling;
-
-    *split_key = records[new_count / 2].key;
-    *split_node = right;
-
-    SwapNode(this, left);
-
-    left->Clear(); // delete left node without clear it incurs the danger of free valid child nodes
-    delete left;
-}
-
-void ROInner::Expand(_key_t k, _val_t v) {
-    std::vector<Record> records;
-    records.reserve(count + 1);
-    
-    bool merged = false;
-    for(int i = 0; i < capacity; i++) {
-        if(i % PROBE_SIZE == PROBE_SIZE - 1 && recs[i].val != nullptr) {
-            OFNode * ofnode = (OFNode *)recs[i].val;
-            for(int j = 0; j < ofnode->len; j++) {
-                if(!merged && ofnode->recs_[j].key > k) {
-                    records.push_back(Record(k, v));
-                    merged = true;
-                }
-                records.push_back(ofnode->recs_[j]);
-            }
-        } else if(recs[i].key != MAX_KEY) {
-            if(!merged && recs[i].key > k) {
-                records.push_back(Record(k, v));
-                merged = true;
-            }
-            records.push_back(recs[i]);
-        }
-    }
-    if(!merged) {
-        records.push_back(Record(k, v));
-    }
-
-    ROInner * new_inner = new ROInner(records.data(), count + 1, (count + 1) * 3);
-    SwapNode(this, new_inner);
-
-    new_inner->Clear();
+    ROInner * new_inner = new ROInner(all_record.data(), all_record.size());
+    SwapNode(new_inner, this);
     delete new_inner;
+}
+
+void ROInner::Dump(std::vector<Record> & out) {
+    for(int i = 0; i < capacity; i += PROBE_SIZE) {
+        for(int j = 0; j < PROBE_SIZE; j++) {
+            if(recs[i + j].key == MAX_KEY) {
+                break;
+            } else if(j == PROBE_SIZE - 1) {
+                BaseNode * node = (BaseNode *) recs[i + j].val;
+                if(!node->Leaf()) {
+                    ((ROInner *)node)->Dump(out);
+                } else {
+                    out.push_back(recs[i + j]);
+                }
+            } else {
+                out.push_back(recs[i + j]);
+            }
+        }
+    }
 }
 
 } // namespace morphtree

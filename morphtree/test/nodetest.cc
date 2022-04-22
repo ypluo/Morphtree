@@ -110,7 +110,8 @@ TEST(SingleNode, roleaf) {
 
 TEST(SingleNode, roinner) {
     int load_size = SCALE1;
-    std::default_random_engine gen(getRandom());
+    //std::default_random_engine gen(getRandom());
+    std::default_random_engine gen(997);
     std::uniform_int_distribution<uint64_t> dist(0, SCALE1 * 10);
 
 
@@ -130,8 +131,13 @@ TEST(SingleNode, roinner) {
     // test lookup
     _val_t res;
     for(uint64_t i = 0; i < SCALE1; i++) {
+        // printf("%lf\n", tmp[i].key);
         ASSERT_TRUE(n->Lookup(tmp[i].key, res));
-        ASSERT_EQ(res, _val_t((uint64_t)tmp[i].key));
+        if(res != _val_t((uint64_t)tmp[i].key)) {
+            ROInner * inner = (ROInner *) res;
+            ASSERT_TRUE(inner->Lookup(tmp[i].key, res));
+            ASSERT_EQ(res, _val_t((uint64_t)tmp[i].key));
+        }
     }
 
     delete tmp;

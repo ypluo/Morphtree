@@ -59,11 +59,11 @@ class ROInner : public BaseNode {
 public:
     ROInner() = delete;
 
-    ROInner(Record * recs_in, int num, int recommend_cap = 0);
+    ROInner(Record * recs_in, int num);
 
     ~ROInner();
 
-    void Clear();
+    void Clear() {capacity = 0;}
 
     bool Store(_key_t k, _val_t v, _key_t * split_key, ROInner ** split_node);
 
@@ -72,23 +72,21 @@ public:
     void Print(string prefix);
 
 private:
-    bool Insert(_key_t k, _val_t v);
-
-    void Expand(_key_t k, _val_t v);
-
-    void Split(_key_t k, _val_t v, _key_t * split_key, ROInner ** split_node);
-
     inline int Predict(_key_t k) {
         return std::min(std::max(0.0, slope * k + intercept), capacity - 1.0);
     }
 
-    inline bool ShouldExpand() {
-        return count <= COUNT_CHECK || (of_count <= (count >> 3) && max_of <= 64);
+    bool shouldRebuild() {
+        return of_count >= count / 4;
     }
     
+    void RebuildSubTree();
+
+    void Dump(std::vector<Record> & out);
+
 public:
-    static const int COUNT_CHECK      = 64;
-    static const int PROBE_SIZE       = 8;
+    static const int PROBE_SIZE       = 4;
+    static const int BNODE_SIZE       = 28;
 
     int32_t capacity;
     int32_t count;
@@ -100,7 +98,6 @@ public:
     // data
     Record *recs;
     int32_t of_count;
-    int16_t max_of;
     char dummy[4];
 };
 
@@ -134,7 +131,7 @@ private:
 
 public:
     static const int PROBE_SIZE = 8;
-    static const int NODE_SIZE = GLOBAL_LEAF_SIZE * 2;
+    static const int NODE_SIZE = GLOBAL_LEAF_SIZE * 3 / 2;
     static const int MAX_OFNODE = 128;
 
     // meta data
