@@ -130,9 +130,17 @@ void load(std::vector<KeyType> &init_keys, std::vector<KeyType> &keys,
 //==============================================================
 // POPULATE THE INDEX
 //==============================================================
-Index<KeyType, ValType> * populate(int index_type, std::vector<KeyType> &init_keys, int bulkload_size) {
+Index<KeyType, ValType> * populate(int index_type, std::vector<KeyType> &init_keys) {
   Index<KeyType, ValType> *idx = getInstance<KeyType, ValType>(index_type);
   
+  uint64_t bulkload_size;
+  if(index_type == TYPE_ALEX)
+    bulkload_size = init_keys.size() / 8;
+  else if(index_type == TYPE_LIPP)
+    bulkload_size = init_keys.size() / 2;
+  else 
+    bulkload_size= 0;
+
   if (index_type == TYPE_ALEX || index_type == TYPE_LIPP) {
     std::pair<KeyType, uint64_t> *recs;
     recs = new std::pair<KeyType, uint64_t>[bulkload_size];
@@ -180,7 +188,7 @@ void exec(int index_type,
                  std::vector<KeyType> &keys, 
                  std::vector<int> &ranges, 
                  std::vector<int> &ops) {
-  Index<KeyType, ValType> *idx = populate(index_type, init_keys, std::min(int(init_keys.size() / 4), 8 * 1024 * 1024));
+  Index<KeyType, ValType> *idx = populate(index_type, init_keys);
   
   // If we do not perform other transactions, we can skip txn file
   if(insert_only == true) {
@@ -208,7 +216,8 @@ void exec(int index_type,
       if (op == OP_INSERT) { //INSERT
         idx->insert(keys[i], uint64_t(keys[i]));
       } else if (op == OP_READ) { //READ
-        assert(idx->find(keys[i], &v) == true);
+        idx->find(keys[i], &v);
+        //assert(idx->find(keys[i], &v));
       } else if (op == OP_UPSERT) { //UPDATE
         idx->upsert(keys[i], reinterpret_cast<uint64_t>(&keys[i]));
       } else if (op == OP_SCAN) { //SCAN
@@ -273,8 +282,8 @@ int main(int argc, char *argv[]) {
   std::vector<int> ranges;
   std::vector<int> ops; //INSERT = 0, READ = 1, UPDATE = 2, SCAN = 3
 
-  init_keys.reserve(40000000);
-  keys.reserve(40000000);
+  init_keys.reserve(64000000);
+  keys.reserve(128000000);
   ranges.reserve(10000000);
   ops.reserve(10000000);
 
@@ -282,6 +291,10 @@ int main(int argc, char *argv[]) {
   memset(&keys[0], 0x00, 40000000 * sizeof(KeyType));
   memset(&ranges[0], 0x00, 10000000 * sizeof(int));
   memset(&ops[0], 0x00, 10000000 * sizeof(int));
+
+  if(detail_tp) {
+    printf("index type: %d\n", index_type);
+  }
 
   load(init_keys, keys, ranges, ops);
 

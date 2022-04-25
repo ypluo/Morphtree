@@ -264,7 +264,7 @@ class MorphTree : public Index<KeyType, ValType>
 {
 public:
     MorphTree() {
-        idx = new morphtree::MorphtreeImpl<morphtree::NodeType::RWLEAF, true>();
+        idx = new morphtree::MorphtreeImpl<morphtree::NodeType::WOLEAF, true>();
     }
 
     ~MorphTree() {
@@ -299,6 +299,6 @@ public:
     }
     
 private:
-    morphtree::MorphtreeImpl<morphtree::NodeType::RWLEAF, true> * idx;
+    morphtree::MorphtreeImpl<morphtree::NodeType::WOLEAF, true> * idx;
 };
 #endif

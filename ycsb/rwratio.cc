@@ -79,8 +79,8 @@ void Stage(ycsbc::CoreWorkload & wl, ycsbc::BasicDB & db, int opcount) {
 
 int main(int argc, const char *argv[]) {
     const int INITIAL_SIZE_DEFAULT = 16000000;
-    const int SATGE_WIDTH_DEFAULT  = 32000000;
-    const int STAGE_COUNT_DEFAULT  = 6;
+    const int SATGE_WIDTH_DEFAULT  = 64000000;
+    const int STAGE_COUNT_DEFAULT  = 4;
     
     utils::Properties props;
     props.SetProperty(CoreWorkload::READ_PROPORTION_PROPERTY, to_string(0));
@@ -94,7 +94,7 @@ int main(int argc, const char *argv[]) {
     const string filename = props.GetProperty("dataset_file", "");
     int stage_count = stoi(props.GetProperty("stage_count", to_string(STAGE_COUNT_DEFAULT)));
     int stage_width = stoi(props.GetProperty("stage_width", to_string(SATGE_WIDTH_DEFAULT)));
-    int max_record_count = INITIAL_SIZE_DEFAULT + (stage_count * stage_width) / 2;
+    int max_record_count = INITIAL_SIZE_DEFAULT + (stage_count + 1) * stage_width / 2 + 1000000;
 
     // basic workload and basic db
     ycsbc::CoreWorkload wl(filename, max_record_count);
@@ -114,7 +114,7 @@ int main(int argc, const char *argv[]) {
 
     uint32_t cur_start = INITIAL_SIZE_DEFAULT;
     ycsbc::BasicDB db_txn("query.dat");
-    for(int i = 1; i <= stage_count; i++) { 
+    for(int i = 0; i <= stage_count; i++) { 
         // change the read and write properties
         float read_portion = 1.0 / stage_count * i;
         float write_portion = 1 - read_portion;

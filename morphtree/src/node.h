@@ -19,13 +19,10 @@ using std::string;
 enum NodeType {ROINNER = 0, ROLEAF, RWLEAF, WOLEAF};
 
 // hyper parameters of Morphtree
-const uint64_t ROSTATS = 0x000000000000FFFF; // default statistic of RONode
-const uint64_t RWSTATS = 0x0000FFFFFFFFFFFF; // default statistic of RWNode
+const uint64_t ROSTATS = 0x0000000000000000; // default statistic of RONode
+const uint64_t RWSTATS = 0x00FF00FF00FF00FF; // default statistic of RWNode
 const uint64_t WOSTATS = 0xFFFFFFFFFFFFFFFF; // default statistic of WONode
 const int GLOBAL_LEAF_SIZE    = 10240;    // the maximum node size of a leaf node
-const int MORPH_FREQ          = 1;      // FREQ must be power of 2
-const uint8_t RO_RW_LINE      = 16;     // read times that distinguishs RONode and RWNode
-const uint8_t RW_WO_LINE      = 2;      // read times that distinguishs RWNode and WONode
 
 // We do NOT use virtual function here, 
 // as it brings extra overhead of searching virtual table
@@ -34,6 +31,8 @@ public:
     BaseNode() = default;
     
     void DeleteNode();
+
+    void TypeManager(bool isWrite);
 
 public:
     bool Store(_key_t k, _val_t v, _key_t * split_key, BaseNode ** split_node);
@@ -178,7 +177,7 @@ private:
 public:
     static const int PROBE_SIZE = 8;
     static const int NODE_SIZE = GLOBAL_LEAF_SIZE;
-    static const int BUFFER_SIZE = GLOBAL_LEAF_SIZE * 2 / 5;
+    static const int BUFFER_SIZE = GLOBAL_LEAF_SIZE / 2;
     static const int PIECE_SIZE = 1024;
     static const int MAX_OFNODE = 128;
 
@@ -231,9 +230,10 @@ inline void SwapNode(BaseNode * a, BaseNode *b) {
     memcpy(a, b, COMMON_SIZE);
     memcpy(b, tmp, COMMON_SIZE);
 }
+
 // Global variables and functions controling the morphing of Morphtree 
-extern uint64_t access_count;
 extern bool do_morphing;
+extern uint64_t global_stats;
 extern void MorphNode(BaseNode * leaf, NodeType from, NodeType to);
 } // namespace morphtree
 

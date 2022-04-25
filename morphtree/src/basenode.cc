@@ -3,26 +3,33 @@
 namespace morphtree {
 
 // definitions of global variables
-uint64_t access_count;
 bool do_morphing;
+uint64_t global_stats;
 
 // Predict the node type of a leaf node according to its access history
-static NodeType PredictNodeType(uint64_t status) {
-    uint8_t zero_count = 64 - __builtin_popcountl(status);
-    
-    if(zero_count > RO_RW_LINE)
-        return NodeType::ROLEAF;
-    else if (zero_count > RW_WO_LINE)
-        return NodeType::RWLEAF;
-    else 
-        return NodeType::WOLEAF;
+void BaseNode::TypeManager(bool isWrite) {
+    stats = (stats << 1) + (isWrite ? 1 : 0);
+    uint8_t one_count = __builtin_popcountl(stats);
+    NodeType new_type = (NodeType)node_type;
+
+    switch(node_type) {
+        case NodeType::WOLEAF:
+            if(one_count < 50) 
+                new_type = NodeType::ROLEAF;
+            break;
+        case NodeType::ROLEAF:
+            if(one_count > 63) 
+                new_type = NodeType::WOLEAF;
+            break;
+    }
+
+    if(new_type != (NodeType)node_type) {
+        MorphNode(this, (NodeType)node_type, new_type);
+    }
 }
 
 // Morph a leaf node from From-type to To-type
 void MorphNode(BaseNode * leaf, NodeType from, NodeType to) {
-    if(from == to)
-        return ; // do not morph a node if FROM-type is equal to TO-type
-
     BaseNode * newLeaf;
     std::vector<Record> tmp;
     tmp.reserve(GLOBAL_LEAF_SIZE);
@@ -62,14 +69,7 @@ bool BaseNode::Store(_key_t k, _val_t v, _key_t * split_key, BaseNode ** split_n
         return reinterpret_cast<ROInner *>(this)->Store(k, v, split_key, (ROInner **)split_node);
     } else {
         if(do_morphing) {
-            access_count += 1;
-            if((access_count & (MORPH_FREQ - 1)) == 0) {
-                stats = (stats << 1) + 1; // a write access
-                NodeType predict_type = PredictNodeType(stats);
-                if (node_type != predict_type) {
-                    MorphNode(this, (NodeType)node_type, predict_type);
-                }
-            }
+            TypeManager(true);
         }
 
         switch(node_type) {
@@ -91,14 +91,7 @@ bool BaseNode::Lookup(_key_t k, _val_t & v) {
         return true;
     } else {
         if(do_morphing) {
-            access_count += 1;
-            if((access_count & (MORPH_FREQ - 1)) == 0) {
-                stats = (stats << 1); // a read access
-                NodeType predict_type = PredictNodeType(stats);
-                if (node_type != predict_type) {
-                    MorphNode(this, (NodeType)node_type, predict_type);
-                }
-            }
+            TypeManager(false);
         }
         
         switch(node_type) {

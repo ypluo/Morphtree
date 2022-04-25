@@ -36,21 +36,21 @@ MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::MorphtreeImpl() {
     switch(INIT_LEAF_TYPE) {
     case NodeType::ROLEAF:
         root_ = new ROLeaf(); // TODO
+        global_stats = ROSTATS;
         break;
     case NodeType::RWLEAF:
         root_ = new RWLeaf();
+        global_stats = RWSTATS;
         break;
     case NodeType::WOLEAF:
         root_ = new WOLeaf();
-        break;
-    default:
-        root_ = new WOLeaf();
+        global_stats = WOSTATS;
         break;
     }
 
     // global variables assignment
-    access_count = 0;
     do_morphing = MORPH_IF;
+    global_stats = 0;
 }
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
@@ -60,6 +60,7 @@ MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::~MorphtreeImpl() {
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::lookup(const _key_t &key, _val_t & val) {
+    //global_stats = (global_stats << 1);
     BaseNode * cur = root_;
 
     _val_t v;
@@ -73,6 +74,8 @@ bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::lookup(const _key_t &key, _val_t &
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 void MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::insert(const _key_t &key, _val_t val) {
+    //global_stats = (global_stats << 1) + 1;
+
     _key_t split_k;
     BaseNode * split_node;
     bool splitIf = insert_recursive(root_, key, val, &split_k, &split_node);

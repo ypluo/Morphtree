@@ -16,6 +16,7 @@
 using std::cout;
 using std::endl;
 using std::ofstream;
+using std::ios;
 
 using _key_t = double;
 
@@ -25,21 +26,19 @@ enum WorkloadDist {RANDOM, LOGNORMAL, NORMAL};
 void generate(_key_t *arr, uint64_t scale, WorkloadDist d) {
     std::mt19937 gen(utils::rand());
     if(d == WorkloadDist::RANDOM) {
-        std::uniform_real_distribution<double> dist(0, 64000000);
+        std::uniform_real_distribution<double> dist(0, ycsbc::KEYSET_SCALE_DEFAULT * 10);
         for(uint64_t i = 0; i < scale; i++) {
-            arr[i] = utils::FNVHash64(i + 1);
+            arr[i] = dist(gen);
         }
     } else if (d == WorkloadDist::LOGNORMAL) {
-        std::lognormal_distribution<double> dist(22.123456789, 5.123456789);
-        uint64_t i = 0;
-        while (i < scale) {
-            arr[i++] = (uint64_t)dist(gen);
+        std::lognormal_distribution<double> dist(12, 3);
+        for(uint64_t i = 0; i < scale; i++) {
+            arr[i] = dist(gen);
         }
     } else {
-        std::normal_distribution<double> dist(0, 1000000);
-        uint64_t i = 0;
-        while (i < scale) {
-            arr[i++] = (uint64_t)dist(gen);
+        std::normal_distribution<double> dist(0, 123456);
+        for(uint64_t i = 0; i < scale; i++) {
+            arr[i] = dist(gen);
         }
     }
     return ;
@@ -72,6 +71,9 @@ int main(int argc, char ** argv) {
 
     // output the keyset into ascii-encoded file
     ofstream fout(filename);
+    fout.setf(ios::fixed, ios::floatfield);  // 设定为 fixed 模式，以小数点表示浮点数
+    fout.precision(4);
+
     for(int i = 0; i < scale; i++) {
         fout << arr[i] << endl;
     }
