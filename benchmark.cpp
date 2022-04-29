@@ -135,9 +135,9 @@ Index<KeyType, ValType> * populate(int index_type, std::vector<KeyType> &init_ke
   
   uint64_t bulkload_size;
   if(index_type == TYPE_ALEX)
-    bulkload_size = init_keys.size() / 8;
+    bulkload_size = init_keys.size() / 4;
   else if(index_type == TYPE_LIPP)
-    bulkload_size = init_keys.size() / 2;
+    bulkload_size = init_keys.size() / 4;
   else 
     bulkload_size= 0;
 

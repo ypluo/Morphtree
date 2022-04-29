@@ -2998,8 +2998,5 @@ class Alex {
   };
 
   public:
-    // print() {
-    //   root_node_->Print("");
-    // }
 };
 }  // namespace alex
