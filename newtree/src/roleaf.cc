@@ -7,7 +7,7 @@
 
 #include "node.h"
 
-namespace morphtree {
+namespace newtree {
 
 static const int MARGIN = ROLeaf::PROBE_SIZE;
 
@@ -64,6 +64,9 @@ struct OFNode {
 ROLeaf::ROLeaf() {
     node_type = ROLEAF;
     stats = ROSTATS;
+    split_k = MAX_KEY;
+    sibling = nullptr;
+    
     of_count = 0;
     max_of = 0;
     count = 0;
@@ -81,14 +84,8 @@ ROLeaf::ROLeaf(Record * recs_in, int num){
     count = 0;
 
     LinearModelBuilder model;
-    if(num < PROBE_SIZE * 2) {
-        for(int i = 0; i < num; i++) {
-            model.add(recs_in[i].key, MARGIN + i);
-        }
-    } else {
-        for(int i = PROBE_SIZE; i < num - PROBE_SIZE; i++) {
-            model.add(recs_in[i].key, MARGIN + i);
-        }
+    for(int i = 0; i < num; i++) {
+        model.add(recs_in[i].key, MARGIN + i);
     }
     model.build();
 
@@ -171,6 +168,7 @@ bool ROLeaf::Store(_key_t k, _val_t v, _key_t * split_key, ROLeaf ** split_node)
 
     if(split_node != nullptr && ShouldSplit()) {
         DoSplit(split_key, split_node);
+
         return true;
     } else {
         return false;
@@ -218,9 +216,9 @@ void ROLeaf::Print(string prefix) {
     Dump(out);
 
     printf("%s(%d)[(%f)", prefix.c_str(), node_type, (float)of_count / count);
-    // for(int i = 0; i < out.size(); i++) {
-    //     printf("%lf, ", out[i].key);
-    // }
+    for(int i = 0; i < out.size(); i++) {
+        printf("%lf, ", out[i].key);
+    }
     printf("]\n");
 }
 
@@ -234,7 +232,9 @@ void ROLeaf::DoSplit(_key_t * split_key, ROLeaf ** split_node) {
     ROLeaf * left = new ROLeaf(data_records.data(), count / 2);
     ROLeaf * right = new ROLeaf(data_records.data() + count / 2, count - count / 2);
     left->sibling = right;
+    left->split_k = data_records[count / 2].key;
     right->sibling = sibling;
+    right->split_k = this->split_k;
 
     // update splitting info
     *split_key = data_records[count / 2].key;
@@ -244,4 +244,4 @@ void ROLeaf::DoSplit(_key_t * split_key, ROLeaf ** split_node) {
     delete left;
 }
 
-} // namespace morphtree
+} // namespace newtree

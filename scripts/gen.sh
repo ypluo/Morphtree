@@ -4,8 +4,9 @@
 DATASET=$1
 TYPE=$2
 DATASIZE=64000000
-QUERYSIZE=100000000 # 100M for longitude data
+QUERYSIZE=128000000 # 100M for longitude data
 KEYSET=/data/lyp/datasets/${DATASET}.dat
+DIST=uniform
 
 case ${TYPE} in 
 1): 
@@ -27,7 +28,7 @@ if [[ ${QUERYONLY} -eq 0 ]]; then
     echo "updateproportion=0"           >> workload.spec
     echo "scanproportion=0"             >> workload.spec
     echo "insertproportion=${WRITE}"    >> workload.spec
-    echo "requestdistribution=zipfian"  >> workload.spec
+    echo "requestdistribution=${DIST}"  >> workload.spec
 
     ./ycsb/ycsbc -P workload.spec -F ${KEYSET}
     cp dataset.dat ../workloads/${DATASET}_dataset.dat
@@ -42,7 +43,7 @@ else
     echo "updateproportion=0"           >> workload.spec
     echo "scanproportion=0"             >> workload.spec
     echo "insertproportion=${WRITE}"    >> workload.spec
-    echo "requestdistribution=zipfian"  >> workload.spec
+    echo "requestdistribution=${DIST}"  >> workload.spec
 
     ./ycsb/ycsbc -P workload.spec -F ${KEYSET} --query_only
     cp query.dat ../workloads/${DATASET}_query${TYPE}.dat

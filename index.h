@@ -5,6 +5,7 @@
 #include "ALEX/src/core/alex.h"
 #include "morphtree/src/morphtree_impl.h"
 #include "lipp/src/core/lipp.h"
+#include "newtree/src/morphtree_impl.h"
 
 template<typename KeyType, typename ValType>
 class Index
@@ -301,4 +302,52 @@ public:
 private:
     morphtree::MorphtreeImpl<morphtree::NodeType::WOLEAF, true> * idx;
 };
+
+/////////////////////////////////////////////////////////////////////
+// morphtree using read optimized leaf nodes
+/////////////////////////////////////////////////////////////////////
+template<typename KeyType, typename ValType>
+class RoIndex2 : public Index<KeyType, ValType>
+{
+public:
+    RoIndex2() {
+        idx = new newtree::MorphtreeImpl<newtree::NodeType::ROLEAF, false>();
+    }
+
+    ~RoIndex2() {
+        delete idx;
+    }
+
+    bool insert(KeyType key, uint64_t value) {
+        idx->insert(key, reinterpret_cast<void *>(value));
+        return false;
+    }
+
+    bool find(KeyType key, uint64_t *v) {
+        return idx->lookup(key, reinterpret_cast<void * &>(*v));
+    }
+
+    bool upsert(KeyType key, uint64_t value) {
+        idx->update(key, reinterpret_cast<void *>(value));
+        return true;
+    }
+
+    uint64_t scan(KeyType key, int range) {
+        return 0;
+    }
+
+    void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
+        return;
+    }
+
+    int64_t printTree() const {
+        idx->Print();
+        return 0;
+    }
+    
+private:
+    newtree::MorphtreeImpl<newtree::NodeType::ROLEAF, false> * idx;
+};
+
+
 #endif

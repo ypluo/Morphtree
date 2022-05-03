@@ -60,7 +60,7 @@ MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::~MorphtreeImpl() {
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::lookup(const _key_t &key, _val_t & val) {
-    //global_stats = (global_stats << 1);
+    // global_stats = (global_stats << 1);
     BaseNode * cur = root_;
 
     _val_t v;
@@ -74,7 +74,7 @@ bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::lookup(const _key_t &key, _val_t &
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 void MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::insert(const _key_t &key, _val_t val) {
-    //global_stats = (global_stats << 1) + 1;
+    // global_stats = (global_stats << 1) + 1;
 
     _key_t split_k;
     BaseNode * split_node;

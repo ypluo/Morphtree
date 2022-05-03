@@ -240,7 +240,7 @@ void exec(int index_type,
 
   double tput = txn_num / (end_time - start_time) / 1000000; //Mops/sec
   if(detail_tp == false)
-    std::cout << tput << std::endl;
+    std::cout  << tput << std::endl;
   
   delete idx;
   return;
@@ -267,6 +267,8 @@ int main(int argc, char *argv[]) {
     index_type = TYPE_MORPHTREE_RO;
   else if(strcmp(argv[1], "morphtree") == 0)
     index_type = TYPE_MORPHTREE;
+  else if(strcmp(argv[1], "rotree2") == 0)
+    index_type = TYPE_NEWTREE_RO;
   else {
     fprintf(stderr, "Unknown index type: %d\n", index_type);
     exit(1);

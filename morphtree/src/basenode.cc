@@ -14,11 +14,11 @@ void BaseNode::TypeManager(bool isWrite) {
 
     switch(node_type) {
         case NodeType::WOLEAF:
-            if(one_count < 50) 
+            if(one_count <= 60) 
                 new_type = NodeType::ROLEAF;
             break;
         case NodeType::ROLEAF:
-            if(one_count > 63) 
+            if(one_count == 64)
                 new_type = NodeType::WOLEAF;
             break;
     }
@@ -111,7 +111,6 @@ void BaseNode::Print(string prefix) {
     if(!Leaf()) {
         reinterpret_cast<ROInner *>(this)->Print(prefix);
     } else {
-        return ;
         switch(node_type) {
         case NodeType::ROLEAF: 
             return reinterpret_cast<ROLeaf *>(this)->Print(prefix);
@@ -137,7 +136,6 @@ void BaseNode::Dump(std::vector<Record> & out) {
         reinterpret_cast<WOLeaf *>(this)->Dump(out);
         break;
     }
-    //assert(out.size() <= GLOBAL_LEAF_SIZE);
 }
 
 void BaseNode::DeleteNode() {
