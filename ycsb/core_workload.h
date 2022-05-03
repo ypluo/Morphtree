@@ -170,8 +170,10 @@ inline std::string CoreWorkload::NextSequenceKey() {
     #endif
   }
 
-  std::string key_str = std::to_string(key);
-  return key_str;
+  std::ostringstream out;
+  out.precision(14);
+  out << key;
+  return out.str();
 }
 
 inline std::string CoreWorkload::NextTransactionKey() {
@@ -192,8 +194,10 @@ inline std::string CoreWorkload::NextTransactionKey() {
     #endif
   }
 
-  std::string key_str = std::to_string(key);
-  return key_str;
+  std::ostringstream out;
+  out.precision(14);
+  out << key;
+  return out.str();
 }
   
 } // ycsbc

@@ -121,7 +121,7 @@ private:
     void DoSplit(_key_t * split_key, ROLeaf ** split_node);
 
     inline bool ShouldSplit() {
-        return count == GLOBAL_LEAF_SIZE || of_count >= (GLOBAL_LEAF_SIZE >> 3) || max_of >= MAX_OFNODE;
+        return count == GLOBAL_LEAF_SIZE || of_count >= (GLOBAL_LEAF_SIZE >> 3) || max_of > MAX_OFNODE;
     }
 
     inline int Predict(_key_t k) {
@@ -132,7 +132,6 @@ public:
     static const int PROBE_SIZE = 8;
     static const int NODE_SIZE = GLOBAL_LEAF_SIZE * 3 / 2;
     static const int MAX_OFNODE = 128;
-
     // meta data
     double slope;
     double intercept;
@@ -167,7 +166,7 @@ private:
     void Populate(_key_t k, _val_t v);
 
     inline bool ShouldSplit() {
-        return (initial_count + buf_count) == GLOBAL_LEAF_SIZE || buf_count == BUFFER_SIZE || of_count >= (GLOBAL_LEAF_SIZE >> 4);
+        return (initial_count + buf_count) == GLOBAL_LEAF_SIZE || buf_count == BUFFER_SIZE || of_count >= (GLOBAL_LEAF_SIZE >> 3);
     }
 
     inline int Predict(_key_t k) {
@@ -177,9 +176,8 @@ private:
 public:
     static const int PROBE_SIZE = 8;
     static const int NODE_SIZE = GLOBAL_LEAF_SIZE;
-    static const int BUFFER_SIZE = GLOBAL_LEAF_SIZE / 2;
+    static const int BUFFER_SIZE = GLOBAL_LEAF_SIZE / 4;
     static const int PIECE_SIZE = 1024;
-    static const int MAX_OFNODE = 128;
 
     // meta data
     double slope;

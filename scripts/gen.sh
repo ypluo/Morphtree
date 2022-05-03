@@ -4,7 +4,7 @@
 DATASET=$1
 TYPE=$2
 DATASIZE=64000000
-QUERYSIZE=128000000
+QUERYSIZE=100000000 # 100M for longitude data
 KEYSET=/data/lyp/datasets/${DATASET}.dat
 
 case ${TYPE} in 
@@ -32,6 +32,7 @@ if [[ ${QUERYONLY} -eq 0 ]]; then
     ./ycsb/ycsbc -P workload.spec -F ${KEYSET}
     cp dataset.dat ../workloads/${DATASET}_dataset.dat
     cp query.dat ../workloads/${DATASET}_query1.dat
+
 else
     echo "generate query.dat only"
     echo "recordcount=0"                > workload.spec
@@ -45,4 +46,5 @@ else
 
     ./ycsb/ycsbc -P workload.spec -F ${KEYSET} --query_only
     cp query.dat ../workloads/${DATASET}_query${TYPE}.dat
+
 fi

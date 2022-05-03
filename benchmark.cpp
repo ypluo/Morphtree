@@ -135,7 +135,7 @@ Index<KeyType, ValType> * populate(int index_type, std::vector<KeyType> &init_ke
   
   uint64_t bulkload_size;
   if(index_type == TYPE_ALEX)
-    bulkload_size = init_keys.size() / 4;
+    bulkload_size = init_keys.size() / 8;
   else if(index_type == TYPE_LIPP)
     bulkload_size = init_keys.size() / 4;
   else 
@@ -297,6 +297,8 @@ int main(int argc, char *argv[]) {
   }
 
   load(init_keys, keys, ranges, ops);
+
+  //fprintf(stderr, "finish loading\n");
 
   exec(index_type, num_thread, init_keys, keys, ranges, ops);
   return 0;
