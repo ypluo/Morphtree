@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.11)
 
 project(vibench)
 
+set(CMAKE_CXX_STANDARD 17)
+
 if(MSVC)
     set(CMAKE_CXX_FLAGS "/O2 /arch:AVX2 /EHsc")
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Intel")

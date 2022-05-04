@@ -6,6 +6,7 @@
 #include "morphtree/src/morphtree_impl.h"
 #include "lipp/src/core/lipp.h"
 #include "newtree/src/morphtree_impl.h"
+#include "COLIN/include/flat_index.h"
 
 template<typename KeyType, typename ValType>
 class Index
@@ -304,7 +305,7 @@ private:
 };
 
 /////////////////////////////////////////////////////////////////////
-// morphtree using read optimized leaf nodes
+// newtree
 /////////////////////////////////////////////////////////////////////
 template<typename KeyType, typename ValType>
 class RoIndex2 : public Index<KeyType, ValType>
@@ -347,6 +348,56 @@ public:
     
 private:
     newtree::MorphtreeImpl<newtree::NodeType::ROLEAF, false> * idx;
+};
+
+/////////////////////////////////////////////////////////////////////
+// COLIN
+/////////////////////////////////////////////////////////////////////
+template<typename KeyType, typename ValType>
+class ColinIndex : public Index<KeyType, ValType>
+{
+public:
+    ColinIndex() {
+        
+    }
+
+    ~ColinIndex() {
+        delete idx;
+    }
+
+    bool insert(KeyType key, uint64_t value) {
+        idx->upsert(key, reinterpret_cast<ValType>(value));
+        return false;
+    }
+
+    bool find(KeyType key, uint64_t *v) {
+        *v = idx->find(key);
+        return true;
+    }
+
+    bool upsert(KeyType key, uint64_t value) {
+        idx->upsert(key, reinterpret_cast<ValType>(value));
+        return true;
+    }
+
+    uint64_t scan(KeyType key, int range) {
+        return 0;
+    }
+
+    void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
+        KeyType * keys = new KeyType[len];
+        ValType * vals = new ValType[len];
+        idx = new FlatIndex<KeyType, ValType>(keys, vals, len);
+        delete [] keys;
+        delete [] vals;
+    }
+
+    int64_t printTree() const {
+        return 0;
+    }
+    
+private:
+    FlatIndex<KeyType, ValType> * idx;
 };
 
 

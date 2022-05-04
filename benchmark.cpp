@@ -136,12 +136,12 @@ Index<KeyType, ValType> * populate(int index_type, std::vector<KeyType> &init_ke
   uint64_t bulkload_size;
   if(index_type == TYPE_ALEX)
     bulkload_size = init_keys.size() / 8;
-  else if(index_type == TYPE_LIPP)
+  else if(index_type == TYPE_LIPP && TYPE_COLIN)
     bulkload_size = init_keys.size() / 4;
   else 
     bulkload_size= 0;
 
-  if (index_type == TYPE_ALEX || index_type == TYPE_LIPP) {
+  if (index_type == TYPE_ALEX || index_type == TYPE_LIPP || index_type == TYPE_COLIN) {
     std::pair<KeyType, uint64_t> *recs;
     recs = new std::pair<KeyType, uint64_t>[bulkload_size];
 
@@ -267,8 +267,8 @@ int main(int argc, char *argv[]) {
     index_type = TYPE_MORPHTREE_RO;
   else if(strcmp(argv[1], "morphtree") == 0)
     index_type = TYPE_MORPHTREE;
-  else if(strcmp(argv[1], "rotree2") == 0)
-    index_type = TYPE_NEWTREE_RO;
+  else if(strcmp(argv[1], "colin") == 0)
+    index_type = TYPE_COLIN;
   else {
     fprintf(stderr, "Unknown index type: %d\n", index_type);
     exit(1);
