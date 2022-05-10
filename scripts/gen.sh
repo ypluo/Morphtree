@@ -6,7 +6,7 @@ TYPE=$2
 DATASIZE=64000000
 QUERYSIZE=128000000 # 100M for longitude data
 KEYSET=/data/lyp/datasets/${DATASET}.dat
-DIST=uniform
+DIST=zipfian
 
 case ${TYPE} in 
 1): 

@@ -134,14 +134,12 @@ Index<KeyType, ValType> * populate(int index_type, std::vector<KeyType> &init_ke
   Index<KeyType, ValType> *idx = getInstance<KeyType, ValType>(index_type);
   
   uint64_t bulkload_size;
-  if(index_type == TYPE_ALEX)
+  if(index_type == TYPE_ALEX || index_type == TYPE_LIPP)
     bulkload_size = init_keys.size() / 8;
-  else if(index_type == TYPE_LIPP && TYPE_COLIN)
-    bulkload_size = init_keys.size() / 4;
   else 
     bulkload_size= 0;
 
-  if (index_type == TYPE_ALEX || index_type == TYPE_LIPP || index_type == TYPE_COLIN) {
+  if (index_type == TYPE_ALEX || index_type == TYPE_LIPP) {
     std::pair<KeyType, uint64_t> *recs;
     recs = new std::pair<KeyType, uint64_t>[bulkload_size];
 
@@ -192,7 +190,7 @@ void exec(int index_type,
   
   // If we do not perform other transactions, we can skip txn file
   if(insert_only == true) {
-    idx->printTree();
+    //idx->printTree();
     return;
   }
 
@@ -261,14 +259,10 @@ int main(int argc, char *argv[]) {
     index_type = TYPE_LIPP;
   else if(strcmp(argv[1], "wotree") == 0)
     index_type = TYPE_MORPHTREE_WO;
-  else if(strcmp(argv[1], "rwtree") == 0)
-    index_type = TYPE_MORPHTREE_RW;
   else if(strcmp(argv[1], "rotree") == 0)
     index_type = TYPE_MORPHTREE_RO;
   else if(strcmp(argv[1], "morphtree") == 0)
     index_type = TYPE_MORPHTREE;
-  else if(strcmp(argv[1], "colin") == 0)
-    index_type = TYPE_COLIN;
   else {
     fprintf(stderr, "Unknown index type: %d\n", index_type);
     exit(1);

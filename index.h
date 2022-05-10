@@ -4,9 +4,7 @@
 #include <iostream>
 #include "ALEX/src/core/alex.h"
 #include "morphtree/src/morphtree_impl.h"
-#include "lipp/src/core/lipp.h"
-#include "newtree/src/morphtree_impl.h"
-#include "COLIN/include/flat_index.h"
+#include "LIPP/src/core/lipp.h"
 
 template<typename KeyType, typename ValType>
 class Index
@@ -73,7 +71,6 @@ public:
 private:
     alex::Alex<KeyType, uint64_t> * idx;
 };
-
 
 /////////////////////////////////////////////////////////////////////
 // LIPP
@@ -165,53 +162,6 @@ private:
 };
 
 /////////////////////////////////////////////////////////////////////
-// morphtree using read write leaf nodes
-/////////////////////////////////////////////////////////////////////
-template<typename KeyType, typename ValType>
-class RwIndex : public Index<KeyType, ValType>
-{
-public:
-    RwIndex() {
-        idx = new morphtree::MorphtreeImpl<morphtree::NodeType::RWLEAF, false>();
-    }
-
-    ~RwIndex() {
-        delete idx;
-    }
-
-    bool insert(KeyType key, uint64_t value) {
-        idx->insert(key, reinterpret_cast<void *>(value));
-        return false;
-    }
-
-    bool find(KeyType key, uint64_t *v) {
-        return idx->lookup(key, reinterpret_cast<void * &>(*v));
-    }
-
-    bool upsert(KeyType key, uint64_t value) {
-        idx->update(key, reinterpret_cast<void *>(value));
-        return true;
-    }
-
-    uint64_t scan(KeyType key, int range) {
-        return 0;
-    }
-
-    void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
-        return;
-    }
-
-    int64_t printTree() const {
-        idx->Print();
-        return 0;
-    }
-    
-private:
-    morphtree::MorphtreeImpl<morphtree::NodeType::RWLEAF, false> * idx;
-};
-
-
-/////////////////////////////////////////////////////////////////////
 // morphtree using read optimized leaf nodes
 /////////////////////////////////////////////////////////////////////
 template<typename KeyType, typename ValType>
@@ -256,7 +206,6 @@ public:
 private:
     morphtree::MorphtreeImpl<morphtree::NodeType::ROLEAF, false> * idx;
 };
-
 
 /////////////////////////////////////////////////////////////////////
 // morphtree
@@ -303,102 +252,5 @@ public:
 private:
     morphtree::MorphtreeImpl<morphtree::NodeType::WOLEAF, true> * idx;
 };
-
-/////////////////////////////////////////////////////////////////////
-// newtree
-/////////////////////////////////////////////////////////////////////
-template<typename KeyType, typename ValType>
-class RoIndex2 : public Index<KeyType, ValType>
-{
-public:
-    RoIndex2() {
-        idx = new newtree::MorphtreeImpl<newtree::NodeType::ROLEAF, false>();
-    }
-
-    ~RoIndex2() {
-        delete idx;
-    }
-
-    bool insert(KeyType key, uint64_t value) {
-        idx->insert(key, reinterpret_cast<void *>(value));
-        return false;
-    }
-
-    bool find(KeyType key, uint64_t *v) {
-        return idx->lookup(key, reinterpret_cast<void * &>(*v));
-    }
-
-    bool upsert(KeyType key, uint64_t value) {
-        idx->update(key, reinterpret_cast<void *>(value));
-        return true;
-    }
-
-    uint64_t scan(KeyType key, int range) {
-        return 0;
-    }
-
-    void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
-        return;
-    }
-
-    int64_t printTree() const {
-        idx->Print();
-        return 0;
-    }
-    
-private:
-    newtree::MorphtreeImpl<newtree::NodeType::ROLEAF, false> * idx;
-};
-
-/////////////////////////////////////////////////////////////////////
-// COLIN
-/////////////////////////////////////////////////////////////////////
-template<typename KeyType, typename ValType>
-class ColinIndex : public Index<KeyType, ValType>
-{
-public:
-    ColinIndex() {
-        
-    }
-
-    ~ColinIndex() {
-        delete idx;
-    }
-
-    bool insert(KeyType key, uint64_t value) {
-        idx->upsert(key, reinterpret_cast<ValType>(value));
-        return false;
-    }
-
-    bool find(KeyType key, uint64_t *v) {
-        *v = idx->find(key);
-        return true;
-    }
-
-    bool upsert(KeyType key, uint64_t value) {
-        idx->upsert(key, reinterpret_cast<ValType>(value));
-        return true;
-    }
-
-    uint64_t scan(KeyType key, int range) {
-        return 0;
-    }
-
-    void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
-        KeyType * keys = new KeyType[len];
-        ValType * vals = new ValType[len];
-        idx = new FlatIndex<KeyType, ValType>(keys, vals, len);
-        delete [] keys;
-        delete [] vals;
-    }
-
-    int64_t printTree() const {
-        return 0;
-    }
-    
-private:
-    FlatIndex<KeyType, ValType> * idx;
-};
-
 
 #endif

@@ -9,10 +9,8 @@ enum {
   TYPE_ALEX,
   TYPE_LIPP,
   TYPE_MORPHTREE_WO,
-  TYPE_MORPHTREE_RW,
   TYPE_MORPHTREE_RO,
-  TYPE_MORPHTREE,
-  TYPE_COLIN
+  TYPE_MORPHTREE
 };
 
 // These are workload operations
@@ -35,14 +33,10 @@ Index<KeyType, ValType> *getInstance(const int type) {
     return new LippIndex<KeyType, ValType>();
   else if(type == TYPE_MORPHTREE_WO)
     return new WoIndex<KeyType, ValType>();
-  else if(type == TYPE_MORPHTREE_RW)
-    return new RwIndex<KeyType, ValType>();
   else if(type == TYPE_MORPHTREE_RO)
     return new RoIndex<KeyType, ValType>();
   else if(type == TYPE_MORPHTREE)
     return new MorphTree<KeyType, ValType>();
-  else if(type == TYPE_COLIN)
-    return new ColinIndex<KeyType, ValType>();
   else {
     fprintf(stderr, "Unknown index type: %d\n", type);
     exit(1);
