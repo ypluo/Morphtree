@@ -13,10 +13,16 @@ else()
     set(CMAKE_CXX_FLAGS "-march=native -O3 -fmax-errors=5")
 endif()
 
+set(MKL_LINK_DIRECTORY "/opt/intel/mkl/lib/intel64")
+set(MKL_INCLUDE_DIRECTORY "/opt/intel/mkl/include")
+
 #======= include directories =======
 include_directories(${CMAKE_SOURCE_DIR}/ALEX/src/core)
 include_directories(${CMAKE_SOURCE_DIR}/LIPP/src/core)
 include_directories(${CMAKE_SOURCE_DIR}/morphtree)
+include_directories(${MKL_INCLUDE_DIRECTORY})
+include_directories(${CMAKE_SOURCE_DIR}/XIndex)
+include_directories(${CMAKE_SOURCE_DIR}/FINDEdex/include)
 
 #==== set compile and link options =====
 # link options must be prior to adding sub directories
@@ -32,3 +38,4 @@ add_subdirectory(ycsb)
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 add_executable(benchmark benchmark.cpp)
 target_link_libraries(benchmark morphtree)
+link_directories(${MKL_LINK_DIRECTORY})

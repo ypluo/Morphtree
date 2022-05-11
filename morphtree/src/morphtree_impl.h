@@ -38,10 +38,6 @@ MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::MorphtreeImpl() {
         root_ = new ROLeaf(); // TODO
         global_stats = ROSTATS;
         break;
-    case NodeType::RWLEAF:
-        root_ = new RWLeaf();
-        global_stats = RWSTATS;
-        break;
     case NodeType::WOLEAF:
         root_ = new WOLeaf();
         global_stats = WOSTATS;

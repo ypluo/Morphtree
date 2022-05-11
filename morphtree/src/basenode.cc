@@ -39,9 +39,6 @@ void MorphNode(BaseNode * leaf, NodeType from, NodeType to) {
     case NodeType::ROLEAF:
         newLeaf = new ROLeaf(tmp.data(), tmp.size());
         break;
-    case NodeType::RWLEAF:
-        newLeaf = new RWLeaf(tmp.data(), tmp.size());
-        break;
     case NodeType::WOLEAF:
         newLeaf = new WOLeaf(tmp.data(), tmp.size());
         break;
@@ -52,9 +49,6 @@ void MorphNode(BaseNode * leaf, NodeType from, NodeType to) {
     switch(from) {
     case NodeType::ROLEAF:
         delete reinterpret_cast<ROLeaf *>(newLeaf); 
-        return;
-    case NodeType::RWLEAF:
-        delete reinterpret_cast<RWLeaf *>(newLeaf);
         return;
     case NodeType::WOLEAF:
         delete reinterpret_cast<WOLeaf *>(newLeaf);
@@ -75,8 +69,6 @@ bool BaseNode::Store(_key_t k, _val_t v, _key_t * split_key, BaseNode ** split_n
         switch(node_type) {
         case NodeType::ROLEAF: 
             return reinterpret_cast<ROLeaf *>(this)->Store(k, v, split_key, (ROLeaf **)split_node);
-        case NodeType::RWLEAF:
-            return reinterpret_cast<RWLeaf *>(this)->Store(k, v, split_key, (RWLeaf **)split_node);
         case NodeType::WOLEAF:
             return reinterpret_cast<WOLeaf *>(this)->Store(k, v, split_key, (WOLeaf **)split_node);
         }
@@ -97,8 +89,6 @@ bool BaseNode::Lookup(_key_t k, _val_t & v) {
         switch(node_type) {
         case NodeType::ROLEAF: 
             return reinterpret_cast<ROLeaf *>(this)->Lookup(k, v);
-        case NodeType::RWLEAF:
-            return reinterpret_cast<RWLeaf *>(this)->Lookup(k, v);
         case NodeType::WOLEAF:
             return reinterpret_cast<WOLeaf *>(this)->Lookup(k, v);
         }
@@ -114,8 +104,6 @@ void BaseNode::Print(string prefix) {
         switch(node_type) {
         case NodeType::ROLEAF: 
             return reinterpret_cast<ROLeaf *>(this)->Print(prefix);
-        case NodeType::RWLEAF:
-            return reinterpret_cast<RWLeaf *>(this)->Print(prefix);
         case NodeType::WOLEAF:
             return reinterpret_cast<WOLeaf *>(this)->Print(prefix);
         }
@@ -128,9 +116,6 @@ void BaseNode::Dump(std::vector<Record> & out) {
     switch(node_type) {
     case NodeType::ROLEAF: 
         reinterpret_cast<ROLeaf *>(this)->Dump(out);
-        break;
-    case NodeType::RWLEAF:
-        reinterpret_cast<RWLeaf *>(this)->Dump(out);
         break;
     case NodeType::WOLEAF:
         reinterpret_cast<WOLeaf *>(this)->Dump(out);
@@ -145,9 +130,6 @@ void BaseNode::DeleteNode() {
             break;
         case NodeType::ROLEAF: 
             delete reinterpret_cast<ROLeaf *>(this);
-            break;
-        case NodeType::RWLEAF:
-            delete reinterpret_cast<RWLeaf *>(this);
             break;
         case NodeType::WOLEAF:
             delete reinterpret_cast<WOLeaf *>(this);

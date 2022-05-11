@@ -2,6 +2,7 @@
 #include <cctype>
 #include <atomic>
 #include <thread>
+#include <cassert>
 
 #include "utils.h"
 #include "index.h"
@@ -10,7 +11,7 @@ typedef double KeyType;
 typedef uint64_t ValType;
 
 static bool insert_only = false;
-static bool detail_tp = false;
+static bool detail_tp = true;
 static const int INTERVAL = 1000000;
 
 template <typename Fn, typename... Args>
@@ -134,12 +135,12 @@ Index<KeyType, ValType> * populate(int index_type, std::vector<KeyType> &init_ke
   Index<KeyType, ValType> *idx = getInstance<KeyType, ValType>(index_type);
   
   uint64_t bulkload_size;
-  if(index_type == TYPE_ALEX || index_type == TYPE_LIPP)
+  if(index_type == TYPE_ALEX || index_type == TYPE_LIPP || index_type == TYPE_XINDEX || index_type == TYPE_FINEDEX)
     bulkload_size = init_keys.size() / 8;
   else 
-    bulkload_size= 0;
+    bulkload_size = 0;
 
-  if (index_type == TYPE_ALEX || index_type == TYPE_LIPP) {
+  if (index_type == TYPE_ALEX || index_type == TYPE_LIPP || index_type == TYPE_XINDEX || index_type == TYPE_FINEDEX) {
     std::pair<KeyType, uint64_t> *recs;
     recs = new std::pair<KeyType, uint64_t>[bulkload_size];
 
@@ -152,14 +153,14 @@ Index<KeyType, ValType> * populate(int index_type, std::vector<KeyType> &init_ke
     
     // generate records
     for (int i = 0; i < bulkload_size; i++) {
-      recs[i] = {bulk_keys[i], ValType(bulk_keys[i])};
+      recs[i] = {bulk_keys[i], ValType(std::ceil(bulk_keys[i]))};
     }
 
     idx->bulkload(recs, bulkload_size);
     delete recs;
   } else {
     for(size_t i = 0; i < bulkload_size; i++) {
-      idx->insert(init_keys[i], ValType(init_keys[i]));
+      idx->insert(init_keys[i], ValType(std::ceil(init_keys[i])));
     } 
   }
  
@@ -167,13 +168,13 @@ Index<KeyType, ValType> * populate(int index_type, std::vector<KeyType> &init_ke
   size_t total_num_key = init_keys.size() - bulkload_size;
   size_t end_index = bulkload_size + total_num_key;
   for(size_t i = bulkload_size; i < end_index;i++) {
-      idx->insert(init_keys[i], ValType(init_keys[i]));
+      idx->insert(init_keys[i], ValType(std::ceil(init_keys[i])));
   } 
   double end_time = get_now();
   
   double tput = (init_keys.size() - bulkload_size) / (end_time - start_time) / 1000000; //Mops/sec
-  if(detail_tp == false)
-    std::cout << tput << "\t";
+  // if(detail_tp == false)
+  //   std::cout << tput << "\t";
   return idx;
 }
 
@@ -215,7 +216,7 @@ void exec(int index_type,
         idx->insert(keys[i], uint64_t(keys[i]));
       } else if (op == OP_READ) { //READ
         idx->find(keys[i], &v);
-        //assert(idx->find(keys[i], &v));
+        // assert(v == ValType(std::ceil(keys[i])));
       } else if (op == OP_UPSERT) { //UPDATE
         idx->upsert(keys[i], reinterpret_cast<uint64_t>(&keys[i]));
       } else if (op == OP_SCAN) { //SCAN
@@ -238,7 +239,8 @@ void exec(int index_type,
 
   double tput = txn_num / (end_time - start_time) / 1000000; //Mops/sec
   if(detail_tp == false)
-    std::cout  << tput << std::endl;
+    //std::cout  << tput << std::endl;
+    std::cout  << tput << " ";
   
   delete idx;
   return;
@@ -257,6 +259,10 @@ int main(int argc, char *argv[]) {
     index_type = TYPE_ALEX;
   else if(strcmp(argv[1], "lipp") == 0)
     index_type = TYPE_LIPP;
+  else if(strcmp(argv[1], "xindex") == 0)
+    index_type = TYPE_XINDEX;
+  else if(strcmp(argv[1], "finedex") == 0)
+    index_type = TYPE_FINEDEX;
   else if(strcmp(argv[1], "wotree") == 0)
     index_type = TYPE_MORPHTREE_WO;
   else if(strcmp(argv[1], "rotree") == 0)
@@ -293,9 +299,7 @@ int main(int argc, char *argv[]) {
   }
 
   load(init_keys, keys, ranges, ops);
-
   //fprintf(stderr, "finish loading\n");
-
   exec(index_type, num_thread, init_keys, keys, ranges, ops);
   return 0;
 }

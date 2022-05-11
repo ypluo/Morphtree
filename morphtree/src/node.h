@@ -20,7 +20,6 @@ enum NodeType {ROINNER = 0, ROLEAF, RWLEAF, WOLEAF};
 
 // hyper parameters of Morphtree
 const uint64_t ROSTATS = 0x0000000000000000; // default statistic of RONode
-const uint64_t RWSTATS = 0x00FF00FF00FF00FF; // default statistic of RWNode
 const uint64_t WOSTATS = 0xFFFFFFFFFFFFFFFF; // default statistic of WONode
 const int GLOBAL_LEAF_SIZE    = 10240;    // the maximum node size of a leaf node
 
@@ -141,54 +140,6 @@ public:
     int32_t count;
     ROLeaf *sibling;
     char dummy[8];
-};
-
-// read write leaf nodes
-class RWLeaf : public BaseNode {
-public:
-    RWLeaf();
-
-    RWLeaf(Record * recs_in, int num);
-
-    ~RWLeaf();
-
-    bool Store(_key_t k, _val_t v, _key_t * split_key, RWLeaf ** split_node);
-
-    bool Lookup(_key_t k, _val_t &v);
-
-    void Dump(std::vector<Record> & out);
-
-    void Print(string prefix);
-
-private:
-    void DoSplit(_key_t * split_key, RWLeaf ** split_node);
-
-    void Populate(_key_t k, _val_t v);
-
-    inline bool ShouldSplit() {
-        return (initial_count + buf_count) == GLOBAL_LEAF_SIZE || buf_count == BUFFER_SIZE || of_count >= (GLOBAL_LEAF_SIZE >> 3);
-    }
-
-    inline int Predict(_key_t k) {
-        return std::min(std::max(0.0, slope * k + intercept), NODE_SIZE - 1.0);
-    }
-
-public:
-    static const int PROBE_SIZE = 8;
-    static const int NODE_SIZE = GLOBAL_LEAF_SIZE;
-    static const int BUFFER_SIZE = GLOBAL_LEAF_SIZE / 4;
-    static const int PIECE_SIZE = 1024;
-
-    // meta data
-    double slope;
-    double intercept;
-    Record *recs;
-    Record *buffer;
-    int16_t initial_count;
-    int16_t of_count;
-    int16_t buf_count;
-    int16_t sorted_count;
-    RWLeaf *sibling;
 };
 
 // write optimzied leaf nodes

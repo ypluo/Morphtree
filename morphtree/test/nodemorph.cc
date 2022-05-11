@@ -23,44 +23,7 @@ TEST(NodeMorph, wonode) {
         n->Store(tmp[i], _val_t((uint64_t)tmp[i]), &split_key, &split_node);
     }
 
-    MorphNode(n, NodeType::WOLEAF, NodeType::RWLEAF);
-
-    // test lookup
-    _val_t res;
-    for(uint64_t i = 0; i < SCALE1; i++) {
-        ASSERT_TRUE(n->Lookup(i, res));
-        ASSERT_EQ(res, _val_t(i));
-    }
-    ASSERT_EQ(split_node, nullptr);
-
-    delete tmp;
-    delete n;
-}
-
-TEST(NodeMorph, rwnode) {
-    int load_size = SCALE1 * 3 / 5;
-
-    _key_t split_key = 0;
-    BaseNode * split_node = nullptr;
-    
-    Record * tmp = new Record[SCALE1];
-    for(uint64_t i = 0; i < SCALE1; i++) {
-        tmp[i].key = i;
-        tmp[i].val = (_val_t)i;
-    }
-    //std::shuffle(tmp, tmp + SCALE1 - 1, std::default_random_engine(getRandom()));
-    std::shuffle(tmp, tmp + SCALE1 - 1, std::default_random_engine(997));
-
-    // bulk load
-    std::sort(tmp, tmp + load_size);
-    BaseNode * n = new RWLeaf(tmp, load_size);
-
-    // insert data into nodes
-    for(uint64_t i = load_size; i < SCALE1; i++) {
-        n->Store(tmp[i].key, tmp[i].val, &split_key, &split_node);
-    }
-
-    MorphNode(n, NodeType::RWLEAF, NodeType::WOLEAF);
+    MorphNode(n, NodeType::WOLEAF, NodeType::ROLEAF);
 
     // test lookup
     _val_t res;
@@ -95,7 +58,7 @@ TEST(NodeMorph, ronode) {
         ASSERT_FALSE(n->Store(tmp[i].key, tmp[i].val, &split_key, &split_node));
     }
 
-    MorphNode(n, NodeType::ROLEAF, NodeType::RWLEAF);
+    MorphNode(n, NodeType::ROLEAF, NodeType::WOLEAF);
 
     // test lookup
     _val_t res;

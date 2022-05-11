@@ -39,42 +39,6 @@ TEST(SingleNode, woleaf) {
     delete n;
 }
 
-TEST(SingleNode, rwleaf) {
-    _key_t split_key = 0;
-    RWLeaf * split_node = nullptr;
-    
-    Record * tmp = new Record[SCALE1];
-    for(uint64_t i = 0; i < SCALE1; i++) {
-        tmp[i].key = i;
-        tmp[i].val = (_val_t)i;
-    }
-    // std::shuffle(tmp, tmp + SCALE1 - 1, std::default_random_engine(997));
-    std::shuffle(tmp, tmp + SCALE1 - 1, std::default_random_engine(getRandom()));
-
-    int load_size = SCALE1 / 2;
-    std::sort(tmp, tmp + load_size);
-    RWLeaf * n = new RWLeaf(tmp, load_size);
-
-    // insert data into nodes
-    for(uint64_t i = load_size; i < SCALE1; i++) {
-        // printf("inserting %lu\n", tmp[i].key);
-        n->Store(tmp[i].key, _val_t((uint64_t)tmp[i].key), &split_key, &split_node);
-    }
-
-    // n->Print("  ");
-    // test lookup
-    _val_t res;
-    for(uint64_t i = 0; i < SCALE1; i++) {
-        // printf("%lu\n", i);
-        ASSERT_TRUE(n->Lookup(i, res));
-        ASSERT_EQ(res, _val_t(i));
-    }
-    ASSERT_EQ(split_node, nullptr);
-
-    delete tmp;
-    delete n;
-}
-
 TEST(SingleNode, roleaf) {
     int load_size = SCALE1 * 3 / 5;
 
@@ -170,46 +134,6 @@ TEST(TwoNode, wonode) {
     // test lookup
     _val_t res;
     for(uint64_t i = 0; i < SCALE1; i++) {
-        if(i < split_key)
-            ASSERT_TRUE(n->Lookup(i, res));
-        else
-            ASSERT_TRUE(split_node->Lookup(i, res));
-        ASSERT_EQ(res, _val_t(i));
-    }
-    
-    delete tmp;
-    delete n;
-    delete split_node;
-}
-
-TEST(TwoNode, rwleaf) {
-    _key_t split_key = UINT64_MAX;
-    RWLeaf * split_node = nullptr;
-    
-    Record * tmp = new Record[SCALE2];
-    for(uint64_t i = 0; i < SCALE2; i++) {
-        tmp[i].key = i;
-        tmp[i].val = (_val_t)i;
-    }
-    std::shuffle(tmp, tmp + SCALE2 - 1, std::default_random_engine(997));
-    std::sort(tmp, tmp + SCALE2 / 2);
-
-    // bulk load
-    RWLeaf * n = new RWLeaf(tmp, SCALE2 / 2);
-
-    // insert data into nodes
-    for(int i = SCALE2 / 2; i < SCALE2; i++) {
-        if(tmp[i].key < split_key) {
-            n->Store(tmp[i].key, _val_t((uint64_t)tmp[i].key), &split_key, &split_node);
-        } else {
-            split_node->Store((uint64_t)tmp[i].key, _val_t((uint64_t)tmp[i].key), nullptr, nullptr);
-        }
-    }
-    //n->Print("\n");
-    // test lookup
-    _val_t res;
-    for(uint64_t i = 0; i < SCALE1; i++) {
-        // printf("%lu\n", i);
         if(i < split_key)
             ASSERT_TRUE(n->Lookup(i, res));
         else
