@@ -11,12 +11,13 @@
 #include <cstring>
 #include <string>
 
+#include "btree.h"
 #include "../include/util.h"
 
 namespace morphtree {
 using std::string;
 // Node types: all non-leaf nodes are of type ROLEAF
-enum NodeType {ROINNER = 0, ROLEAF, RWLEAF, WOLEAF};
+enum NodeType {ROINNER = 0, ROLEAF, WOLEAF};
 
 // hyper parameters of Morphtree
 const uint64_t ROSTATS = 0x0000000000000000; // default statistic of RONode
@@ -120,7 +121,7 @@ private:
     void DoSplit(_key_t * split_key, ROLeaf ** split_node);
 
     inline bool ShouldSplit() {
-        return count == GLOBAL_LEAF_SIZE || of_count >= (GLOBAL_LEAF_SIZE >> 3) || max_of > MAX_OFNODE;
+        return count == GLOBAL_LEAF_SIZE;
     }
 
     inline int Predict(_key_t k) {
@@ -128,18 +129,21 @@ private:
     }
 
 public:
-    static const int PROBE_SIZE = 8;
-    static const int NODE_SIZE = GLOBAL_LEAF_SIZE * 3 / 2;
-    static const int MAX_OFNODE = 128;
+    static const int PROBE_SIZE = 16;
+    static const int NODE_SIZE  = GLOBAL_LEAF_SIZE;
+    static const int SHARING    = 16;
+    static const int OVERFLOW_SIZE = GLOBAL_LEAF_SIZE / PROBE_SIZE / SHARING;
+    typedef stx::btree<_key_t, _val_t> oftree_type;
+
     // meta data
     double slope;
     double intercept;
-    Record *recs;
-    int16_t of_count;
-    int16_t max_of;
+    int32_t of_count;
     int32_t count;
     ROLeaf *sibling;
-    char dummy[8];
+
+    oftree_type ** overflow; 
+    Record *recs;
 };
 
 // write optimzied leaf nodes
@@ -160,14 +164,18 @@ public:
     void Print(string prefix);
 
 private:
+    void DoSplit(_key_t * split_key, WOLeaf ** split_node);
+
     static const int NODE_SIZE = GLOBAL_LEAF_SIZE;
     static const int PIECE_SIZE = 1024;
 
     // meta data
     Record * recs; 
     WOLeaf * sibling;
-    int32_t count;
-    int32_t sorted_count;
+    int16_t inital_count;
+    int16_t insert_count;
+    int16_t sort_count;
+    int16_t unused;
     char dummy[24];
 };
 

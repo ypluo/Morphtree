@@ -11,7 +11,7 @@ typedef double KeyType;
 typedef uint64_t ValType;
 
 static bool insert_only = false;
-static bool detail_tp = true;
+static bool detail_tp = false;
 static const int INTERVAL = 1000000;
 
 template <typename Fn, typename... Args>
@@ -134,11 +134,7 @@ void load(std::vector<KeyType> &init_keys, std::vector<KeyType> &keys,
 Index<KeyType, ValType> * populate(int index_type, std::vector<KeyType> &init_keys) {
   Index<KeyType, ValType> *idx = getInstance<KeyType, ValType>(index_type);
   
-  uint64_t bulkload_size;
-  if(index_type == TYPE_ALEX || index_type == TYPE_LIPP || index_type == TYPE_XINDEX || index_type == TYPE_FINEDEX)
-    bulkload_size = init_keys.size() / 8;
-  else 
-    bulkload_size = 0;
+  uint64_t bulkload_size = init_keys.size() / 8;
 
   if (index_type == TYPE_ALEX || index_type == TYPE_LIPP || index_type == TYPE_XINDEX || index_type == TYPE_FINEDEX) {
     std::pair<KeyType, uint64_t> *recs;
@@ -168,13 +164,13 @@ Index<KeyType, ValType> * populate(int index_type, std::vector<KeyType> &init_ke
   size_t total_num_key = init_keys.size() - bulkload_size;
   size_t end_index = bulkload_size + total_num_key;
   for(size_t i = bulkload_size; i < end_index;i++) {
-      idx->insert(init_keys[i], ValType(std::ceil(init_keys[i])));
+    idx->insert(init_keys[i], ValType(std::ceil(init_keys[i])));
   } 
   double end_time = get_now();
   
   double tput = (init_keys.size() - bulkload_size) / (end_time - start_time) / 1000000; //Mops/sec
-  // if(detail_tp == false)
-  //   std::cout << tput << "\t";
+  if(detail_tp == false)
+    std::cout << tput << "\t";
   return idx;
 }
 
@@ -194,7 +190,6 @@ void exec(int index_type,
     //idx->printTree();
     return;
   }
-
   int txn_num = ops.size();
   auto func2 = [num_thread, 
                 idx, index_type,
@@ -205,9 +200,8 @@ void exec(int index_type,
     size_t op_per_thread = total_num_op / num_thread;
     size_t start_index = op_per_thread * thread_id;
     size_t end_index = start_index + op_per_thread;
-   
-    uint64_t v;
 
+    uint64_t v;
     int counter = 0;
     double last_ts = get_now(), cur_ts;
     for(size_t i = start_index;i < end_index;i++) {
@@ -215,8 +209,8 @@ void exec(int index_type,
       if (op == OP_INSERT) { //INSERT
         idx->insert(keys[i], uint64_t(keys[i]));
       } else if (op == OP_READ) { //READ
-        idx->find(keys[i], &v);
-        // assert(v == ValType(std::ceil(keys[i])));
+        bool found = idx->find(keys[i], &v);
+        //assert(found == true);
       } else if (op == OP_UPSERT) { //UPDATE
         idx->upsert(keys[i], reinterpret_cast<uint64_t>(&keys[i]));
       } else if (op == OP_SCAN) { //SCAN

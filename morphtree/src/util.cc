@@ -1,8 +1,10 @@
 #include <cassert>
-
+#include <cstdio>
 #include "../include/util.h"
 
 bool BinSearch(Record * recs, int len, _key_t k, _val_t &v) { // do binary search
+    if (len == 0) return false;
+
     int low = 0;
     int high = len - 1;
 
@@ -19,6 +21,37 @@ bool BinSearch(Record * recs, int len, _key_t k, _val_t &v) { // do binary searc
     }
     return false; 
 }
+
+// using streaming load that do not poluate the Cache hierarchy
+// #include <smmintrin.h>
+// bool BinSearch(Record * recs, int len, _key_t k, _val_t &v) { // do binary search
+//     if (len == 0) return false;
+    
+//     int low = 0;
+//     int high = len - 1;
+    
+//     union RecordWrapper {
+//         __m128i tmp;
+//         Record rec;
+//         RecordWrapper() {}
+//     } r;
+
+//     while(low <= high) {
+//         int mid = low + (high - low) / 2;
+//         r.tmp = _mm_stream_load_si128((__m128i *)&recs[mid]);
+
+//         if(r.rec.key < k) {
+//             low = mid + 1;
+//         } else if (r.rec.key == k){
+//             v = r.rec.val;
+//             // v = recs[mid].val;
+//             return true;
+//         } else {
+//             high = mid - 1;
+//         }
+//     }
+//     return false; 
+// }
 
 bool ExpSearch(Record * recs, int len, int predict, _key_t k, _val_t &v) {  
     assert(predict >= 0 && predict <= len - 1);
@@ -159,4 +192,32 @@ void KWayMerge_nodup(Record ** runs, int * run_lens, int k, std::vector<Record> 
 
         last_k = e.val.key;
     }
+}
+
+int getSubOptimalSplitkey(std::vector<Record> & recs, int num) {
+    static const int PIVOT_NUM = 32;
+    _key_t min_pivot = recs[0].key;
+    _key_t max_pivot = recs[num * (PIVOT_NUM - 1) / PIVOT_NUM].key;
+    double slope = (PIVOT_NUM - 1) / (max_pivot - min_pivot);
+    double intercept = 0 - slope * min_pivot;
+
+    // find two points that are furthest from the interpolated line
+    double max_distance = -1;
+    int max_i;
+    double submax_distance = -1;
+    int submax_i;
+    for(int i = PIVOT_NUM / 4; i <= PIVOT_NUM * 3 / 4; i++) {
+        _key_t cur_pivot = recs[num * i / PIVOT_NUM].key;
+        double distance = std::abs(slope * cur_pivot + intercept - i);
+
+        if(distance > max_distance) {
+            submax_distance = max_distance; submax_i = max_i;
+            max_distance = distance; max_i = i;
+        } else if(distance > submax_distance) {
+            submax_distance = distance; submax_i = i;
+        }
+    }
+
+    // use the average subscript as the split point
+    return (max_i + submax_i + 1) / 2 * num / PIVOT_NUM;
 }

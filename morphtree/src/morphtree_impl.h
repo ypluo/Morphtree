@@ -56,6 +56,10 @@ MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::~MorphtreeImpl() {
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::lookup(const _key_t &key, _val_t & val) {
+    if(key == -41.37089150) {
+        int a = 0;
+    }
+
     // global_stats = (global_stats << 1);
     BaseNode * cur = root_;
 

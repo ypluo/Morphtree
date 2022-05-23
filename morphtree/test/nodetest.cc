@@ -10,7 +10,7 @@ using namespace morphtree;
 /* SingleNode Test: all operations are applied to one node */
 const int SCALE1 = GLOBAL_LEAF_SIZE / 2; // not big enough to trigger a node split
 
-TEST(SingleNode, woleaf) {
+TEST(SingleNode, DISABLED_woleaf) {
     WOLeaf * n = new WOLeaf;
     _key_t split_key = 0;
     WOLeaf * split_node = nullptr;
@@ -39,10 +39,10 @@ TEST(SingleNode, woleaf) {
     delete n;
 }
 
-TEST(SingleNode, roleaf) {
+TEST(SingleNode, DISABLED_roleaf) {
     int load_size = SCALE1 * 3 / 5;
 
-    _key_t split_key = UINT64_MAX;
+    _key_t split_key = MAX_KEY;
     ROLeaf * split_node = nullptr;
     Record * tmp = new Record[SCALE1];
     for(uint64_t i = 0; i < SCALE1; i++) {
@@ -64,6 +64,7 @@ TEST(SingleNode, roleaf) {
     // test lookup
     _val_t res;
     for(uint64_t i = 0; i < SCALE1; i++) {
+        // printf("%lu\n", i);
         ASSERT_TRUE(n->Lookup(i, res));
         ASSERT_EQ(res, _val_t(i));
     }
@@ -72,14 +73,14 @@ TEST(SingleNode, roleaf) {
     delete n;
 }   
 
-TEST(SingleNode, roinner) {
+TEST(SingleNode, DISABLED_roinner) {
     int load_size = SCALE1;
     //std::default_random_engine gen(getRandom());
     std::default_random_engine gen(997);
     std::uniform_int_distribution<uint64_t> dist(0, SCALE1 * 10);
 
 
-    _key_t split_key = UINT64_MAX;
+    _key_t split_key = MAX_KEY;
     ROInner * split_node = nullptr;
     Record * tmp = new Record[SCALE1];
     for(uint64_t i = 0; i < SCALE1; i++) {
@@ -113,19 +114,20 @@ const int SCALE2 = GLOBAL_LEAF_SIZE * 5 / 4; // big enough to trigger a node spl
 
 TEST(TwoNode, wonode) {
     WOLeaf * n = new WOLeaf;
-    _key_t split_key = UINT64_MAX;
+    _key_t split_key = MAX_KEY;
     WOLeaf * split_node = nullptr;
     
     _key_t * tmp = new _key_t[SCALE2];
     for(uint64_t i = 0; i < SCALE2; i++) {
         tmp[i] = i;
     }
-    std::shuffle(tmp, tmp + SCALE2 - 1, std::default_random_engine(getRandom()));
+    std::shuffle(tmp, tmp + SCALE2 - 1, std::default_random_engine(7));
 
     // insert data into nodes
     for(int i = 0; i < SCALE2; i++) {
         if(tmp[i] < split_key) {
             n->Store(tmp[i], _val_t((uint64_t)tmp[i]), &split_key, &split_node);
+            // n->Print(" ");
         } else {
             split_node->Store(tmp[i], _val_t((uint64_t)tmp[i]), nullptr, nullptr);
         }
@@ -146,8 +148,8 @@ TEST(TwoNode, wonode) {
     delete split_node;
 }
 
-TEST(TwoNode, roleaf) {
-    _key_t split_key = UINT64_MAX;
+TEST(TwoNode, DISABLED_roleaf) {
+    _key_t split_key = MAX_KEY;
     ROLeaf * split_node = nullptr;
     
     Record * tmp = new Record[SCALE2];

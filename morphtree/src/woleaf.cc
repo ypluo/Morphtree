@@ -16,8 +16,9 @@ WOLeaf::WOLeaf() {
     stats = WOSTATS;
 
     recs = new Record[NODE_SIZE];
-    count = 0;
-    sorted_count = 0;
+    insert_count = 0;
+    inital_count = 0;
+    sort_count = 0;
 }
 
 WOLeaf::WOLeaf(Record * recs_in, int num) {
@@ -26,8 +27,9 @@ WOLeaf::WOLeaf(Record * recs_in, int num) {
 
     recs = new Record[NODE_SIZE];
     memcpy(recs, recs_in, sizeof(Record) * num);
-    count = num;
-    sorted_count = num;
+    inital_count = num;
+    insert_count = 0;
+    sort_count = 0;
 }
 
 WOLeaf::~WOLeaf() {
@@ -35,96 +37,75 @@ WOLeaf::~WOLeaf() {
 }
 
 bool WOLeaf::Store(_key_t k, _val_t v, _key_t * split_key, WOLeaf ** split_node) {
-    recs[count++] = {k, v};
+    recs[inital_count + insert_count++] = {k, v};
 
-    if(count % PIECE_SIZE == 0) {
-        int32_t start = count - PIECE_SIZE;
-        std::sort(recs + start, recs + count);
-        sorted_count = count;
+    if(insert_count % PIECE_SIZE == 0) {
+        int16_t start = insert_count - PIECE_SIZE;
+        std::sort(recs + inital_count + start, recs + inital_count + insert_count);
+        sort_count = insert_count;
     }
     
-    if(count < GLOBAL_LEAF_SIZE) {
-        return false;
-    } else {
-        // find global median number
-        std::vector<_key_t> medians;
-        for(int i = 0; i < count; i += PIECE_SIZE) {
-            medians.push_back(recs[i + PIECE_SIZE / 3].key);
-            medians.push_back(recs[i + PIECE_SIZE * 2 / 3].key);
-        }
-        *split_key = GetMedian(medians);
-        
-        // create two new nodes
-        WOLeaf * left_node = new WOLeaf;
-        *split_node = new WOLeaf;
-
-        // split the data
-        for(int i = 0; i < count; i++) {
-            if(recs[i].key < *split_key)
-                left_node->Store(recs[i].key, recs[i].val, nullptr, nullptr);
-            else
-                (*split_node)->Store(recs[i].key, recs[i].val, nullptr, nullptr);
-        }
-
-        // update siblings
-        left_node->sibling = *split_node;
-        (*split_node)->sibling = this->sibling;
-
-        // Swap the old left node and the new
-        SwapNode(this, left_node);
-        delete left_node;
-        
+    if(inital_count + insert_count == GLOBAL_LEAF_SIZE) {
+        DoSplit(split_key, split_node);
         return true;
+    } else {
+        return false;
     }
 }
 
 bool WOLeaf::Lookup(_key_t k, _val_t &v) {
     // do binary search in all sorted runs
-    int32_t bin_end = count / PIECE_SIZE * PIECE_SIZE;
-    for(int i = 0; i < bin_end; i += PIECE_SIZE) {
+    if(BinSearch(recs, inital_count, k, v)) {
+        return true;
+    }
+
+    int16_t bin_end = insert_count / PIECE_SIZE * PIECE_SIZE;
+    for(int i = inital_count; i < inital_count + bin_end; i += PIECE_SIZE) {
         if(BinSearch(recs + i, PIECE_SIZE, k, v)) {
             return true;
         }
     }
-    if(BinSearch(recs + bin_end, sorted_count - bin_end, k, v)) {
+
+    // bound the unsorted region into 1KB
+    if(insert_count - sort_count > 64) {
+        std::sort(recs + inital_count + bin_end, recs + inital_count + insert_count);
+        sort_count = insert_count;
+    }
+    if(BinSearch(recs + inital_count + bin_end, sort_count - bin_end, k, v)) {
         return true;
     }
-
+    
     // do scan in unsorted runs
-    for(int i = sorted_count; i < count; i++) {
+    for(int i = inital_count + sort_count; i < inital_count + insert_count; i++) {
         if(recs[i].key == k) {
             v = recs[i].val;
-            // sort the unsorted runs if it is big
-            if(count - sorted_count > PIECE_SIZE / 4) {
-                std::sort(recs + bin_end, recs + count);
-                sorted_count = count;
-            }
             return true;
         }
     }
 
-    // sort the unsorted runs if it is big
-    if(count - sorted_count > PIECE_SIZE / 4) {
-        std::sort(recs + bin_end, recs + count);
-        sorted_count = count;
-    }
     return false;
 }
 
 void WOLeaf::Dump(std::vector<Record> & out) {
     static const int MAX_RUN_NUM = GLOBAL_LEAF_SIZE / PIECE_SIZE;
-    static Record * sort_runs[MAX_RUN_NUM];
-    static int lens[MAX_RUN_NUM];
+    Record * sort_runs[MAX_RUN_NUM];
+    int lens[MAX_RUN_NUM];
 
-    if(sorted_count != count) {
-        int32_t bin_end = count / PIECE_SIZE * PIECE_SIZE;
-        std::sort(recs + bin_end, recs + count);
+    int16_t total_count = inital_count + insert_count;
+    int16_t bin_end = insert_count / PIECE_SIZE * PIECE_SIZE;
+    if(bin_end < insert_count) {
+        std::sort(recs + inital_count + bin_end, recs + total_count);
     }
 
     int run_cnt = 0;
-    for(int i = 0; i < count; i += PIECE_SIZE) {
+    if(inital_count > 0) {
+        sort_runs[0] = recs;
+        lens[0] = inital_count;
+        run_cnt += 1;
+    }
+    for(int i = inital_count; i < total_count; i += PIECE_SIZE) {
         sort_runs[run_cnt] = recs + i;
-        lens[run_cnt] = (i + PIECE_SIZE <= count ? PIECE_SIZE : count - i);
+        lens[run_cnt] = (i + PIECE_SIZE <= total_count) ? PIECE_SIZE : total_count - i;
         run_cnt += 1;
     }
 
@@ -132,13 +113,33 @@ void WOLeaf::Dump(std::vector<Record> & out) {
     return ;
 }
 
+void WOLeaf::DoSplit(_key_t * split_key, WOLeaf ** split_node) {
+    std::vector<Record> data;
+    data.reserve(inital_count + insert_count);
+    Dump(data);
+
+    int pid = getSubOptimalSplitkey(data, inital_count + insert_count);
+    // creat two new nodes
+    WOLeaf * left = new WOLeaf(data.data(), pid);
+    WOLeaf * right = new WOLeaf(data.data() + pid, data.size() - pid);
+    left->sibling = right;
+    right->sibling = sibling;
+
+    // update splitting info
+    *split_key = data[pid].key;
+    *split_node = right;
+
+    SwapNode(this, left);
+    delete left;
+}
+
 void WOLeaf::Print(string prefix) {
     std::vector<Record> out;
     Dump(out);
 
-    printf("%s(%d)[", prefix.c_str(), node_type);
+    printf("%s(%d, %d)[", prefix.c_str(), node_type, inital_count + insert_count);
     for(int i = 0; i < out.size(); i++) {
-        printf("%lf, ", out[i].key);
+        printf("%12.8lf, ", out[i].key);
     }
     printf("]\n");
 }

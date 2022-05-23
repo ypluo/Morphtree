@@ -125,4 +125,6 @@ extern bool BinSearch(Record * recs, int len, _key_t k, _val_t &v);// do binary 
 
 extern bool ExpSearch(Record * recs, int len, int predict, _key_t k, _val_t &v); // do exponential search
 
+extern int getSubOptimalSplitkey(std::vector<Record> & recs, int num);
+
 #endif // __MORPHTREE_UTIL_H__

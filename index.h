@@ -5,7 +5,7 @@
 #include "ALEX/src/core/alex.h"
 #include "morphtree/src/morphtree_impl.h"
 #include "LIPP/src/core/lipp.h"
-#include "XIndex/xindex_impl.h"
+// #include "XIndex/xindex_impl.h"
 #include "FINEdex/include/aidel_impl.h"
 
 template<typename KeyType, typename ValType>
@@ -176,12 +176,13 @@ public:
     }
 
     bool insert(KeyType key, uint64_t value) {
-        idx->put(key, value, 0);
+        //idx->put(key, value, 0);
         return false;
     }
 
     bool find(KeyType key, uint64_t *v) {
-        return idx->get(key, *v, 0);
+        return true;
+        //return idx->get(key, *v, 0);
     }
 
     bool upsert(KeyType key, uint64_t value) {
@@ -193,23 +194,24 @@ public:
     }
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
-        std::vector<ModelKeyType> keys;
-        std::vector<ValType> vals;
-        keys.resize(len);
-        vals.resize(len);
+        // std::vector<ModelKeyType> keys;
+        // std::vector<ValType> vals;
+        // keys.resize(len);
+        // vals.resize(len);
         
-        for(int i = 0; i < len; i++) {
-            keys[i] = ModelKeyType(recs[i].first);
-            vals[i] = recs[i].second;
-        }
+        // for(int i = 0; i < len; i++) {
+        //     keys[i] = ModelKeyType(recs[i].first);
+        //     vals[i] = recs[i].second;
+        // }
 
-        idx = new xindex::XIndex<ModelKeyType, ValType>(keys, vals, 1, 1);
+        // idx = new xindex::XIndex<ModelKeyType, ValType>(keys, vals, 1, 1);
     }
 
     int64_t printTree() const {return 0;}
 
 private:
-    xindex::XIndex<ModelKeyType, ValType> * idx;
+    alex::Alex<KeyType, uint64_t> * idx;
+    //xindex::XIndex<ModelKeyType, ValType> * idx;
 };
 
 /////////////////////////////////////////////////////////////////////

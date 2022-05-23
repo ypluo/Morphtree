@@ -30,7 +30,7 @@ ROInner::ROInner(Record * recs_in, int num) {
 
     // train a model
     LinearModelBuilder model;
-    for(int i = PROBE_SIZE; i < num - PROBE_SIZE; i++) {
+    for(int i = num / 4; i < num * 3 / 4; i++) {
         model.add(recs_in[i].key, i);
     }
     model.build();
