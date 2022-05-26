@@ -10,7 +10,7 @@
 typedef double KeyType;
 typedef uint64_t ValType;
 
-static bool insert_only = false;
+static bool insert_only = true;
 static bool detail_tp = false;
 static const int INTERVAL = 1000000;
 
@@ -136,7 +136,7 @@ Index<KeyType, ValType> * populate(int index_type, std::vector<KeyType> &init_ke
   
   uint64_t bulkload_size = init_keys.size() / 8;
 
-  if (index_type == TYPE_ALEX || index_type == TYPE_LIPP || index_type == TYPE_XINDEX || index_type == TYPE_FINEDEX) {
+  if (index_type == TYPE_ALEX || index_type == TYPE_LIPP) {
     std::pair<KeyType, uint64_t> *recs;
     recs = new std::pair<KeyType, uint64_t>[bulkload_size];
 
@@ -169,8 +169,8 @@ Index<KeyType, ValType> * populate(int index_type, std::vector<KeyType> &init_ke
   double end_time = get_now();
   
   double tput = (init_keys.size() - bulkload_size) / (end_time - start_time) / 1000000; //Mops/sec
-  if(detail_tp == false)
-    std::cout << tput << "\t";
+  // if(detail_tp == false)
+  //   std::cout << tput << "\t";
   return idx;
 }
 
@@ -187,7 +187,7 @@ void exec(int index_type,
   
   // If we do not perform other transactions, we can skip txn file
   if(insert_only == true) {
-    //idx->printTree();
+    idx->printTree();
     return;
   }
   int txn_num = ops.size();
@@ -253,10 +253,6 @@ int main(int argc, char *argv[]) {
     index_type = TYPE_ALEX;
   else if(strcmp(argv[1], "lipp") == 0)
     index_type = TYPE_LIPP;
-  else if(strcmp(argv[1], "xindex") == 0)
-    index_type = TYPE_XINDEX;
-  else if(strcmp(argv[1], "finedex") == 0)
-    index_type = TYPE_FINEDEX;
   else if(strcmp(argv[1], "wotree") == 0)
     index_type = TYPE_MORPHTREE_WO;
   else if(strcmp(argv[1], "rotree") == 0)
@@ -279,21 +275,19 @@ int main(int argc, char *argv[]) {
   std::vector<int> ops; //INSERT = 0, READ = 1, UPDATE = 2, SCAN = 3
 
   init_keys.reserve(64000000);
-  keys.reserve(128000000);
-  ranges.reserve(10000000);
-  ops.reserve(10000000);
+  keys.reserve(64000000);
+  ops.reserve(64000000);
 
-  memset(&init_keys[0], 0x00, 40000000 * sizeof(KeyType));
-  memset(&keys[0], 0x00, 40000000 * sizeof(KeyType));
-  memset(&ranges[0], 0x00, 10000000 * sizeof(int));
-  memset(&ops[0], 0x00, 10000000 * sizeof(int));
+  memset(&init_keys[0], 0x00, 64000000 * sizeof(KeyType));
+  memset(&keys[0], 0x00, 64000000 * sizeof(KeyType));
+  memset(&ops[0], 0x00, 64000000 * sizeof(int));
 
   if(detail_tp) {
     printf("index type: %d\n", index_type);
   }
 
   load(init_keys, keys, ranges, ops);
-  //fprintf(stderr, "finish loading\n");
+  fprintf(stderr, "finish loading\n");
   exec(index_type, num_thread, init_keys, keys, ranges, ops);
   return 0;
 }

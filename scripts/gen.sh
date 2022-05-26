@@ -2,50 +2,27 @@
 
 # basic setting
 DATASET=$1
-TYPE=$2
+READ=$2
+WRITE=$3
 DATASIZE=64000000
-QUERYSIZE=128000000 # 100M for longitude data
+QUERYSIZE=64000000
 KEYSET=/data/lyp/datasets/${DATASET}.dat
 DIST=zipfian
 
-case ${TYPE} in 
-1): 
-    QUERYONLY=0; READ=1; WRITE=0 ;;
-2):
-    QUERYONLY=1; READ=0.5; WRITE=0.5 ;;
-3):
-    QUERYONLY=1; READ=0; WRITE=1 ;;
-*):
-    exit 0 ;;
-esac
+echo "recordcount=${DATASIZE}"      > workload.spec
+echo "operationcount=${QUERYSIZE}"  >> workload.spec
+echo "readproportion=${READ}"       >> workload.spec
+echo "insertproportion=${WRITE}"    >> workload.spec
+echo "updateproportion=0"           >> workload.spec
+echo "scanproportion=0"             >> workload.spec
+echo "requestdistribution=${DIST}"  >> workload.spec
 
-# generate dataset.dat and query.dat
-if [[ ${QUERYONLY} -eq 0 ]]; then
-    echo "generate dataset.dat and query.dat"
-    echo "recordcount=${DATASIZE}"      > workload.spec
-    echo "operationcount=${QUERYSIZE}"  >> workload.spec
-    echo "readproportion=${READ}"       >> workload.spec
-    echo "updateproportion=0"           >> workload.spec
-    echo "scanproportion=0"             >> workload.spec
-    echo "insertproportion=${WRITE}"    >> workload.spec
-    echo "requestdistribution=${DIST}"  >> workload.spec
-
-    ./ycsb/ycsbc -P workload.spec -F ${KEYSET}
-    cp dataset.dat ../workloads/${DATASET}_dataset.dat
-    cp query.dat ../workloads/${DATASET}_query1.dat
-
+if [[ ${READ} == 1 ]]
+then
+    taskset -c 1-4 ./ycsb/ycsbc -P workload.spec -F ${KEYSET}
+    taskset -c 1-4 cp dataset.dat ../workloads/${DATASET}_dataset.dat
+    taskset -c 1-4 cp query.dat ../workloads/${DATASET}_query${READ}.dat
 else
-    echo "generate query.dat only"
-    echo "recordcount=0"                > workload.spec
-    echo "insertstart=${DATASIZE}"      >> workload.spec
-    echo "operationcount=${QUERYSIZE}"  >> workload.spec
-    echo "readproportion=${READ}"       >> workload.spec
-    echo "updateproportion=0"           >> workload.spec
-    echo "scanproportion=0"             >> workload.spec
-    echo "insertproportion=${WRITE}"    >> workload.spec
-    echo "requestdistribution=${DIST}"  >> workload.spec
-
-    ./ycsb/ycsbc -P workload.spec -F ${KEYSET} --query_only
-    cp query.dat ../workloads/${DATASET}_query${TYPE}.dat
-
+    taskset -c 1-4 ./ycsb/ycsbc -P workload.spec -F ${KEYSET} --query_only
+    taskset -c 1-4 cp query.dat ../workloads/${DATASET}_query${READ}.dat
 fi

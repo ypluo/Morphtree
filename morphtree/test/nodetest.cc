@@ -1,5 +1,6 @@
 #include <random>
 #include <algorithm>
+#include <random>
 
 #include "../src/node.h"
 
@@ -112,7 +113,7 @@ TEST(SingleNode, DISABLED_roinner) {
 /* TwoNode Test: store operations may trigger a node split */
 const int SCALE2 = GLOBAL_LEAF_SIZE * 5 / 4; // big enough to trigger a node split
 
-TEST(TwoNode, wonode) {
+TEST(TwoNode, DISABLED_wonode) {
     WOLeaf * n = new WOLeaf;
     _key_t split_key = MAX_KEY;
     WOLeaf * split_node = nullptr;
@@ -148,13 +149,16 @@ TEST(TwoNode, wonode) {
     delete split_node;
 }
 
-TEST(TwoNode, DISABLED_roleaf) {
+TEST(TwoNode, roleaf) {
     _key_t split_key = MAX_KEY;
     ROLeaf * split_node = nullptr;
     
     Record * tmp = new Record[SCALE2];
+    std::default_random_engine gen(997);
+    std::uniform_int_distribution<int> dist(0, SCALE2 * 100);
+
     for(uint64_t i = 0; i < SCALE2; i++) {
-        tmp[i].key = i;
+        tmp[i].key = dist(gen);
         tmp[i].val = (_val_t)i;
     }
     std::shuffle(tmp, tmp + SCALE2 - 1, std::default_random_engine(997));
@@ -171,6 +175,9 @@ TEST(TwoNode, DISABLED_roleaf) {
             ASSERT_FALSE(split_node->Store(tmp[i].key, tmp[i].val, nullptr, nullptr));
         }
     }
+
+    n->Print("");
+    split_node->Print("\n\n");
 
     // test lookup
     _val_t res;

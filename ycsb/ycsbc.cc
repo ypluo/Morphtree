@@ -83,18 +83,22 @@ int main(const int argc, const char *argv[]) {
     const int operationcount = stoi(props.GetProperty(CoreWorkload::OPERATION_COUNT_PROPERTY, "0"));
     const float insert_ratio = stof(props.GetProperty(CoreWorkload::INSERT_PROPORTION_PROPERTY, "0"));
 
-    ycsbc::CoreWorkload wl(filename, insertstart + recordcount + operationcount * (insert_ratio + 0.1));
+    ycsbc::CoreWorkload wl(filename, insertstart + recordcount + operationcount * (insert_ratio + 0.05));
     wl.Init(props);
-    
+
     std::string key;
     std::vector<KVPair> values;
-
     // generate load
     if(query_only == false) {
         BasicDB db_load("dataset.dat");
         for(int i = 0; i < recordcount; i++) {
             key = wl.NextSequenceKey();
             db_load.Insert(key, values);
+        }
+    } else {
+        // do not generate a dataset file
+        for(int i = 0; i < recordcount; i++) {
+            key = wl.NextSequenceKey();
         }
     }
     

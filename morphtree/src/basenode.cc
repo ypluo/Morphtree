@@ -14,11 +14,11 @@ void BaseNode::TypeManager(bool isWrite) {
 
     switch(node_type) {
         case NodeType::WOLEAF:
-            if(one_count <= 60) 
+            if(one_count <= 44) 
                 new_type = NodeType::ROLEAF;
             break;
         case NodeType::ROLEAF:
-            if(one_count == 64)
+            if(one_count >= 56)
                 new_type = NodeType::WOLEAF;
             break;
     }

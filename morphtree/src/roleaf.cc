@@ -109,7 +109,7 @@ bool ROLeaf::Lookup(_key_t k, _val_t &v) {
         }
     }
     
-    int overflow_idx = (start / PROBE_SIZE / SHARING);
+    int overflow_idx = start / PROBE_SIZE / SHARING;
     auto iter = overflow[overflow_idx]->find(k);
     if(iter != overflow[overflow_idx]->end()) {
         v = iter->second;
@@ -123,25 +123,38 @@ void ROLeaf::Dump(std::vector<Record> & out) {
     for(int i = 0; i < OVERFLOW_SIZE; i++) {
         auto iter = overflow[i]->begin();
         auto end = overflow[i]->end();
+        int start = i * PROBE_SIZE * SHARING;
+        int base_end = start + PROBE_SIZE * SHARING;
 
-        for(int k = 0; k < SHARING; k++) {
-            int base = i * PROBE_SIZE * SHARING + k * PROBE_SIZE;
-
-            int j = 0;
-            for(; j < PROBE_SIZE; j++) {
-                if(recs[base + j].key != MAX_KEY)
-                    out.push_back(recs[base + j]);
-                else 
-                    break;
-            }
-            
-            if(j == PROBE_SIZE) { // potentially overflowed
-                _key_t nextkey = (base + j < NODE_SIZE) ? recs[base + j].key : MAX_KEY;
-                while(iter != end && iter->first < nextkey) {
-                    out.push_back({iter->first, iter->second});
-                    iter++;
+        // find the fisrt valid record in recs
+        while(recs[start].key == MAX_KEY && start < base_end) {
+            start = start / PROBE_SIZE * PROBE_SIZE + PROBE_SIZE;
+        }
+        // do two way merge
+        while(start < base_end && iter != end) {
+            if(recs[start].key < iter->first) {
+                out.push_back(recs[start]);
+                start += 1;
+                while(recs[start].key == MAX_KEY && start < base_end) {
+                    start = start / PROBE_SIZE * PROBE_SIZE + PROBE_SIZE;
                 }
+            } else {
+                out.push_back({iter->first, iter->second});
+                iter++;
             }
+        }
+
+        while(start < base_end) {
+            out.push_back(recs[start]);
+            start += 1;
+            while(recs[start].key == MAX_KEY && start < base_end) {
+                start = start / PROBE_SIZE * PROBE_SIZE + PROBE_SIZE;
+            }
+        }
+
+        while(iter != end) {
+            out.push_back({iter->first, iter->second});
+            iter++;
         }
     }
 }
@@ -152,9 +165,9 @@ void ROLeaf::Print(string prefix) {
     Dump(out);
 
     printf("%s(%d %d)[", prefix.c_str(), count, of_count);
-    // for(int i = 0; i < out.size(); i++) {
-    //     printf("%lf, ", out[i].key);
-    // }
+    for(int i = 0; i < out.size(); i++) {
+        printf("%lf, ", out[i].key);
+    }
     printf("]\n");
 }
 
@@ -162,12 +175,12 @@ void ROLeaf::DoSplit(_key_t * split_key, ROLeaf ** split_node) {
     std::vector<Record> data;
     data.reserve(count);
     Dump(data);
+    assert(data.size() == count);
 
-    int pid = getSubOptimalSplitkey(data, count);
-
+    int pid = getSubOptimalSplitkey(data, data.size());
     // creat two new nodes
     ROLeaf * left = new ROLeaf(data.data(), pid);
-    ROLeaf * right = new ROLeaf(data.data() + pid, count - pid);
+    ROLeaf * right = new ROLeaf(data.data() + pid, data.size() - pid);
     left->sibling = right;
     right->sibling = sibling;
 

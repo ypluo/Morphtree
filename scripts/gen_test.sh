@@ -21,4 +21,4 @@ echo "insertproportion=${WRITE}"     >> workload.spec
 echo "requestdistribution=${DIST}"   >> workload.spec
 
 # generate workload
-./ycsb/ycsbc -P workload.spec -F ${KEYSET}
+taskset -c 1-4 ./ycsb/ycsbc -P workload.spec -F ${KEYSET}
