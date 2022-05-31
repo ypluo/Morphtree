@@ -10,7 +10,7 @@
 typedef double KeyType;
 typedef uint64_t ValType;
 
-static bool insert_only = true;
+static bool insert_only = false;
 static bool detail_tp = false;
 static const int INTERVAL = 1000000;
 
@@ -210,7 +210,7 @@ void exec(int index_type,
         idx->insert(keys[i], uint64_t(keys[i]));
       } else if (op == OP_READ) { //READ
         bool found = idx->find(keys[i], &v);
-        //assert(found == true);
+        // assert(found == true);
       } else if (op == OP_UPSERT) { //UPDATE
         idx->upsert(keys[i], reinterpret_cast<uint64_t>(&keys[i]));
       } else if (op == OP_SCAN) { //SCAN
@@ -234,7 +234,7 @@ void exec(int index_type,
   double tput = txn_num / (end_time - start_time) / 1000000; //Mops/sec
   if(detail_tp == false)
     //std::cout  << tput << std::endl;
-    std::cout  << tput << " ";
+    std::cout  << tput << " " << std::endl;
   
   delete idx;
   return;
@@ -259,6 +259,8 @@ int main(int argc, char *argv[]) {
     index_type = TYPE_MORPHTREE_RO;
   else if(strcmp(argv[1], "morphtree") == 0)
     index_type = TYPE_MORPHTREE;
+  else if(strcmp(argv[1], "rotree2") == 0)
+    index_type = TYPE_NEWTREE;
   else {
     fprintf(stderr, "Unknown index type: %d\n", index_type);
     exit(1);
@@ -287,7 +289,7 @@ int main(int argc, char *argv[]) {
   }
 
   load(init_keys, keys, ranges, ops);
-  fprintf(stderr, "finish loading\n");
+  // fprintf(stderr, "finish loading\n");
   exec(index_type, num_thread, init_keys, keys, ranges, ops);
   return 0;
 }

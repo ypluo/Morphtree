@@ -20,22 +20,19 @@ set(MKL_INCLUDE_DIRECTORY "/opt/intel/mkl/include")
 include_directories(${CMAKE_SOURCE_DIR}/ALEX/src/core)
 include_directories(${CMAKE_SOURCE_DIR}/LIPP/src/core)
 include_directories(${CMAKE_SOURCE_DIR}/morphtree)
-include_directories(${MKL_INCLUDE_DIRECTORY})
-include_directories(${CMAKE_SOURCE_DIR}/XIndex)
-include_directories(${CMAKE_SOURCE_DIR}/FINDEdex/include)
 
 #==== set compile and link options =====
 # link options must be prior to adding sub directories
 add_link_options(-pthread)
-link_libraries(/usr/lib/x86_64-linux-gnu/libtbb.so)
 
 #======= add sub directories =======
 add_subdirectory(morphtree)
+add_subdirectory(newtree)
 
 # add YCSB
 add_subdirectory(ycsb)
 
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 add_executable(benchmark benchmark.cpp)
-target_link_libraries(benchmark morphtree)
+target_link_libraries(benchmark morphtree newtree)
 link_directories(${MKL_LINK_DIRECTORY})

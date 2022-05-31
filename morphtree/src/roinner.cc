@@ -24,13 +24,13 @@ ROInner::ROInner(Record * recs_in, int num) {
         memcpy(recs, recs_in, num * sizeof(Record));
         return ;
     } else {
-        capacity = (num * 4 + PROBE_SIZE - 1) / PROBE_SIZE * PROBE_SIZE;
+        capacity = (num * 3 + PROBE_SIZE - 1) / PROBE_SIZE * PROBE_SIZE;
         recs = new Record[capacity];
     }
 
     // train a model
     LinearModelBuilder model;
-    for(int i = num / 4; i < num * 3 / 4; i++) {
+    for(int i = num / 8; i < num * 7 / 8; i++) {
         model.add(recs_in[i].key, i);
     }
     model.build();

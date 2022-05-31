@@ -3,11 +3,11 @@
 DATASET=$1
 TYPE=$2
 
-cp ../workloads/${DATASET}_dynamic_dataset.dat dataset.dat
-cp ../workloads/${DATASET}_dynamic_query${TYPE}.dat query.dat
+taskset -c 21-22 cp ../workloads/${DATASET}_dynamic_dataset.dat dataset.dat
+taskset -c 21-22 cp ../workloads/${DATASET}_dynamic_query${TYPE}.dat query.dat
 
-taskset -c 1-4 ./benchmark alex
-taskset -c 1-4 ./benchmark lipp
-taskset -c 1-4 ./benchmark wotree
-taskset -c 1-4 ./benchmark rotree
-taskset -c 1-4 ./benchmark morphtree
+taskset -c 21-22 ./benchmark alex
+taskset -c 21-22 ./benchmark lipp
+taskset -c 21-22 ./benchmark wotree
+taskset -c 21-22 ./benchmark rotree
+taskset -c 21-22 ./benchmark morphtree

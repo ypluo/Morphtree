@@ -1,10 +1,10 @@
 #include <cassert>
-#include <cstdio>
+
 #include "../include/util.h"
 
-bool BinSearch(Record * recs, int len, _key_t k, _val_t &v) { // do binary search
-    if (len == 0) return false;
+namespace newtree {
 
+bool BinSearch(Record * recs, int len, _key_t k, _val_t &v) { // do binary search
     int low = 0;
     int high = len - 1;
 
@@ -78,28 +78,6 @@ _key_t GetMedian(std::vector<_key_t> & medians) {
     return q.top();
 }
 
-void TwoWayMerge(Record * a, Record * b, int lena, int lenb, std::vector<Record> & out) {
-    int cura = 0;
-    int curb = 0;
-
-    while(cura < lena && curb < lenb) {
-        if(a[cura].key < b[curb].key) {
-            out.push_back(a[cura++]);
-        } else if(a[cura].key > b[curb].key) {
-            out.push_back(b[curb++]);
-        } else {
-            out.push_back(a[cura++]);
-            out.push_back(b[curb++]);
-        }
-    }
-
-    while(cura < lena)
-        out.push_back(a[cura++]);
-
-    while(curb < lenb)
-        out.push_back(b[curb++]);
-}
-
 void KWayMerge(Record ** runs, int * run_lens, int k, std::vector<Record> & out) {
     struct HeapEle {
         int run_id;
@@ -130,39 +108,6 @@ void KWayMerge(Record ** runs, int * run_lens, int k, std::vector<Record> & out)
     }
 }
 
-void KWayMerge_nodup(Record ** runs, int * run_lens, int k, std::vector<Record> & out) {
-    struct HeapEle {
-        int run_id;
-        Record val;
-
-        bool operator < (const HeapEle & oth) const {
-            return val > oth.val; // this will make a min heap
-        }
-    };
-
-    int * run_idxs = new int[k];
-    std::priority_queue<HeapEle, std::vector<HeapEle>> q; // min heap
-
-    for(int i = 0; i < k; i++) {
-        if(run_lens[i] > 0)
-            q.push({i, runs[i][0]});
-        run_idxs[i] = 1;
-    }
-
-    _key_t last_k = MAX_KEY;
-    while(!q.empty()) {
-        HeapEle e = q.top(); q.pop();
-        if(e.val.key != last_k)
-            out.push_back(e.val);
-        int & cur_pos = run_idxs[e.run_id];
-        if (cur_pos < run_lens[e.run_id]) {
-            q.push({e.run_id, runs[e.run_id][cur_pos++]});
-        }
-
-        last_k = e.val.key;
-    }
-}
-
 int getSubOptimalSplitkey(std::vector<Record> & recs, int num) {
     static const int PIVOT_NUM = 32;
     _key_t min_pivot = recs[0].key;
@@ -189,4 +134,6 @@ int getSubOptimalSplitkey(std::vector<Record> & recs, int num) {
 
     // use the average subscript as the split point
     return (max_i + submax_i + 1) / 2 * num / PIVOT_NUM;
+}
+
 }

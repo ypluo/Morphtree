@@ -2,8 +2,8 @@
     Copyright (c) Luo Yongping ypluo18@qq.com
 */
 
-#ifndef __MORPHTREE_BASENODE__
-#define __MORPHTREE_BASENODE__
+#ifndef __NEW_TREE_BASENODE__
+#define __NEW_TREE_BASENODE__
 
 #include <algorithm>
 #include <cassert>
@@ -11,18 +11,18 @@
 #include <cstring>
 #include <string>
 
-#include "btree.h"
 #include "../include/util.h"
+#include "btree.h"
 
-namespace morphtree {
+namespace newtree {
 using std::string;
 // Node types: all non-leaf nodes are of type ROLEAF
-enum NodeType {ROINNER = 0, ROLEAF, WOLEAF};
+enum NodeType {ROLEAF, WOLEAF};
 
 // hyper parameters of Morphtree
 const uint64_t ROSTATS = 0x0000000000000000; // default statistic of RONode
 const uint64_t WOSTATS = 0xFFFFFFFFFFFFFFFF; // default statistic of WONode
-const int GLOBAL_LEAF_SIZE   = 10240;    // the maximum node size of a leaf node
+const int GLOBAL_LEAF_SIZE = 10240;            // the maximum node size of a leaf node
 
 // We do NOT use virtual function here, 
 // as it brings extra overhead of searching virtual table
@@ -41,8 +41,6 @@ public:
 
     void Dump(std::vector<Record> & out);
 
-    inline bool Leaf() { return node_type != ROINNER; }
-
     void Print(string prefix);
 
 public:
@@ -51,53 +49,8 @@ public:
     uint8_t lock;
     char padding[6];
     uint64_t stats;
-};
-
-// Inner node structures
-class ROInner : public BaseNode {
-public:
-    ROInner() = delete;
-
-    ROInner(Record * recs_in, int num);
-
-    ~ROInner();
-
-    void Clear() {capacity = 0;}
-
-    bool Store(_key_t k, _val_t v, _key_t * split_key, ROInner ** split_node);
-
-    bool Lookup(_key_t k, _val_t &v);
-
-    void Print(string prefix);
-
-private:
-    inline int Predict(_key_t k) {
-        return std::min(std::max(0.0, slope * k + intercept), capacity - 1.0);
-    }
-
-    bool shouldRebuild() {
-        return of_count >= count / 4;
-    }
-    
-    void RebuildSubTree();
-
-    void Dump(std::vector<Record> & out);
-
-public:
-    static const int PROBE_SIZE       = 4;
-    static const int BNODE_SIZE       = 12;
-
-    int32_t capacity;
-    int32_t count;
-    ROInner *sibling;
-    
-    // model
-    double slope;
-    double intercept;
-    // data
-    Record *recs;
-    int32_t of_count;
-    char dummy[4];
+    BaseNode * sibling;
+    _key_t split_k;
 };
 
 // read optimized leaf nodes
@@ -121,7 +74,7 @@ private:
     void DoSplit(_key_t * split_key, ROLeaf ** split_node);
 
     inline bool ShouldSplit() {
-        return count >= GLOBAL_LEAF_SIZE || of_count > (GLOBAL_LEAF_SIZE / 6);
+        return count == GLOBAL_LEAF_SIZE;
     }
 
     inline int Predict(_key_t k) {
@@ -130,16 +83,17 @@ private:
 
 public:
     static const int PROBE_SIZE = 8;
-    static const int NODE_SIZE = GLOBAL_LEAF_SIZE;
+    static const int NODE_SIZE  = GLOBAL_LEAF_SIZE;
+    static const int SHARING    = 16;
+    static const int OVERFLOW_SIZE = GLOBAL_LEAF_SIZE / PROBE_SIZE / SHARING;
+    typedef stx::btree<_key_t, _val_t> oftree_type;
 
     // meta data
     double slope;
     double intercept;
-    Record *recs;
     int32_t of_count;
     int32_t count;
-    ROLeaf *sibling;
-    char dummy[8];
+    Record *recs;
 };
 
 // write optimzied leaf nodes
@@ -167,12 +121,11 @@ private:
 
     // meta data
     Record * recs; 
-    WOLeaf * sibling;
     int16_t inital_count;
     int16_t insert_count;
-    int16_t swap_pos;
+    int16_t sort_count;
     int16_t unused;
-    char dummy[24];
+    char dummy[16];
 };
 
 // Swap the metadata of two nodes
@@ -186,8 +139,7 @@ inline void SwapNode(BaseNode * a, BaseNode *b) {
 
 // Global variables and functions controling the morphing of Morphtree 
 extern bool do_morphing;
-extern uint64_t global_stats;
 extern void MorphNode(BaseNode * leaf, NodeType from, NodeType to);
-} // namespace morphtree
+} // namespace newtree
 
-#endif // __MORPHTREE_BASENODE__
+#endif // __NEW_TREE_BASENODE__

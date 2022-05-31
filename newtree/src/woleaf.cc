@@ -9,16 +9,16 @@
 
 #include "node.h"
 
-namespace morphtree {
+namespace newtree {
     
 WOLeaf::WOLeaf() {
     node_type = NodeType::WOLEAF;
     stats = WOSTATS;
 
     recs = new Record[NODE_SIZE];
-    inital_count = 0;
     insert_count = 0;
-    swap_pos = inital_count;
+    inital_count = 0;
+    sort_count = 0;
 }
 
 WOLeaf::WOLeaf(Record * recs_in, int num) {
@@ -29,7 +29,7 @@ WOLeaf::WOLeaf(Record * recs_in, int num) {
     memcpy(recs, recs_in, sizeof(Record) * num);
     inital_count = num;
     insert_count = 0;
-    swap_pos = inital_count;
+    sort_count = 0;
 }
 
 WOLeaf::~WOLeaf() {
@@ -42,7 +42,7 @@ bool WOLeaf::Store(_key_t k, _val_t v, _key_t * split_key, WOLeaf ** split_node)
     if(insert_count % PIECE_SIZE == 0) {
         int16_t start = insert_count - PIECE_SIZE;
         std::sort(recs + inital_count + start, recs + inital_count + insert_count);
-        swap_pos = inital_count + insert_count;
+        sort_count = insert_count;
     }
     
     if(inital_count + insert_count == GLOBAL_LEAF_SIZE) {
@@ -66,12 +66,19 @@ bool WOLeaf::Lookup(_key_t k, _val_t &v) {
         }
     }
 
+    // bound the unsorted region into 1KB
+    if(insert_count - sort_count > 64) {
+        std::sort(recs + inital_count + bin_end, recs + inital_count + insert_count);
+        sort_count = insert_count;
+    }
+    if(BinSearch(recs + inital_count + bin_end, sort_count - bin_end, k, v)) {
+        return true;
+    }
+    
     // do scan in unsorted runs
-    for(int i = inital_count + bin_end; i < inital_count + insert_count; i++) {
+    for(int i = inital_count + sort_count; i < inital_count + insert_count; i++) {
         if(recs[i].key == k) {
             v = recs[i].val;
-            if(i - inital_count - bin_end > 64) 
-                std::swap(recs[swap_pos++], recs[i]); // bubble the record to the front of unsorted run
             return true;
         }
     }
@@ -116,7 +123,9 @@ void WOLeaf::DoSplit(_key_t * split_key, WOLeaf ** split_node) {
     WOLeaf * left = new WOLeaf(data.data(), pid);
     WOLeaf * right = new WOLeaf(data.data() + pid, data.size() - pid);
     left->sibling = right;
+    left->split_k = data[pid].key;
     right->sibling = sibling;
+    right->split_k = this->split_k;
 
     // update splitting info
     *split_key = data[pid].key;
@@ -130,11 +139,11 @@ void WOLeaf::Print(string prefix) {
     std::vector<Record> out;
     Dump(out);
 
-    // printf("%s(%d, %d)[", prefix.c_str(), node_type, inital_count + insert_count);
-    // for(int i = 0; i < out.size(); i++) {
-    //     printf("%12.8lf, ", out[i].key);
-    // }
-    // printf("]\n");
+    printf("%s(%d, %d)[", prefix.c_str(), node_type, inital_count + insert_count);
+    for(int i = 0; i < out.size(); i++) {
+        printf("%12.8lf, ", out[i].key);
+    }
+    printf("]\n");
 }
 
-} // namespace morphtree
+} // namespace newtree
