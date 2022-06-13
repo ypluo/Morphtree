@@ -7,6 +7,8 @@
 #include "utils.h"
 #include "index.h"
 
+#define WARMUP true
+
 typedef double KeyType;
 typedef uint64_t ValType;
 
@@ -134,7 +136,7 @@ void load(std::vector<KeyType> &init_keys, std::vector<KeyType> &keys,
 Index<KeyType, ValType> * populate(int index_type, std::vector<KeyType> &init_keys) {
   Index<KeyType, ValType> *idx = getInstance<KeyType, ValType>(index_type);
   
-  uint64_t bulkload_size = init_keys.size() / 8;
+  uint64_t bulkload_size = init_keys.size() / 4;
 
   if (index_type == TYPE_ALEX || index_type == TYPE_LIPP) {
     std::pair<KeyType, uint64_t> *recs;
@@ -190,15 +192,38 @@ void exec(int index_type,
     idx->printTree();
     return;
   }
-  int txn_num = ops.size();
+  
+  #ifdef WARMUP
+    size_t warmup_size = ops.size() / 10;
+  #else
+    size_t warmup_size = 0;
+  #endif
+
+  // warmup part
+  uint64_t v;
+  for(size_t i = 0; i < warmup_size; i++) {
+      int op = ops[i];
+      if (op == OP_INSERT) { //INSERT
+        idx->insert(keys[i], uint64_t(keys[i]));
+      } else if (op == OP_READ) { //READ
+        bool found = idx->find(keys[i], &v);
+        // assert(found == true);
+      } else if (op == OP_UPSERT) { //UPDATE
+        idx->upsert(keys[i], reinterpret_cast<uint64_t>(&keys[i]));
+      } else if (op == OP_SCAN) { //SCAN
+        idx->scan(keys[i], ranges[i]);
+      }
+  }
+  
+  // test part
   auto func2 = [num_thread, 
-                idx, index_type,
+                idx, index_type, warmup_size,
                 &keys,
                 &ranges,
                 &ops](uint64_t thread_id, bool) {
-    size_t total_num_op = ops.size();
-    size_t op_per_thread = total_num_op / num_thread;
-    size_t start_index = op_per_thread * thread_id;
+    size_t txn_num = ops.size() - warmup_size;
+    size_t op_per_thread = txn_num / num_thread;
+    size_t start_index = warmup_size + op_per_thread * thread_id;
     size_t end_index = start_index + op_per_thread;
 
     uint64_t v;
@@ -231,10 +256,10 @@ void exec(int index_type,
   func2(0, false);
   auto end_time = get_now();
 
-  double tput = txn_num / (end_time - start_time) / 1000000; //Mops/sec
+  double tput = (ops.size() - warmup_size) / (end_time - start_time) / 1000000; //Mops/sec
   if(detail_tp == false)
-    //std::cout  << tput << std::endl;
-    std::cout  << tput << " " << std::endl;
+    std::cout << tput << " ";
+    // std::cout  << tput << " " << std::endl;
   
   delete idx;
   return;

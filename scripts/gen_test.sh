@@ -5,8 +5,8 @@ DATASET=$1
 # workload specifications
 RECORD=4000000
 OPERATION=4000000
-READ=1
-WRITE=0
+READ=0
+WRITE=1
 DIST=zipfian
 KEYSET=/data/lyp/datasets/${DATASET}.dat
 

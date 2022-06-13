@@ -78,15 +78,12 @@ void Stage(ycsbc::CoreWorkload & wl, ycsbc::BasicDB & db, int opcount) {
 }
 
 int main(int argc, const char *argv[]) {
-    const int INITIAL_SIZE_DEFAULT = 16000000;
-    const int SATGE_WIDTH_DEFAULT  = 64000000;
-    const int STAGE_COUNT_DEFAULT  = 4;
+    const int INITIAL_SIZE_DEFAULT = 32000000;
+    const int SATGE_WIDTH_DEFAULT  = 48000000;
+    const int STAGE_COUNT_DEFAULT  = 5;
     
     utils::Properties props;
-    props.SetProperty(CoreWorkload::READ_PROPORTION_PROPERTY, to_string(0));
-    props.SetProperty(CoreWorkload::INSERT_PROPORTION_PROPERTY, to_string(0));
-    props.SetProperty(CoreWorkload::UPDATE_PROPORTION_PROPERTY, to_string(0));
-    props.SetProperty(CoreWorkload::SCAN_PROPORTION_PROPERTY, to_string(0));
+    props.SetProperty(CoreWorkload::ZIPFIAN_SKEWNESS_PROPERTY, "0.9");
     props.SetProperty(CoreWorkload::REQUEST_DISTRIBUTION_PROPERTY, "zipfian");
     ParseCommandLine(argc, argv, props);
 

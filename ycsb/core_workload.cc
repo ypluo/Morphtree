@@ -20,10 +20,10 @@ using ycsbc::CoreWorkload;
 using std::string;
 
 const string CoreWorkload::READ_PROPORTION_PROPERTY = "readproportion";
-const string CoreWorkload::READ_PROPORTION_DEFAULT = "0.95";
+const string CoreWorkload::READ_PROPORTION_DEFAULT = "1.0";
 
 const string CoreWorkload::UPDATE_PROPORTION_PROPERTY = "updateproportion";
-const string CoreWorkload::UPDATE_PROPORTION_DEFAULT = "0.05";
+const string CoreWorkload::UPDATE_PROPORTION_DEFAULT = "0.0";
 
 const string CoreWorkload::INSERT_PROPORTION_PROPERTY = "insertproportion";
 const string CoreWorkload::INSERT_PROPORTION_DEFAULT = "0.0";

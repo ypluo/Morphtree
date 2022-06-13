@@ -78,15 +78,12 @@ void Stage(ycsbc::CoreWorkload & wl, ycsbc::BasicDB & db, int opcount) {
 }
 
 int main(int argc, const char *argv[]) {
-    const int INITIAL_SIZE_DEFAULT = 16000000;
-    const int SATGE_WIDTH_DEFAULT  = 64000000;
-    const int STAGE_COUNT_DEFAULT  = 4;
+    const int INITIAL_SIZE_DEFAULT = 32000000;
+    const int SATGE_WIDTH_DEFAULT  = 48000000;
+    const int STAGE_COUNT_DEFAULT  = 5;
     
     utils::Properties props;
-    props.SetProperty(CoreWorkload::READ_PROPORTION_PROPERTY, to_string(0));
-    props.SetProperty(CoreWorkload::INSERT_PROPORTION_PROPERTY, to_string(0));
-    props.SetProperty(CoreWorkload::UPDATE_PROPORTION_PROPERTY, to_string(0));
-    props.SetProperty(CoreWorkload::SCAN_PROPORTION_PROPERTY, to_string(0));
+    props.SetProperty(CoreWorkload::ZIPFIAN_SKEWNESS_PROPERTY, "0.9");
     props.SetProperty(CoreWorkload::REQUEST_DISTRIBUTION_PROPERTY, "zipfian");
     ParseCommandLine(argc, argv, props);
 
@@ -100,17 +97,17 @@ int main(int argc, const char *argv[]) {
     ycsbc::CoreWorkload wl(filename, max_record_count);
     
     // generate load
-    // BasicDB db_load("dataset.dat");
-    // std::string key;
-    // std::vector<KVPair> values;
-    // props.SetProperty(CoreWorkload::INSERT_START_PROPERTY, to_string(0));
-    // props.SetProperty(CoreWorkload::RECORD_COUNT_PROPERTY, to_string(INITIAL_SIZE_DEFAULT));
-    // props.SetProperty(CoreWorkload::OPERATION_COUNT_PROPERTY, to_string(0));
-    // wl.Init(props);
-    // for(int i = 0; i < INITIAL_SIZE_DEFAULT; i++) {
-    //     key = wl.NextSequenceKey();
-    //     db_load.Insert(key, values);
-    // }
+    BasicDB db_load("dataset.dat");
+    std::string key;
+    std::vector<KVPair> values;
+    props.SetProperty(CoreWorkload::INSERT_START_PROPERTY, to_string(0));
+    props.SetProperty(CoreWorkload::RECORD_COUNT_PROPERTY, to_string(INITIAL_SIZE_DEFAULT));
+    props.SetProperty(CoreWorkload::OPERATION_COUNT_PROPERTY, to_string(0));
+    wl.Init(props);
+    for(int i = 0; i < INITIAL_SIZE_DEFAULT; i++) {
+        key = wl.NextSequenceKey();
+        db_load.Insert(key, values);
+    }
 
     uint32_t cur_start = INITIAL_SIZE_DEFAULT;
     ycsbc::BasicDB db_txn("query.dat");
