@@ -45,8 +45,8 @@ void load(std::vector<KeyType> &init_keys, std::vector<KeyType> &keys,
   std::string init_file;
   std::string txn_file;
 
-  init_file = "../build/dataset.dat";
-  txn_file = "../build/query.dat";
+  init_file = "build/dataset.dat";
+  txn_file = "build/query.dat";
 
   std::ifstream infile_load(init_file);
   if(!infile_load) {
@@ -148,7 +148,7 @@ Index<KeyType, ValType> * populate(int index_type, std::vector<KeyType> &init_ke
     
     // generate records
     for (int i = 0; i < bulkload_size; i++) {
-      recs[i] = {bulk_keys[i], ValType(std::abs(init_keys[i]))};
+      recs[i] = {bulk_keys[i], ValType(std::abs(bulk_keys[i]))};
     }
 
     idx->bulkload(recs, bulkload_size);
@@ -197,14 +197,15 @@ void exec(int index_type,
     warmup_size = 0;
 
   // warmup part
-  uint64_t v;
+  ValType v;
   for(size_t i = 0; i < warmup_size; i++) {
       int op = ops[i];
       if (op == OP_INSERT) { //INSERT
         idx->insert(keys[i], ValType(std::abs(keys[i])));
       } else if (op == OP_READ) { //READ
         bool found = idx->find(keys[i], &v);
-        // assert(found == true);
+        // assert(v == ValType(std::abs(keys[i])));
+        assert(found == true);
       } else if (op == OP_UPSERT) { //UPDATE
         idx->upsert(keys[i], ValType(std::abs(keys[i])));
       } else if (op == OP_SCAN) { //SCAN
@@ -232,7 +233,8 @@ void exec(int index_type,
         idx->insert(keys[i], ValType(std::abs(keys[i])));
       } else if (op == OP_READ) { //READ
         bool found = idx->find(keys[i], &v);
-        // assert(found == true);
+        // assert(v == ValType(std::abs(keys[i])));
+        assert(found == true);
       } else if (op == OP_UPSERT) { //UPDATE
         idx->upsert(keys[i], ValType(std::abs(keys[i])));
       } else if (op == OP_SCAN) { //SCAN
@@ -270,11 +272,11 @@ int main(int argc, char *argv[]) {
   }
 
   int index_type;
-  if(strcmp(argv[1], "alex") == 0) 
+  if(strcmp(argv[1], "alex") == 0)
     index_type = TYPE_ALEX;
   else if(strcmp(argv[1], "lipp") == 0)
     index_type = TYPE_LIPP;
-  if(strcmp(argv[1], "pgm") == 0) 
+  else if(strcmp(argv[1], "pgm") == 0) 
     index_type = TYPE_PGM;
   else if(strcmp(argv[1], "fiting") == 0)
     index_type = TYPE_FITING;

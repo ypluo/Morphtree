@@ -10,7 +10,7 @@ elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     set(CMAKE_CXX_FLAGS "-O3 -xHost")
 else()
     # clang and gcc
-    set(CMAKE_CXX_FLAGS "-march=native -O3 -fmax-errors=5")
+    set(CMAKE_CXX_FLAGS "-march=native -g -fmax-errors=5")
 endif()
 
 set(MKL_LINK_DIRECTORY "/opt/intel/mkl/lib/intel64")

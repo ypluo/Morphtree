@@ -5,7 +5,7 @@
 #include "ALEX/src/core/alex.h"
 #include "LIPP/src/core/lipp.h"
 #include "PGM-index/pgm_index_dynamic.hpp"
-#include "FITingTree/buffer_index.h"
+#include "FITingTree/inplace_index.h"
 #include "morphtree/src/morphtree_impl.h"
 
 template<typename KeyType, typename ValType>
@@ -52,8 +52,10 @@ public:
         auto it = idx->find(key);
         if (it != idx->end()) {
             *v = it.payload();
+            return true;
+        } else {
+            return false;
         }
-        return true;
     }
 
     bool upsert(KeyType key, uint64_t value) {
@@ -96,7 +98,7 @@ public:
 
     bool find(KeyType key, uint64_t *v) {
         *v = idx->at(key);
-        return true;
+        return (*v) != 0;
     }
 
     bool upsert(KeyType key, uint64_t value) {
@@ -185,7 +187,7 @@ public:
 
     bool find(KeyType key, uint64_t *v) {
         *v = idx->find(key);
-        return true;
+        return (*v) != 0;
     }
 
     bool upsert(KeyType key, uint64_t value) {
@@ -205,13 +207,13 @@ public:
             vals[i] = recs[i].second;
         }
 
-        idx = new BufferIndex<KeyType, ValType>(keys, vals, len);
+        idx = new InplaceIndex<KeyType, ValType>(keys, vals, len);
     }
 
     int64_t printTree() const {return 0;}
 
 private:
-    BufferIndex<KeyType, ValType> *idx;
+    InplaceIndex<KeyType, ValType> *idx;
 };
 
 /////////////////////////////////////////////////////////////////////

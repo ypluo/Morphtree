@@ -12,7 +12,7 @@ enum {
   TYPE_FITING,
   TYPE_MORPHTREE_WO,
   TYPE_MORPHTREE_RO,
-  TYPE_MORPHTREE,
+  TYPE_MORPHTREE
 };
 
 // These are workload operations
@@ -44,7 +44,7 @@ Index<KeyType, ValType> *getInstance(const int type) {
   else if(type == TYPE_MORPHTREE)
     return new MorphTree<KeyType, ValType>();
   else {
-    fprintf(stderr, "Unknown index type: %d\n", type);
+    fprintf(stderr, "Unknown index type 2: %d\n", type);
     exit(1);
   }
   
