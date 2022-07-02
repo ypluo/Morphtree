@@ -11,7 +11,6 @@
 #include <cstring>
 #include <string>
 
-#include "btree.h"
 #include "../include/util.h"
 
 namespace morphtree {

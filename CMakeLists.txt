@@ -27,12 +27,11 @@ add_link_options(-pthread)
 
 #======= add sub directories =======
 add_subdirectory(morphtree)
-add_subdirectory(newtree)
 
 # add YCSB
 add_subdirectory(ycsb)
 
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 add_executable(benchmark benchmark.cpp)
-target_link_libraries(benchmark morphtree newtree)
+target_link_libraries(benchmark morphtree)
 link_directories(${MKL_LINK_DIRECTORY})

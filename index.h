@@ -4,8 +4,9 @@
 #include <iostream>
 #include "ALEX/src/core/alex.h"
 #include "LIPP/src/core/lipp.h"
+#include "PGM-index/pgm_index_dynamic.hpp"
+#include "FITingTree/buffer_index.h"
 #include "morphtree/src/morphtree_impl.h"
-#include "newtree/src/morphtree_impl.h"
 
 template<typename KeyType, typename ValType>
 class Index
@@ -114,6 +115,103 @@ public:
 
 private:
     LIPP<KeyType, ValType> * idx;
+};
+
+/////////////////////////////////////////////////////////////////////
+// PGM-index
+/////////////////////////////////////////////////////////////////////
+template<typename KeyType, typename ValType>
+class PGMIndex : public Index<KeyType, ValType>
+{
+public:
+    PGMIndex() {
+        idx = nullptr;
+    }
+
+    ~PGMIndex() {
+        delete idx;
+    }
+
+    bool insert(KeyType key, uint64_t value) {
+        idx->insert(typename pgm::DynamicPGMIndex<KeyType, ValType>::Item(key, value));
+        return true;
+    }
+
+    bool find(KeyType key, uint64_t *v) {
+        auto iter = idx->find(key);
+        if(iter != idx->end()) {
+            *v = iter->second;
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    bool upsert(KeyType key, uint64_t value) {
+        return true;
+    }
+
+    uint64_t scan(KeyType key, int range) {
+        return 0;
+    }
+
+    void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
+        idx = new pgm::DynamicPGMIndex<KeyType, ValType>(recs, recs + len);
+    }
+
+    int64_t printTree() const {return 0;}
+
+private:
+    pgm::DynamicPGMIndex<KeyType, ValType> * idx;
+};
+
+/////////////////////////////////////////////////////////////////////
+// FITingTree
+/////////////////////////////////////////////////////////////////////
+template<typename KeyType, typename ValType>
+class FITingTree : public Index<KeyType, ValType>
+{
+public:
+    FITingTree() {}
+
+    ~FITingTree() {
+        delete idx;
+    }
+
+    bool insert(KeyType key, uint64_t value) {
+        idx->upsert(key, value);
+        return false;
+    }
+
+    bool find(KeyType key, uint64_t *v) {
+        *v = idx->find(key);
+        return true;
+    }
+
+    bool upsert(KeyType key, uint64_t value) {
+        return true;
+    }
+
+    uint64_t scan(KeyType key, int range) {
+        return 0;
+    }
+
+    void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
+        KeyType * keys = new KeyType[len];
+        ValType * vals = new ValType[len];
+
+        for(int i = 0; i < len; i++) {
+            keys[i] = recs[i].first;
+            vals[i] = recs[i].second;
+        }
+
+        idx = new BufferIndex<KeyType, ValType>(keys, vals, len);
+    }
+
+    int64_t printTree() const {return 0;}
+
+private:
+    BufferIndex<KeyType, ValType> *idx;
 };
 
 /////////////////////////////////////////////////////////////////////
@@ -252,52 +350,6 @@ public:
     
 private:
     morphtree::MorphtreeImpl<morphtree::NodeType::WOLEAF, true> * idx;
-};
-
-/////////////////////////////////////////////////////////////////////
-// newtree
-/////////////////////////////////////////////////////////////////////
-template<typename KeyType, typename ValType>
-class RoIndex2 : public Index<KeyType, ValType>
-{
-public:
-    RoIndex2() {
-        idx = new newtree::MorphtreeImpl<newtree::NodeType::ROLEAF, false>();
-    }
-
-    ~RoIndex2() {
-        delete idx;
-    }
-
-    bool insert(KeyType key, uint64_t value) {
-        idx->insert(key, reinterpret_cast<void *>(value));
-        return false;
-    }
-
-    bool find(KeyType key, uint64_t *v) {
-        return idx->lookup(key, reinterpret_cast<void * &>(*v));
-    }
-
-    bool upsert(KeyType key, uint64_t value) {
-        idx->update(key, reinterpret_cast<void *>(value));
-        return true;
-    }
-
-    uint64_t scan(KeyType key, int range) {
-        return 0;
-    }
-
-    void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
-        return;
-    }
-
-    int64_t printTree() const {
-        idx->Print();
-        return 0;
-    }
-    
-private:
-    newtree::MorphtreeImpl<newtree::NodeType::ROLEAF, false> * idx;
 };
 
 #endif
