@@ -7,6 +7,7 @@
 #include "PGM-index/pgm_index_dynamic.hpp"
 #include "FITingTree/inplace_index.h"
 #include "morphtree/src/morphtree_impl.h"
+#include "FITingTree/btree.h"
 
 template<typename KeyType, typename ValType>
 class Index
@@ -352,6 +353,56 @@ public:
     
 private:
     morphtree::MorphtreeImpl<morphtree::NodeType::WOLEAF, true> * idx;
+};
+
+/////////////////////////////////////////////////////////////////////
+// stxbtree
+/////////////////////////////////////////////////////////////////////
+template<typename KeyType, class ValType>
+class BtreeIndex : public Index<KeyType, ValType>
+{
+public:
+    BtreeIndex() {
+        idx = new stx::btree<KeyType, ValType>;
+    }
+
+    ~BtreeIndex() {
+        delete idx;
+    }
+
+    bool insert(KeyType key, uint64_t value) {
+        idx->insert(key, value);
+        return false;
+    }
+
+    bool find(KeyType key, uint64_t *v) {
+        auto it = idx->find(key);
+        if (it != idx->end()) {
+            *v = it.data();
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    bool upsert(KeyType key, uint64_t value) {
+        return true;
+    }
+
+    uint64_t scan(KeyType key, int range) {
+        return 0;
+    }
+
+    int64_t printTree() const {
+        return 0;
+    }
+
+    void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
+        return;
+    }
+    
+private:
+    stx::btree<KeyType, ValType> * idx;
 };
 
 #endif

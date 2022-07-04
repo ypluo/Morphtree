@@ -81,8 +81,8 @@ bool WOLeaf::Lookup(_key_t k, _val_t &v) {
 
 void WOLeaf::Dump(std::vector<Record> & out) {
     static const int MAX_RUN_NUM = GLOBAL_LEAF_SIZE / PIECE_SIZE;
-    Record * sort_runs[MAX_RUN_NUM];
-    int lens[MAX_RUN_NUM];
+    Record * sort_runs[MAX_RUN_NUM + 1];
+    int lens[MAX_RUN_NUM + 1];
 
     int16_t total_count = inital_count + insert_count;
     int16_t bin_end = insert_count / PIECE_SIZE * PIECE_SIZE;

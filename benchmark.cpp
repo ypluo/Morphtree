@@ -3,6 +3,7 @@
 #include <atomic>
 #include <thread>
 #include <cassert>
+#include <unistd.h>
 
 #include "utils.h"
 #include "index.h"
@@ -37,6 +38,31 @@ void StartThreads(Index<KeyType, ValType> *tree_p,
   return;
 }
 
+int get_memory_by_pid(pid_t pid) {
+  FILE* fd;
+  char line[1024] = {0};
+  char virtual_filename[32] = {0};
+  char vmrss_name[32] = {0};
+  int vmrss_num = 0;
+  sprintf(virtual_filename, "/proc/%d/status", pid);
+  fd = fopen(virtual_filename, "r");
+  if(fd == NULL) {
+    std::cout << "open " << virtual_filename << " failed" << std::endl;
+    exit(1);
+  }
+
+  // VMRSS line is uncertain
+  for(int i = 0 ; i < 60; i++) {
+    auto discard = fgets(line, sizeof(line), fd);
+    if(strstr(line, "VmRSS:") != NULL) {
+      sscanf(line, "%s %d", vmrss_name, &vmrss_num);
+      break;
+    }
+  }
+  fclose(fd);
+  return vmrss_num;
+}
+
 //==============================================================
 // LOAD DATA FROM FILE
 //==============================================================
@@ -45,8 +71,8 @@ void load(std::vector<KeyType> &init_keys, std::vector<KeyType> &keys,
   std::string init_file;
   std::string txn_file;
 
-  init_file = "build/dataset.dat";
-  txn_file = "build/query.dat";
+  init_file = "../build/dataset.dat";
+  txn_file = "../build/query.dat";
 
   std::ifstream infile_load(init_file);
   if(!infile_load) {
@@ -186,7 +212,8 @@ void exec(int index_type,
   
   // If we do not perform other transactions, we can skip txn file
   if(insert_only == true) {
-    idx->printTree();
+    int mem = get_memory_by_pid(getpid());
+    printf("%d \n", mem / 1024);
     return;
   }
   
@@ -205,7 +232,7 @@ void exec(int index_type,
       } else if (op == OP_READ) { //READ
         bool found = idx->find(keys[i], &v);
         // assert(v == ValType(std::abs(keys[i])));
-        assert(found == true);
+        // assert(found == true);
       } else if (op == OP_UPSERT) { //UPDATE
         idx->upsert(keys[i], ValType(std::abs(keys[i])));
       } else if (op == OP_SCAN) { //SCAN
@@ -234,7 +261,8 @@ void exec(int index_type,
       } else if (op == OP_READ) { //READ
         bool found = idx->find(keys[i], &v);
         // assert(v == ValType(std::abs(keys[i])));
-        assert(found == true);
+        // assert(found == true);
+        if(!found) counter += 1; 
       } else if (op == OP_UPSERT) { //UPDATE
         idx->upsert(keys[i], ValType(std::abs(keys[i])));
       } else if (op == OP_SCAN) { //SCAN
@@ -248,6 +276,10 @@ void exec(int index_type,
         last_ts = cur_ts;
       }
     }
+
+    if(counter == 997)
+      std::cout << counter << std::endl;
+
     return;
   };
 
@@ -286,6 +318,8 @@ int main(int argc, char *argv[]) {
     index_type = TYPE_MORPHTREE_RO;
   else if(strcmp(argv[1], "morphtree") == 0)
     index_type = TYPE_MORPHTREE;
+  else if(strcmp(argv[1], "btree") == 0)
+    index_type = TYPE_BTREE;
   else {
     fprintf(stderr, "Unknown index type: %d\n", index_type);
     exit(1);
@@ -314,7 +348,12 @@ int main(int argc, char *argv[]) {
   }
 
   load(init_keys, keys, ranges, ops);
-  // fprintf(stderr, "finish loading\n");
+
+  if(insert_only == true) {
+    int mem = get_memory_by_pid(getpid());
+    printf("%d ", mem / 1024);
+  }
+
   exec(index_type, num_thread, init_keys, keys, ranges, ops);
   return 0;
 }

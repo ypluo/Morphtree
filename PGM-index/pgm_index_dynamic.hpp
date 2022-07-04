@@ -686,6 +686,7 @@ public:
     ItemA() { /* do not (default-)initialize for a more efficient std::vector<ItemA>::resize */ }
     explicit ItemA(const K &key) : first(key), second(tombstone) {}
     explicit ItemA(const K &key, const V &value) : first(key), second(value) {
+        return ;
         if (second == tombstone)
             throw std::invalid_argument("The specified value is reserved and cannot be used.");
     }

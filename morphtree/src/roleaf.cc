@@ -107,7 +107,7 @@ ROLeaf::~ROLeaf() {
 
 bool ROLeaf::Store(_key_t k, _val_t v, _key_t * split_key, ROLeaf ** split_node) {
     int predict = Predict(k);
-    predict = predict & ~(PROBE_SIZE - 1);
+    predict = predict / PROBE_SIZE * PROBE_SIZE;
 
     int i;
     for (i = predict; i < predict + PROBE_SIZE - 1; i++) {
@@ -171,7 +171,7 @@ bool ROLeaf::Store(_key_t k, _val_t v, _key_t * split_key, ROLeaf ** split_node)
 
 bool ROLeaf::Lookup(_key_t k, _val_t &v) {
     int predict = Predict(k);
-    predict = predict & ~(PROBE_SIZE - 1);
+    predict = predict / PROBE_SIZE * PROBE_SIZE;
 
     int i;
     for (i = predict; i < predict + PROBE_SIZE - 1; i++) {
