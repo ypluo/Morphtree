@@ -11,6 +11,8 @@
 #include <cstring>
 #include <string>
 
+#include "../../config.h"
+
 #include "../include/util.h"
 
 namespace morphtree {
@@ -21,7 +23,7 @@ enum NodeType {ROINNER = 0, ROLEAF, WOLEAF};
 // hyper parameters of Morphtree
 const uint64_t ROSTATS = 0x0000000000000000; // default statistic of RONode
 const uint64_t WOSTATS = 0xFFFFFFFFFFFFFFFF; // default statistic of WONode
-const int GLOBAL_LEAF_SIZE   = 10240;    // the maximum node size of a leaf node
+const int GLOBAL_LEAF_SIZE   = CONFIG_NODESIZE;    // the maximum node size of a leaf node
 
 // We do NOT use virtual function here, 
 // as it brings extra overhead of searching virtual table
@@ -128,7 +130,7 @@ private:
     }
 
 public:
-    static const int PROBE_SIZE = 8;
+    static const int PROBE_SIZE = CONFIG_PROBE;
     static const int NODE_SIZE = GLOBAL_LEAF_SIZE;
 
     // meta data
@@ -162,7 +164,7 @@ private:
     void DoSplit(_key_t * split_key, WOLeaf ** split_node);
 
     static const int NODE_SIZE = GLOBAL_LEAF_SIZE;
-    static const int PIECE_SIZE = 1024;
+    static const int PIECE_SIZE = CONFIG_PIECE;
 
     // meta data
     Record * recs; 

@@ -7,6 +7,7 @@
 
 #include "utils.h"
 #include "index.h"
+#include "config.h"
 
 typedef double KeyType;
 typedef uint64_t ValType;
@@ -159,8 +160,7 @@ void load(std::vector<KeyType> &init_keys, std::vector<KeyType> &keys,
 //==============================================================
 Index<KeyType, ValType> * populate(int index_type, std::vector<KeyType> &init_keys) {
   Index<KeyType, ValType> *idx = getInstance<KeyType, ValType>(index_type);
-  uint64_t bulkload_size = init_keys.size() / 4;
-
+  uint64_t bulkload_size = init_keys.size() * CONFIG_BULK;
   if (index_type <= 3) {
     std::pair<KeyType, uint64_t> *recs;
     recs = new std::pair<KeyType, uint64_t>[bulkload_size];
