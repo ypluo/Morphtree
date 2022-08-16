@@ -97,6 +97,25 @@ bool BaseNode::Lookup(_key_t k, _val_t & v) {
     }
 }
 
+bool BaseNode::Update(_key_t k, _val_t v) {
+    switch(node_type) {
+    case NodeType::ROLEAF: 
+        return reinterpret_cast<ROLeaf *>(this)->Update(k, v);
+    case NodeType::WOLEAF:
+        return reinterpret_cast<WOLeaf *>(this)->Update(k, v);
+    }
+}
+
+bool BaseNode::Remove(_key_t k) {
+    switch(node_type) {
+    case NodeType::ROLEAF: 
+        return reinterpret_cast<ROLeaf *>(this)->Remove(k);
+    case NodeType::WOLEAF:
+        return reinterpret_cast<WOLeaf *>(this)->Remove(k);
+    }
+}
+
+
 void BaseNode::Print(string prefix) {
     if(!Leaf()) {
         reinterpret_cast<ROInner *>(this)->Print(prefix);

@@ -123,6 +123,8 @@ extern void KWayMerge_nodup(Record ** runs, int * run_lens, int k, std::vector<R
 
 extern bool BinSearch(Record * recs, int len, _key_t k, _val_t &v);// do binary search
 
+extern bool BinSearch_update(Record * recs, int len, _key_t k, _val_t v);
+
 extern bool ExpSearch(Record * recs, int len, int predict, _key_t k, _val_t &v); // do exponential search
 
 extern int getSubOptimalSplitkey(std::vector<Record> & recs, int num);

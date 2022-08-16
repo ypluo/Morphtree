@@ -79,6 +79,36 @@ bool WOLeaf::Lookup(_key_t k, _val_t &v) {
     return false;
 }
 
+bool WOLeaf::Update(_key_t k, _val_t v) {
+    // do binary search in all sorted runs
+    if(BinSearch_update(recs, inital_count, k, v)) {
+        return true;
+    }
+
+    int16_t bin_end = insert_count / PIECE_SIZE * PIECE_SIZE;
+    for(int i = inital_count; i < inital_count + bin_end; i += PIECE_SIZE) {
+        if(BinSearch_update(recs + i, PIECE_SIZE, k, v)) {
+            return true;
+        }
+    }
+
+    // do scan in unsorted runs
+    for(int i = inital_count + bin_end; i < inital_count + insert_count; i++) {
+        if(recs[i].key == k) {
+            recs[i].val = v;
+            if(i - inital_count - bin_end > 64) 
+                std::swap(recs[swap_pos++], recs[i]); // bubble the record to the front of unsorted run
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool WOLeaf::Remove(_key_t k) {
+    return true;
+}
+
 void WOLeaf::Dump(std::vector<Record> & out) {
     static const int MAX_RUN_NUM = GLOBAL_LEAF_SIZE / PIECE_SIZE;
     Record * sort_runs[MAX_RUN_NUM + 1];

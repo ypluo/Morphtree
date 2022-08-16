@@ -59,6 +59,27 @@ struct OFNode {
             return BinSearch(recs_, len, k, v);
         }
     }
+
+    bool update(_key_t k, _val_t v) {
+        if(len < 64) {
+            // scan search
+            uint16_t i;
+            for(i = 0; i < len; i++) {
+                if(recs_[i].key >= k) {
+                    break;
+                }
+            }
+
+            if (recs_[i].key == k) {
+                recs_[i].val = v;
+                return true;
+            } else {
+                return false;
+            }
+        } else {
+            return BinSearch_update(recs_, len, k, v);
+        }
+    }
 };
 
 ROLeaf::ROLeaf() {
@@ -189,6 +210,32 @@ bool ROLeaf::Lookup(_key_t k, _val_t &v) {
     } else {
         return false;
     }
+}
+
+bool ROLeaf::Update(_key_t k, _val_t v) {
+    int predict = Predict(k);
+    predict = predict / PROBE_SIZE * PROBE_SIZE;
+
+    int i;
+    for (i = predict; i < predict + PROBE_SIZE - 1; i++) {
+        if(recs[i].key == k) {
+            recs[i].val = v;
+            return true;
+        } else if(recs[i].key > k) {
+            return false;
+        }
+    }
+
+    OFNode * ofnode = (OFNode *) recs[predict + PROBE_SIZE - 1].val;
+    if(ofnode != nullptr) {  
+        return ofnode->update(k, v);
+    } else {
+        return false;
+    }
+}
+
+bool ROLeaf::Remove(_key_t k) {
+    return true;
 }
 
 void ROLeaf::Dump(std::vector<Record> & out) {

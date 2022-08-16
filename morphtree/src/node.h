@@ -38,6 +38,10 @@ public:
 
     bool Lookup(_key_t k, _val_t & v);
 
+    bool Update(_key_t k, _val_t v);
+
+    bool Remove(_key_t k);
+
     void Dump(std::vector<Record> & out);
 
     inline bool Leaf() { return node_type != ROINNER; }
@@ -112,6 +116,10 @@ public:
 
     bool Lookup(_key_t k, _val_t &v);
 
+    bool Update(_key_t k, _val_t v);
+
+    bool Remove(_key_t k);
+
     void Dump(std::vector<Record> & out);
 
     void Print(string prefix);
@@ -153,6 +161,10 @@ public:
     bool Store(_key_t k, _val_t v, _key_t * split_key, WOLeaf ** split_node);
 
     bool Lookup(_key_t k, _val_t &v);
+
+    bool Update(_key_t k, _val_t v);
+
+    bool Remove(_key_t k);
 
     void Dump(std::vector<Record> & out);
 

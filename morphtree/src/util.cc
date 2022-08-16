@@ -22,6 +22,26 @@ bool BinSearch(Record * recs, int len, _key_t k, _val_t &v) { // do binary searc
     return false; 
 }
 
+bool BinSearch_update(Record * recs, int len, _key_t k, _val_t v) { 
+    if (len == 0) return false;
+
+    int low = 0;
+    int high = len - 1;
+
+    while(low <= high) {
+        int mid = low + (high - low) / 2;
+        if(recs[mid].key < k) {
+            low = mid + 1;
+        } else if (recs[mid].key == k){
+            recs[mid].val = v;
+            return true;
+        } else {
+            high = mid - 1;
+        }
+    }
+    return false; 
+}
+
 bool ExpSearch(Record * recs, int len, int predict, _key_t k, _val_t &v) {  
     assert(predict >= 0 && predict <= len - 1);
 
