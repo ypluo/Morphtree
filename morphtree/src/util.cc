@@ -2,7 +2,7 @@
 #include <cstdio>
 #include "../include/util.h"
 
-bool BinSearch(Record * recs, int len, _key_t k, _val_t &v) { // do binary search
+bool BinSearch(Record * recs, int len, _key_t k, uint64_t &v) { // do binary search
     if (len == 0) return false;
 
     int low = 0;
@@ -14,7 +14,7 @@ bool BinSearch(Record * recs, int len, _key_t k, _val_t &v) { // do binary searc
             low = mid + 1;
         } else if (recs[mid].key == k){
             v = recs[mid].val;
-            return true;
+            return recs[mid].flag == 0;
         } else {
             high = mid - 1;
         }
@@ -22,7 +22,27 @@ bool BinSearch(Record * recs, int len, _key_t k, _val_t &v) { // do binary searc
     return false; 
 }
 
-bool BinSearch_update(Record * recs, int len, _key_t k, _val_t v) { 
+int BinSearch_Locate(Record * recs, int len, _key_t k) { // do binary search
+    assert(len > 0);
+
+    int low = 0;
+    int high = len - 1;
+
+    while(low <= high) {
+        int mid = low + (high - low) / 2;
+        if(recs[mid].key < k) {
+            low = mid + 1;
+        } else if (recs[mid].key == k){
+            return mid;
+        } else {
+            high = mid - 1;
+        }
+    }
+
+    return low; 
+}
+
+bool BinSearch_CallBack(Record * recs, int len, _key_t k, std::function<bool(Record &)> func) { 
     if (len == 0) return false;
 
     int low = 0;
@@ -33,8 +53,7 @@ bool BinSearch_update(Record * recs, int len, _key_t k, _val_t v) {
         if(recs[mid].key < k) {
             low = mid + 1;
         } else if (recs[mid].key == k){
-            recs[mid].val = v;
-            return true;
+            return func(recs[mid]);
         } else {
             high = mid - 1;
         }
@@ -42,7 +61,7 @@ bool BinSearch_update(Record * recs, int len, _key_t k, _val_t v) {
     return false; 
 }
 
-bool ExpSearch(Record * recs, int len, int predict, _key_t k, _val_t &v) {  
+bool ExpSearch(Record * recs, int len, int predict, _key_t k, uint64_t &v) {  
     assert(predict >= 0 && predict <= len - 1);
 
     int cur = predict;
@@ -123,10 +142,10 @@ void TwoWayMerge(Record * a, Record * b, int lena, int lenb, std::vector<Record>
 void KWayMerge(Record ** runs, int * run_lens, int k, std::vector<Record> & out) {
     struct HeapEle {
         int run_id;
-        Record val;
+        Record ele;
 
         bool operator < (const HeapEle & oth) const {
-            return val > oth.val; // this will make a min heap
+            return ele > oth.ele; // this will make a min heap
         }
     };
 
@@ -142,49 +161,56 @@ void KWayMerge(Record ** runs, int * run_lens, int k, std::vector<Record> & out)
     while(!q.empty()) {
         HeapEle e = q.top(); q.pop();
 
-        out.push_back(e.val);
-        int & cur_pos = run_idxs[e.run_id];
-        if (cur_pos < run_lens[e.run_id]) {
-            q.push({e.run_id, runs[e.run_id][cur_pos++]});
+        out.push_back(e.ele);
+        int & run_pos = run_idxs[e.run_id];
+        if (run_pos < run_lens[e.run_id]) {
+            q.push({e.run_id, runs[e.run_id][run_pos++]});
         }
     }
 }
 
-void KWayMerge_nodup(Record ** runs, int * run_lens, int k, std::vector<Record> & out) {
+extern int KWayScan(Record ** runs, int * run_lens, int k, _key_t startKey, int len, Record * out) {
     struct HeapEle {
         int run_id;
-        Record val;
+        Record ele;
 
         bool operator < (const HeapEle & oth) const {
-            return val > oth.val; // this will make a min heap
+            return ele > oth.ele; // this will make a min heap
         }
     };
 
     int * run_idxs = new int[k];
     std::priority_queue<HeapEle, std::vector<HeapEle>> q; // min heap
 
+    // locate the starting point of each scan
     for(int i = 0; i < k; i++) {
-        if(run_lens[i] > 0)
-            q.push({i, runs[i][0]});
-        run_idxs[i] = 1;
+        run_idxs[i] = BinSearch_Locate(runs[i], run_lens[i], startKey);
     }
 
-    _key_t last_k = MAX_KEY;
-    while(!q.empty()) {
+    // start merge scan
+    for(int i = 0; i < k; i++) {
+        int & run_pos = run_idxs[i];
+        q.push({i, runs[i][run_pos++]});
+    }
+
+    int cur = 0;
+    while(!q.empty() && cur < len) {
         HeapEle e = q.top(); q.pop();
-        if(e.val.key != last_k)
-            out.push_back(e.val);
-        int & cur_pos = run_idxs[e.run_id];
-        if (cur_pos < run_lens[e.run_id]) {
-            q.push({e.run_id, runs[e.run_id][cur_pos++]});
-        }
 
-        last_k = e.val.key;
+        out[cur++] = e.ele;
+        int & run_pos = run_idxs[e.run_id];
+        if (run_pos < run_lens[e.run_id]) {
+            q.push({e.run_id, runs[e.run_id][run_pos++]});
+        }
     }
+
+    return cur;
 }
 
-int getSubOptimalSplitkey(std::vector<Record> & recs, int num) {
+int getSubOptimalSplitkey(Record * recs, int num) {
     static const int PIVOT_NUM = 32;
+    if(num < PIVOT_NUM) return PIVOT_NUM / 2;
+    
     _key_t min_pivot = recs[0].key;
     _key_t max_pivot = recs[num * (PIVOT_NUM - 1) / PIVOT_NUM].key;
     double slope = (PIVOT_NUM - 1) / (max_pivot - min_pivot);

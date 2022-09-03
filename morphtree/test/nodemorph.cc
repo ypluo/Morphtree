@@ -20,16 +20,16 @@ TEST(NodeMorph, wonode) {
 
     // insert data into nodes
     for(uint64_t i = 0; i < SCALE1; i++) {
-        n->Store(tmp[i], _val_t((uint64_t)tmp[i]), &split_key, &split_node);
+        n->Store(tmp[i], uint64_t((uint64_t)tmp[i]), &split_key, &split_node);
     }
 
     MorphNode(n, NodeType::WOLEAF, NodeType::ROLEAF);
 
     // test lookup
-    _val_t res;
+    uint64_t res;
     for(uint64_t i = 0; i < SCALE1; i++) {
         ASSERT_TRUE(n->Lookup(i, res));
-        ASSERT_EQ(res, _val_t(i));
+        ASSERT_EQ(res, uint64_t(i));
     }
     ASSERT_EQ(split_node, nullptr);
 
@@ -45,7 +45,7 @@ TEST(NodeMorph, ronode) {
     Record * tmp = new Record[SCALE1];
     for(uint64_t i = 0; i < SCALE1; i++) {
         tmp[i].key = i;
-        tmp[i].val = (_val_t)i;
+        tmp[i].val = (uint64_t)i;
     }
     std::shuffle(tmp, tmp + SCALE1 - 1, std::default_random_engine(getRandom()));
 
@@ -61,10 +61,10 @@ TEST(NodeMorph, ronode) {
     MorphNode(n, NodeType::ROLEAF, NodeType::WOLEAF);
 
     // test lookup
-    _val_t res;
+    uint64_t res;
     for(uint64_t i = 0; i < SCALE1; i++) {
         ASSERT_TRUE(n->Lookup(i, res));
-        ASSERT_EQ(res, _val_t(i));
+        ASSERT_EQ(res, uint64_t(i));
     }
     ASSERT_EQ(split_node, nullptr);
 

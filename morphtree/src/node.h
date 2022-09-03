@@ -34,13 +34,15 @@ public:
     void TypeManager(bool isWrite);
 
 public:
-    bool Store(_key_t k, _val_t v, _key_t * split_key, BaseNode ** split_node);
+    bool Store(const _key_t & k, uint64_t v, _key_t * split_key, BaseNode ** split_node);
 
-    bool Lookup(_key_t k, _val_t & v);
+    bool Lookup(const _key_t & k, uint64_t & v);
 
-    bool Update(_key_t k, _val_t v);
+    bool Update(const _key_t & k, uint64_t v);
 
-    bool Remove(_key_t k);
+    bool Remove(const _key_t & k);
+
+    int Scan(const _key_t &startKey, int len, Record *result);
 
     void Dump(std::vector<Record> & out);
 
@@ -67,18 +69,18 @@ public:
 
     void Clear() {capacity = 0;}
 
-    bool Store(_key_t k, _val_t v, _key_t * split_key, ROInner ** split_node);
+    bool Store(const _key_t & k, uint64_t v, _key_t * split_key, ROInner ** split_node);
 
-    bool Lookup(_key_t k, _val_t &v);
+    bool Lookup(const _key_t & k, uint64_t &v);
 
     void Print(string prefix);
 
 private:
-    inline int Predict(_key_t k) {
+    inline int Predict(const _key_t & k) {
         return std::min(std::max(0.0, slope * k + intercept), capacity - 1.0);
     }
 
-    bool shouldRebuild() {
+    bool ShouldRebuild() {
         return of_count >= count / 4;
     }
     
@@ -112,26 +114,30 @@ public:
 
     ~ROLeaf();
 
-    bool Store(_key_t k, _val_t v, _key_t * split_key, ROLeaf ** split_node);
+    bool Store(const _key_t & k, uint64_t v, _key_t * split_key, ROLeaf ** split_node);
 
-    bool Lookup(_key_t k, _val_t &v);
+    bool Lookup(const _key_t & k, uint64_t &v);
 
-    bool Update(_key_t k, _val_t v);
+    bool Update(const _key_t & k, uint64_t v);
 
-    bool Remove(_key_t k);
+    bool Remove(const _key_t & k);
+
+    int Scan(const _key_t &startKey, int len, Record *result);
 
     void Dump(std::vector<Record> & out);
 
     void Print(string prefix);
 
 private:
+    void ScanOneBucket(int startPos, Record *result, int & cur, int end);
+
     void DoSplit(_key_t * split_key, ROLeaf ** split_node);
 
     inline bool ShouldSplit() {
         return count >= GLOBAL_LEAF_SIZE || of_count > (GLOBAL_LEAF_SIZE / 6);
     }
 
-    inline int Predict(_key_t k) {
+    inline int Predict(const _key_t & k) {
         return std::min(std::max(0.0, slope * k + intercept), NODE_SIZE - 1.0);
     }
 
@@ -158,13 +164,15 @@ public:
 
     ~WOLeaf();
 
-    bool Store(_key_t k, _val_t v, _key_t * split_key, WOLeaf ** split_node);
+    bool Store(const _key_t & k, uint64_t v, _key_t * split_key, WOLeaf ** split_node);
 
-    bool Lookup(_key_t k, _val_t &v);
+    bool Lookup(const _key_t & k, uint64_t &v);
 
-    bool Update(_key_t k, _val_t v);
+    bool Update(const _key_t & k, uint64_t v);
 
-    bool Remove(_key_t k);
+    bool Remove(const _key_t & k);
+
+    int Scan(const _key_t &startKey, int len, Record *result);
 
     void Dump(std::vector<Record> & out);
 

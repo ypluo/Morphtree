@@ -58,7 +58,7 @@ void MorphNode(BaseNode * leaf, NodeType from, NodeType to) {
     __builtin_unreachable();
 }
 
-bool BaseNode::Store(_key_t k, _val_t v, _key_t * split_key, BaseNode ** split_node) {
+bool BaseNode::Store(const _key_t & k, uint64_t v, _key_t * split_key, BaseNode ** split_node) {
     if(!Leaf()) {
         return reinterpret_cast<ROInner *>(this)->Store(k, v, split_key, (ROInner **)split_node);
     } else {
@@ -77,7 +77,7 @@ bool BaseNode::Store(_key_t k, _val_t v, _key_t * split_key, BaseNode ** split_n
     }
 }
 
-bool BaseNode::Lookup(_key_t k, _val_t & v) {
+bool BaseNode::Lookup(const _key_t & k, uint64_t & v) {
     if(!Leaf()) {
         reinterpret_cast<ROInner *>(this)->Lookup(k, v);
         return true;
@@ -97,24 +97,38 @@ bool BaseNode::Lookup(_key_t k, _val_t & v) {
     }
 }
 
-bool BaseNode::Update(_key_t k, _val_t v) {
+bool BaseNode::Update(const _key_t & k, uint64_t v) {
     switch(node_type) {
     case NodeType::ROLEAF: 
         return reinterpret_cast<ROLeaf *>(this)->Update(k, v);
     case NodeType::WOLEAF:
         return reinterpret_cast<WOLeaf *>(this)->Update(k, v);
     }
+    assert(false);
+    __builtin_unreachable();
 }
 
-bool BaseNode::Remove(_key_t k) {
+bool BaseNode::Remove(const _key_t & k) {
     switch(node_type) {
     case NodeType::ROLEAF: 
         return reinterpret_cast<ROLeaf *>(this)->Remove(k);
     case NodeType::WOLEAF:
         return reinterpret_cast<WOLeaf *>(this)->Remove(k);
     }
+    assert(false);
+    __builtin_unreachable();
 }
 
+int BaseNode::Scan(const _key_t &startKey, int len, Record *result) {
+    switch(node_type) {
+    case NodeType::ROLEAF: 
+        return reinterpret_cast<ROLeaf *>(this)->Scan(startKey, len, result);
+    case NodeType::WOLEAF:
+        return reinterpret_cast<WOLeaf *>(this)->Scan(startKey, len, result);
+    }
+    assert(false);
+    __builtin_unreachable();
+}
 
 void BaseNode::Print(string prefix) {
     if(!Leaf()) {

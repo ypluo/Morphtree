@@ -10,22 +10,26 @@ class MorphtreeImpl {
 public:
     explicit MorphtreeImpl();
 
+    MorphtreeImpl(std::vector<Record> & initial_recs);
+
     ~MorphtreeImpl();
  
-    void insert(const _key_t & key, const _val_t val);
+    void insert(const _key_t & key, const uint64_t val);
 
-    bool update(const _key_t & key, const _val_t val);
+    bool update(const _key_t & key, const uint64_t val);
 
-    bool remove(const _key_t & key, _val_t & val);
+    bool remove(const _key_t & key, uint64_t & val);
 
-    bool lookup(const _key_t & key, _val_t & v);
+    bool lookup(const _key_t & key, uint64_t & v);
 
-    uint64_t scan(const _key_t &startKey, int range, std::vector<_val_t> &result);
+    int scan(const _key_t &startKey, int len, Record *result);
+
+    BaseNode * bulkload(std::vector<Record> & initial_recs);
 
     void Print();
     
 private:
-    bool insert_recursive(BaseNode * n, const _key_t & key, const _val_t val, 
+    bool insert_recursive(BaseNode * n, const _key_t & key, const uint64_t val, 
                                 _key_t * split_k, BaseNode ** split_n);
 
     BaseNode * root_;
@@ -50,16 +54,24 @@ MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::MorphtreeImpl() {
 }
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
+MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::MorphtreeImpl(std::vector<Record> & initial_recs) {
+    root_ = bulkload(initial_recs);
+    // global variables assignment
+    do_morphing = MORPH_IF;
+    global_stats = 0;
+}
+
+template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::~MorphtreeImpl() {
     delete root_;
 }
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
-bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::lookup(const _key_t &key, _val_t & val) {
+bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::lookup(const _key_t &key, uint64_t & val) {
     // global_stats = (global_stats << 1);
     BaseNode * cur = root_;
 
-    _val_t v;
+    uint64_t v;
     while(!cur->Leaf()) {
         cur->Lookup(key, v);
         cur = (BaseNode *) v;
@@ -69,7 +81,7 @@ bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::lookup(const _key_t &key, _val_t &
 }
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
-void MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::insert(const _key_t &key, _val_t val) {
+void MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::insert(const _key_t &key, uint64_t val) {
     // global_stats = (global_stats << 1) + 1;
 
     _key_t split_k;
@@ -77,19 +89,19 @@ void MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::insert(const _key_t &key, _val_t v
     bool splitIf = insert_recursive(root_, key, val, &split_k, &split_node);
     
     if(splitIf) {
-        Record tmp[2] = {Record(MIN_KEY, root_), Record(split_k, split_node)};
+        Record tmp[2] = {Record(MIN_KEY, (uint64_t)root_), Record(split_k, (uint64_t)split_node)};
         ROInner * newroot = new ROInner(tmp, 2);
         root_ = newroot;
     }
 }
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
-bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::insert_recursive(BaseNode * n, const _key_t & key, const _val_t val, 
+bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::insert_recursive(BaseNode * n, const _key_t & key, const uint64_t val, 
                                     _key_t * split_k, BaseNode ** split_n) {
     if(n->Leaf()) {
         return n->Store(key, val, split_k, split_n);
     } else {
-        _val_t v; n->Lookup(key, v);
+        uint64_t v; n->Lookup(key, v);
         BaseNode * child = (BaseNode *) v;
 
         _key_t split_k_child;
@@ -97,7 +109,7 @@ bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::insert_recursive(BaseNode * n, con
         bool splitIf = insert_recursive(child, key, val, &split_k_child, &split_n_child);
 
         if(splitIf) {
-            bool found = n->Store(split_k_child, split_n_child, split_k, split_n);
+            bool found = n->Store(split_k_child, (uint64_t)split_n_child, split_k, split_n);
 
             return found;
         } else {
@@ -112,21 +124,73 @@ void MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::Print() {
 }
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
-bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::update(const _key_t & key, const _val_t val) {
-    // TODO
-    return false;
+bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::update(const _key_t & key, const uint64_t val) {
+    // global_stats = (global_stats << 1);
+    BaseNode * cur = root_;
+
+    uint64_t v;
+    while(!cur->Leaf()) {
+        cur->Lookup(key, v);
+        cur = (BaseNode *) v;
+    }
+
+    return cur->Update(key, val);
 }
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
-bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::remove(const _key_t & key, _val_t & val) {
-    // TODO
-    return false;
+bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::remove(const _key_t & key, uint64_t & val) {
+    // global_stats = (global_stats << 1);
+    BaseNode * cur = root_;
+
+    uint64_t v;
+    while(!cur->Leaf()) {
+        cur->Lookup(key, v);
+        cur = (BaseNode *) v;
+    }
+
+    return cur->Remove(key);
 }
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
-uint64_t MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::scan(const _key_t &startKey, int range, std::vector<_val_t> &result) {
-    // TODO
-    return 0;
+int MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::scan(const _key_t &startKey, int len, Record *result) {
+    // the user is reponsible for reserve enough space for saving result
+    BaseNode * cur = root_;
+
+    uint64_t v;
+    while(!cur->Leaf()) {
+        cur->Lookup(startKey, v);
+        cur = (BaseNode *) v;
+    }
+
+    return cur->Scan(startKey, len, result);
+}
+
+template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
+BaseNode * MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::bulkload(std::vector<Record> & initial_recs) {
+    int leafnode_num = (initial_recs.size() / GLOBAL_LEAF_SIZE) * 2 +
+                        (initial_recs.size() % GLOBAL_LEAF_SIZE > 0 ? 1 : 0) * 2;
+    Record * index_record = new Record[leafnode_num];
+
+    int i = 0;
+    for(; i < initial_recs.size() / GLOBAL_LEAF_SIZE; i++) {
+        Record * base = initial_recs.data() + i * GLOBAL_LEAF_SIZE;
+        int split_pos = getSubOptimalSplitkey(base, GLOBAL_LEAF_SIZE);
+        index_record[i * 2].val = uint64_t(new ROLeaf(base, split_pos));
+        index_record[i * 2 + 1].val = uint64_t(new ROLeaf(base + split_pos, GLOBAL_LEAF_SIZE - split_pos));
+    }
+
+    if(initial_recs.size() % GLOBAL_LEAF_SIZE > 0) {
+        int total = initial_recs.size() - i * GLOBAL_LEAF_SIZE; 
+        Record * base = initial_recs.data() + i * GLOBAL_LEAF_SIZE;
+        int split_pos = getSubOptimalSplitkey(base, total);
+        index_record[i * 2 ].val = uint64_t(new ROLeaf(base, split_pos));
+        index_record[i * 2 + 1].val = uint64_t(new ROLeaf(base + split_pos, total - split_pos));
+    }
+
+    BaseNode * new_root = new ROInner(index_record, leafnode_num);
+    delete [] index_record;
+    
+    return new_root;
 }
 
 } // namespace morphtree

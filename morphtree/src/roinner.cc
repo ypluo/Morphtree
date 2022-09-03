@@ -51,7 +51,7 @@ ROInner::ROInner(Record * recs_in, int num) {
             } else {
                 memcpy(&recs[cid * PROBE_SIZE], &recs_in[last_i], (PROBE_SIZE - 1) * sizeof(Record));
                 recs[cid * PROBE_SIZE + PROBE_SIZE - 1].key = recs_in[last_i + PROBE_SIZE - 1].key;
-                recs[cid * PROBE_SIZE + PROBE_SIZE - 1].val = new ROInner(&recs_in[last_i + PROBE_SIZE - 1], c - PROBE_SIZE + 1);
+                recs[cid * PROBE_SIZE + PROBE_SIZE - 1].val = uint64_t(new ROInner(&recs_in[last_i + PROBE_SIZE - 1], c - PROBE_SIZE + 1));
                 of_count += c - PROBE_SIZE + 1;
             }
 
@@ -66,14 +66,15 @@ ROInner::ROInner(Record * recs_in, int num) {
     } else {
         memcpy(&recs[cid * PROBE_SIZE], &recs_in[last_i], (PROBE_SIZE - 1) * sizeof(Record));
         recs[cid * PROBE_SIZE + PROBE_SIZE - 1].key = recs_in[last_i + PROBE_SIZE - 1].key;
-        recs[cid * PROBE_SIZE + PROBE_SIZE - 1].val = new ROInner(&recs_in[last_i + PROBE_SIZE - 1], c - PROBE_SIZE + 1);
+        recs[cid * PROBE_SIZE + PROBE_SIZE - 1].val = uint64_t(new ROInner(&recs_in[last_i + PROBE_SIZE - 1], c - PROBE_SIZE + 1));
         of_count += c - PROBE_SIZE + 1;
     }
 }
 
 ROInner::~ROInner() {
     for(int i = PROBE_SIZE - 1; i < capacity; i += PROBE_SIZE) {
-        BaseNode * child = (ROInner *) recs[i].val;
+        uint64_t vv = recs[i].val;
+        BaseNode * child = (ROInner *) vv;
         if(child != nullptr && !child->Leaf()) {
             ((ROInner *)child)->Clear();
             delete child;
@@ -95,13 +96,14 @@ void ROInner::Print(string prefix) {
     printf("]\n");
     for(int i = 0; i < capacity; i++) {
         if(recs[i].key != MAX_KEY) {
-            BaseNode * child = (BaseNode *) recs[i].val;
+            uint64_t vv = recs[i].val;
+            BaseNode * child = (BaseNode *) vv;
             child->Print(prefix + "\t");
         }
     }
 }
 
-bool ROInner::Store(_key_t k, _val_t v, _key_t * split_key, ROInner ** split_node) {
+bool ROInner::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROInner ** split_node) {
     if(count < BNODE_SIZE) {
         int i;
         for(i = 0; i < count; i++) {
@@ -111,7 +113,7 @@ bool ROInner::Store(_key_t k, _val_t v, _key_t * split_key, ROInner ** split_nod
         }
 
         memmove(&recs[i + 1], &recs[i], sizeof(Record) * (count - i));
-        recs[i] = {k, (char *) v};
+        recs[i] = {k, v};
         count += 1;
 
         if(count == BNODE_SIZE) { // create a new inner node
@@ -135,7 +137,8 @@ bool ROInner::Store(_key_t k, _val_t v, _key_t * split_key, ROInner ** split_nod
             memmove(&recs[i + 1], &recs[i], sizeof(Record) * (predict + PROBE_SIZE - 1 - i));
             recs[i] = Record(k, v);
         } else {
-            BaseNode * rightmost = (BaseNode *)last_one.val;
+            uint64_t vv = last_one.val;
+            BaseNode * rightmost = (BaseNode *)vv;
             if(rightmost->Leaf()) { // has no overflow inner node
                 // copy records in this bucket into a tmp array
                 Record tmp[PROBE_SIZE + 1];
@@ -147,12 +150,12 @@ bool ROInner::Store(_key_t k, _val_t v, _key_t * split_key, ROInner ** split_nod
                 memcpy(&recs[predict], tmp, sizeof(Record) * (PROBE_SIZE - 1));
                 ROInner * new_inner = new ROInner(&tmp[PROBE_SIZE - 1], 2);
                 recs[predict + PROBE_SIZE - 1].key = tmp[PROBE_SIZE - 1].key;
-                recs[predict + PROBE_SIZE - 1].val = new_inner;
+                recs[predict + PROBE_SIZE - 1].val = (uint64_t)new_inner;
                 of_count += 2;
             } else { // has a overflow inner node
                 if(i < predict + PROBE_SIZE - 1) {
                     _key_t new_k = recs[predict + PROBE_SIZE - 2].key;
-                    _val_t new_v = recs[predict + PROBE_SIZE - 2].val;
+                    uint64_t new_v = recs[predict + PROBE_SIZE - 2].val;
                     memmove(&recs[i + 1], &recs[i], sizeof(Record) * (predict + PROBE_SIZE - 2 - i));
                     recs[i] = Record(k, v);
                     
@@ -169,7 +172,7 @@ bool ROInner::Store(_key_t k, _val_t v, _key_t * split_key, ROInner ** split_nod
         }
         count += 1;
 
-        if(shouldRebuild()) {
+        if(ShouldRebuild()) {
             RebuildSubTree();
         }
     }
@@ -177,7 +180,7 @@ bool ROInner::Store(_key_t k, _val_t v, _key_t * split_key, ROInner ** split_nod
     return false;
 }
 
-bool ROInner::Lookup(_key_t k, _val_t &v) {
+bool ROInner::Lookup(const _key_t & k, uint64_t &v) {
     if(count < BNODE_SIZE) {
         int i;
         for(i = 0; i < BNODE_SIZE; i++) {
@@ -221,7 +224,8 @@ void ROInner::RebuildSubTree() {
             if(recs[i + j].key == MAX_KEY) {
                 break;
             } else if(j == PROBE_SIZE - 1) {
-                BaseNode * node = (BaseNode *) recs[i + j].val;
+                uint64_t vv = recs[i + j].val;
+                BaseNode * node = (BaseNode *) vv;
                 if(!node->Leaf()) {
                     ((ROInner *)node)->Dump(all_record);
                 } else {
@@ -244,7 +248,8 @@ void ROInner::Dump(std::vector<Record> & out) {
             if(recs[i + j].key == MAX_KEY) {
                 break;
             } else if(j == PROBE_SIZE - 1) {
-                BaseNode * node = (BaseNode *) recs[i + j].val;
+                uint64_t vv = recs[i + j].val;
+                BaseNode * node = (BaseNode *) vv;
                 if(!node->Leaf()) {
                     ((ROInner *)node)->Dump(out);
                 } else {

@@ -8,20 +8,20 @@
 #include <limits>
 #include <sys/time.h>
 #include <sys/stat.h>
+#include <functional>
 
 using _key_t = double;
-using _val_t = void *; // less than 8 bytes
-
 const _key_t MAX_KEY = std::numeric_limits<_key_t>::max();
 const _key_t MIN_KEY = typeid(_key_t) == typeid(double) || typeid(_key_t) == typeid(float) 
                             ? -1 * MAX_KEY : std::numeric_limits<_key_t>::min();
 
 struct Record {
     _key_t key;
-    _val_t val;
+    uint64_t flag : 1;  // 0 for valid and 1 for deleted
+    uint64_t val  : 63; // 63 bits for value
     
-    Record(): key(MAX_KEY), val(nullptr) {}
-    Record(_key_t k, _val_t v) : key(k), val(v) {}
+    Record(): key(MAX_KEY), flag(0), val(0) {}
+    Record(_key_t k, uint64_t v) : key(k), flag(0), val(v) {}
 
     inline bool operator < (const Record & oth) {
         return key < oth.key;
@@ -115,18 +115,16 @@ private:
 
 extern _key_t GetMedian(std::vector<_key_t> & medians);
 
-extern void TwoWayMerge(Record * a, Record * b, int lena, int lenb, std::vector<Record> & out);
-
 extern void KWayMerge(Record ** runs, int * run_lens, int k, std::vector<Record> & out);
 
-extern void KWayMerge_nodup(Record ** runs, int * run_lens, int k, std::vector<Record> & out);
+extern int KWayScan(Record ** runs, int * run_lens, int k, _key_t startKey, int len, Record * out);
 
-extern bool BinSearch(Record * recs, int len, _key_t k, _val_t &v);// do binary search
+extern bool BinSearch(Record * recs, int len, _key_t k, uint64_t &v);// do binary search
 
-extern bool BinSearch_update(Record * recs, int len, _key_t k, _val_t v);
+extern bool BinSearch_CallBack(Record * recs, int len, _key_t k, std::function<bool(Record &)> func);
 
-extern bool ExpSearch(Record * recs, int len, int predict, _key_t k, _val_t &v); // do exponential search
+extern bool ExpSearch(Record * recs, int len, int predict, _key_t k, uint64_t &v); // do exponential search
 
-extern int getSubOptimalSplitkey(std::vector<Record> & recs, int num);
+extern int getSubOptimalSplitkey(Record * recs, int num);
 
 #endif // __MORPHTREE_UTIL_H__

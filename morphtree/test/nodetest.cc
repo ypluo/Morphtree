@@ -24,15 +24,15 @@ TEST(SingleNode, DISABLED_woleaf) {
 
     // insert data into nodes
     for(uint64_t i = 0; i < SCALE1; i++) {
-        n->Store(tmp[i], _val_t((uint64_t)tmp[i]), &split_key, &split_node);
+        n->Store(tmp[i], uint64_t((uint64_t)tmp[i]), &split_key, &split_node);
     }
 
     // test lookup
-    _val_t res;
+    uint64_t res;
     for(uint64_t i = 0; i < SCALE1; i++) {
         //printf("%d\n", i);
         ASSERT_TRUE(n->Lookup(i, res));
-        ASSERT_EQ(res, _val_t(i));
+        ASSERT_EQ(res, uint64_t(i));
     }
     ASSERT_EQ(split_node, nullptr);
 
@@ -48,7 +48,7 @@ TEST(SingleNode, DISABLED_roleaf) {
     Record * tmp = new Record[SCALE1];
     for(uint64_t i = 0; i < SCALE1; i++) {
         tmp[i].key = i;
-        tmp[i].val = (_val_t)i;
+        tmp[i].val = (uint64_t)i;
     }
     std::shuffle(tmp, tmp + SCALE1 - 1, std::default_random_engine(getRandom()));
 
@@ -63,11 +63,11 @@ TEST(SingleNode, DISABLED_roleaf) {
     }
 
     // test lookup
-    _val_t res;
+    uint64_t res;
     for(uint64_t i = 0; i < SCALE1; i++) {
         // printf("%lu\n", i);
         ASSERT_TRUE(n->Lookup(i, res));
-        ASSERT_EQ(res, _val_t(i));
+        ASSERT_EQ(res, uint64_t(i));
     }
 
     delete tmp;
@@ -86,7 +86,7 @@ TEST(SingleNode, DISABLED_roinner) {
     Record * tmp = new Record[SCALE1];
     for(uint64_t i = 0; i < SCALE1; i++) {
         tmp[i].key = dist(gen);
-        tmp[i].val = (_val_t)(uint64_t)tmp[i].key;
+        tmp[i].val = (uint64_t)(uint64_t)tmp[i].key;
     }
 
     // bulk load
@@ -95,14 +95,14 @@ TEST(SingleNode, DISABLED_roinner) {
     
     // n->Print("");
     // test lookup
-    _val_t res;
+    uint64_t res;
     for(uint64_t i = 0; i < SCALE1; i++) {
         // printf("%lf\n", tmp[i].key);
         ASSERT_TRUE(n->Lookup(tmp[i].key, res));
-        if(res != _val_t((uint64_t)tmp[i].key)) {
+        if(res != uint64_t((uint64_t)tmp[i].key)) {
             ROInner * inner = (ROInner *) res;
             ASSERT_TRUE(inner->Lookup(tmp[i].key, res));
-            ASSERT_EQ(res, _val_t((uint64_t)tmp[i].key));
+            ASSERT_EQ(res, uint64_t((uint64_t)tmp[i].key));
         }
     }
 
@@ -127,21 +127,21 @@ TEST(TwoNode, DISABLED_wonode) {
     // insert data into nodes
     for(int i = 0; i < SCALE2; i++) {
         if(tmp[i] < split_key) {
-            n->Store(tmp[i], _val_t((uint64_t)tmp[i]), &split_key, &split_node);
+            n->Store(tmp[i], uint64_t((uint64_t)tmp[i]), &split_key, &split_node);
             // n->Print(" ");
         } else {
-            split_node->Store(tmp[i], _val_t((uint64_t)tmp[i]), nullptr, nullptr);
+            split_node->Store(tmp[i], uint64_t((uint64_t)tmp[i]), nullptr, nullptr);
         }
     }
 
     // test lookup
-    _val_t res;
+    uint64_t res;
     for(uint64_t i = 0; i < SCALE1; i++) {
         if(i < split_key)
             ASSERT_TRUE(n->Lookup(i, res));
         else
             ASSERT_TRUE(split_node->Lookup(i, res));
-        ASSERT_EQ(res, _val_t(i));
+        ASSERT_EQ(res, uint64_t(i));
     }
     
     delete tmp;
@@ -159,7 +159,7 @@ TEST(TwoNode, roleaf) {
 
     for(uint64_t i = 0; i < SCALE2; i++) {
         tmp[i].key = dist(gen);
-        tmp[i].val = (_val_t)i;
+        tmp[i].val = (uint64_t)i;
     }
     std::shuffle(tmp, tmp + SCALE2 - 1, std::default_random_engine(997));
     std::sort(tmp, tmp + SCALE2 / 2);
@@ -180,13 +180,13 @@ TEST(TwoNode, roleaf) {
     split_node->Print("\n\n");
 
     // test lookup
-    _val_t res;
+    uint64_t res;
     for(uint64_t i = 0; i < SCALE2; i++) {
         if(i < split_key)
             ASSERT_TRUE(n->Lookup(i, res));
         else
             ASSERT_TRUE(split_node->Lookup(i, res));
-        ASSERT_EQ(res, _val_t(i));
+        ASSERT_EQ(res, uint64_t(i));
     }
     
     delete tmp;

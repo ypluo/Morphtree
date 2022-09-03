@@ -233,16 +233,16 @@ public:
     }
 
     bool insert(KeyType key, uint64_t value) {
-        idx->insert(key, reinterpret_cast<void *>(value));
+        idx->insert(key, value);
         return false;
     }
 
     bool find(KeyType key, uint64_t *v) {
-        return idx->lookup(key, reinterpret_cast<void * &>(*v));
+        return idx->lookup(key, *v);
     }
 
     bool upsert(KeyType key, uint64_t value) {
-        idx->update(key, reinterpret_cast<void *>(value));
+        idx->update(key, value);
         return true;
     }
 
@@ -279,16 +279,16 @@ public:
     }
 
     bool insert(KeyType key, uint64_t value) {
-        idx->insert(key, reinterpret_cast<void *>(value));
+        idx->insert(key, value);
         return false;
     }
 
     bool find(KeyType key, uint64_t *v) {
-        return idx->lookup(key, reinterpret_cast<void * &>(*v));
+        return idx->lookup(key, *v);
     }
 
     bool upsert(KeyType key, uint64_t value) {
-        idx->update(key, reinterpret_cast<void *>(value));
+        idx->update(key, value);
         return true;
     }
 
@@ -325,16 +325,16 @@ public:
     }
 
     bool insert(KeyType key, uint64_t value) {
-        idx->insert(key, reinterpret_cast<void *>(value));
+        idx->insert(key, value);
         return false;
     }
 
     bool find(KeyType key, uint64_t *v) {
-        return idx->lookup(key, reinterpret_cast<void * &>(*v));
+        return idx->lookup(key, *v);
     }
 
     bool upsert(KeyType key, uint64_t value) {
-        idx->update(key, reinterpret_cast<void *>(value));
+        idx->update(key, value);
         return true;
     }
 
