@@ -14,10 +14,12 @@ private:
 
 public:
     Morphtree() {
+        // build from scratch
         mt_ = new MorphtreeImpl<NodeType::WOLEAF, true>();
     }
 
     Morphtree(std::vector<Record> initial_recs) {
+        // build from initial records
         mt_ = new MorphtreeImpl<NodeType::WOLEAF, true>(initial_recs);
     }
 
@@ -44,13 +46,7 @@ public:
     }
 
     inline uint64_t remove(_key_t key) {
-        uint64_t val;
-        bool found = mt_->remove(key, val);
-
-        if (found) 
-            return val;
-        else 
-            return 0;
+        return mt_->remove(key);
     }
 
     inline int scan(_key_t startKey, int len, Record * buf) {

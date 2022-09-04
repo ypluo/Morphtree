@@ -113,8 +113,6 @@ private:
     double y_max_ = std::numeric_limits<double>::lowest();
 };
 
-extern _key_t GetMedian(std::vector<_key_t> & medians);
-
 extern void KWayMerge(Record ** runs, int * run_lens, int k, std::vector<Record> & out);
 
 extern int KWayScan(Record ** runs, int * run_lens, int k, _key_t startKey, int len, Record * out);
@@ -122,8 +120,6 @@ extern int KWayScan(Record ** runs, int * run_lens, int k, _key_t startKey, int 
 extern bool BinSearch(Record * recs, int len, _key_t k, uint64_t &v);// do binary search
 
 extern bool BinSearch_CallBack(Record * recs, int len, _key_t k, std::function<bool(Record &)> func);
-
-extern bool ExpSearch(Record * recs, int len, int predict, _key_t k, uint64_t &v); // do exponential search
 
 extern int getSubOptimalSplitkey(Record * recs, int num);
 

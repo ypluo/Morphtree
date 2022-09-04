@@ -161,7 +161,8 @@ void KWayMerge(Record ** runs, int * run_lens, int k, std::vector<Record> & out)
     while(!q.empty()) {
         HeapEle e = q.top(); q.pop();
 
-        out.push_back(e.ele);
+        if(e.ele.flag == 0)
+            out.push_back(e.ele);
         int & run_pos = run_idxs[e.run_id];
         if (run_pos < run_lens[e.run_id]) {
             q.push({e.run_id, runs[e.run_id][run_pos++]});
@@ -197,7 +198,8 @@ extern int KWayScan(Record ** runs, int * run_lens, int k, _key_t startKey, int 
     while(!q.empty() && cur < len) {
         HeapEle e = q.top(); q.pop();
 
-        out[cur++] = e.ele;
+        if(e.ele.flag == 0)
+            out[cur++] = e.ele;
         int & run_pos = run_idxs[e.run_id];
         if (run_pos < run_lens[e.run_id]) {
             q.push({e.run_id, runs[e.run_id][run_pos++]});

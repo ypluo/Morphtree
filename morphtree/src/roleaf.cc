@@ -262,7 +262,7 @@ bool ROLeaf::Remove(const _key_t & k) {
     uint64_t vv = recs[predict + PROBE_SIZE - 1].val;
     OFNode * ofnode = (OFNode *) vv;
     if(i < predict + PROBE_SIZE - 1) {
-        memmove(&recs[i], &recs[i + 1], (predict + PROBE_SIZE - 2 - i) * sizeof(Record));
+        memmove(&recs[i - 1], &recs[i], (predict + PROBE_SIZE - 1 - i) * sizeof(Record));
         if(ofnode != nullptr) {
             // shift one record from ofnode into inline bucket
             recs[predict + PROBE_SIZE - 2] = ofnode->recs_[0];
@@ -375,11 +375,11 @@ void ROLeaf::Print(string prefix) {
     std::vector<Record> out;
     Dump(out);
 
-    printf("%s(%d)[(%f)", prefix.c_str(), node_type, (float)of_count / count);
-    for(int i = 0; i < out.size(); i++) {
-        printf("%lf, ", out[i].key);
-    }
-    printf("]\n");
+    // printf("%s(%d)[(%f)", prefix.c_str(), node_type, (float)of_count / count);
+    // for(int i = 0; i < out.size(); i++) {
+    //     printf("%lf, ", out[i].key);
+    // }
+    // printf("]\n");
 }
 
 void ROLeaf::DoSplit(_key_t * split_key, ROLeaf ** split_node) {

@@ -9,3 +9,6 @@ target_link_libraries(wotest gtest_main morphtree)
 
 add_executable(rotest "rotest.cc")
 target_link_libraries(rotest gtest_main morphtree)
+
+add_executable(ycsbtest "ycsbtest.cc")
+target_link_libraries(ycsbtest gtest_main morphtree)

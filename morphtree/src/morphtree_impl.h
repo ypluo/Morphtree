@@ -18,7 +18,7 @@ public:
 
     bool update(const _key_t & key, const uint64_t val);
 
-    bool remove(const _key_t & key, uint64_t & val);
+    bool remove(const _key_t & key);
 
     bool lookup(const _key_t & key, uint64_t & v);
 
@@ -138,7 +138,7 @@ bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::update(const _key_t & key, const u
 }
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
-bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::remove(const _key_t & key, uint64_t & val) {
+bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::remove(const _key_t & key) {
     // global_stats = (global_stats << 1);
     BaseNode * cur = root_;
 
@@ -175,7 +175,9 @@ BaseNode * MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::bulkload(std::vector<Record>
     for(; i < initial_recs.size() / GLOBAL_LEAF_SIZE; i++) {
         Record * base = initial_recs.data() + i * GLOBAL_LEAF_SIZE;
         int split_pos = getSubOptimalSplitkey(base, GLOBAL_LEAF_SIZE);
+        index_record[i * 2].key = base[0].key;
         index_record[i * 2].val = uint64_t(new ROLeaf(base, split_pos));
+        index_record[i * 2 + 1].key = base[split_pos].key;
         index_record[i * 2 + 1].val = uint64_t(new ROLeaf(base + split_pos, GLOBAL_LEAF_SIZE - split_pos));
     }
 
@@ -183,7 +185,9 @@ BaseNode * MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::bulkload(std::vector<Record>
         int total = initial_recs.size() - i * GLOBAL_LEAF_SIZE; 
         Record * base = initial_recs.data() + i * GLOBAL_LEAF_SIZE;
         int split_pos = getSubOptimalSplitkey(base, total);
-        index_record[i * 2 ].val = uint64_t(new ROLeaf(base, split_pos));
+        index_record[i * 2].key = base[0].key;
+        index_record[i * 2].val = uint64_t(new ROLeaf(base, split_pos));
+        index_record[i * 2 + 1].key = base[split_pos].key;
         index_record[i * 2 + 1].val = uint64_t(new ROLeaf(base + split_pos, total - split_pos));
     }
 
