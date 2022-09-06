@@ -173,11 +173,13 @@ int WOLeaf::Scan(const _key_t &startKey, int len, Record *result) {
     }
 
     int cur = KWayScan(sort_runs, ends, run_cnt, startKey, len, result);
-    if(cur >= len) {
+    
+    if(cur >= len) 
         return len;
-    } else {
-        return cur + ((BaseNode *) sibling)->Scan(result[cur].key, len - cur, result + cur);
-    }
+    else if(sibling == nullptr) 
+        return cur;
+    else
+        return cur + ((BaseNode *) sibling)->Scan(result[cur - 1].key, len - cur, result + cur);
 }
 
 void WOLeaf::Dump(std::vector<Record> & out) {

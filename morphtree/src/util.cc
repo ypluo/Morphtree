@@ -191,7 +191,8 @@ extern int KWayScan(Record ** runs, int * run_lens, int k, _key_t startKey, int 
     // start merge scan
     for(int i = 0; i < k; i++) {
         int & run_pos = run_idxs[i];
-        q.push({i, runs[i][run_pos++]});
+        if(run_pos < run_lens[i])
+            q.push({i, runs[i][run_pos++]});
     }
 
     int cur = 0;

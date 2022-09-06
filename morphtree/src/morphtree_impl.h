@@ -191,6 +191,14 @@ BaseNode * MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::bulkload(std::vector<Record>
         index_record[i * 2 + 1].val = uint64_t(new ROLeaf(base + split_pos, total - split_pos));
     }
 
+    // link them togather
+    for(int i = 0; i < leafnode_num - 1; i++) {
+        uint64_t vv1 = index_record[i].val;
+        uint64_t vv2 = index_record[i + 1].val;
+        ROLeaf * cur = (ROLeaf *) vv1;
+        cur->sibling = (ROLeaf *) vv2;
+    }
+
     BaseNode * new_root = new ROInner(index_record, leafnode_num);
     delete [] index_record;
     

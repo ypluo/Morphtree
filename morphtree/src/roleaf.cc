@@ -97,6 +97,7 @@ ROLeaf::ROLeaf() {
     stats = ROSTATS;
     of_count = 0;
     count = 0;
+    sibling = nullptr;
 
     slope = (double)(NODE_SIZE - 1) / MAX_KEY;
     intercept = 0;
@@ -108,6 +109,7 @@ ROLeaf::ROLeaf(Record * recs_in, int num) {
     stats = ROSTATS;
     of_count = 0;
     count = 0;
+    sibling = nullptr;
 
     // caculate the linear model
     LinearModelBuilder model;
@@ -255,35 +257,46 @@ bool ROLeaf::Remove(const _key_t & k) {
 
     int i;
     for (i = predict; i < predict + PROBE_SIZE - 1; i++) {
-        if(recs[i].key > k)
+        if(recs[i].key >= k)
             break;
     }
 
     uint64_t vv = recs[predict + PROBE_SIZE - 1].val;
     OFNode * ofnode = (OFNode *) vv;
-    if(i < predict + PROBE_SIZE - 1) {
-        memmove(&recs[i - 1], &recs[i], (predict + PROBE_SIZE - 1 - i) * sizeof(Record));
+    if(i < predict + PROBE_SIZE - 1 && recs[i].key == k) {
+        // found the record in inline bucket
+        memmove(&recs[i], &recs[i + 1], (predict + PROBE_SIZE - 2 - i) * sizeof(Record));
+        recs[predict + PROBE_SIZE - 2] = Record();
+
         if(ofnode != nullptr) {
             // shift one record from ofnode into inline bucket
             recs[predict + PROBE_SIZE - 2] = ofnode->recs_[0];
-            ofnode->remove(ofnode->recs_[0].key);
-        } else {
-            // vaccum a slot
-            recs[predict + PROBE_SIZE - 2] = Record();
+            bool foundIf = ofnode->remove(ofnode->recs_[0].key);
+            if(ofnode->recs_[0].key == MAX_KEY) { // delete the ofnode if necessary
+                recs[predict + PROBE_SIZE - 1] = Record();
+                delete ofnode;
+            }
+            return foundIf;
         }
-    } else {
-        if(ofnode != nullptr) {  
-            return ofnode->remove(k);
-        } else {
-            return false;
+
+        return true;
+    } else if(ofnode != nullptr) {  
+        bool foundIf = ofnode->remove(k);
+        if(ofnode->recs_[0].key == MAX_KEY) { // delete the ofnode if necessary
+            recs[predict + PROBE_SIZE - 1] = Record();
+            delete ofnode;
         }
+        return foundIf;
     }
     return false;
 }
 
 void ROLeaf::ScanOneBucket(int startPos, Record *result, int &cur, int end) {
     for(int i = startPos; i < startPos + PROBE_SIZE - 1; i++) {
-        result[cur++] = recs[i];
+        if(recs[i].key != MAX_KEY)
+            result[cur++] = recs[i];
+        else // no overflow node
+            return;
         if(cur >= end) return;
     }
     
@@ -291,7 +304,8 @@ void ROLeaf::ScanOneBucket(int startPos, Record *result, int &cur, int end) {
     OFNode * ofnode = (OFNode *) vv;
     if(ofnode != nullptr) {  
         for(int i = 0; i < ofnode->len; i++) {
-            result[cur++] = ofnode->recs_[i];
+            if(ofnode->recs_[i].key != MAX_KEY)
+                result[cur++] = ofnode->recs_[i];
             if(cur >= end) return;
         }
     }
@@ -313,7 +327,10 @@ int ROLeaf::Scan(const _key_t &startKey, int len, Record *result) {
     int cur = 0;
     if(i < predict + PROBE_SIZE - 1) {
         for (; i < predict + PROBE_SIZE - 1; i++) {
-            result[cur++] = recs[i];
+            if(recs[i].key != MAX_KEY)
+                result[cur++] = recs[i];
+            else 
+                break;
             if(cur >= len) return len;
         }
 
@@ -321,7 +338,10 @@ int ROLeaf::Scan(const _key_t &startKey, int len, Record *result) {
         OFNode * ofnode = (OFNode *) vv;
         if(ofnode != nullptr) {  
             for(int i = 0; i < ofnode->len; i++) {
-                result[cur++] = ofnode->recs_[i];
+                if(ofnode->recs_[i].key != MAX_KEY)
+                    result[cur++] = ofnode->recs_[i];
+                else 
+                    break;
                 if(cur >= len) return len;
             }
         }
@@ -337,7 +357,10 @@ int ROLeaf::Scan(const _key_t &startKey, int len, Record *result) {
             }
 
             for(; i < ofnode->len; i++) {
-                result[cur++] = ofnode->recs_[i];
+                if(ofnode->recs_[i].key != MAX_KEY)
+                    result[cur++] = ofnode->recs_[i];
+                else 
+                    break;
                 if(cur >= len) return len;
             }
         }
@@ -352,8 +375,10 @@ int ROLeaf::Scan(const _key_t &startKey, int len, Record *result) {
 
     if(cur >= len) 
         return len;
-    else 
-        return cur + ((BaseNode *) sibling)->Scan(result[cur].key, len - cur, result + cur);
+    else if(sibling == nullptr) 
+        return cur;
+    else
+        return cur + ((BaseNode *) sibling)->Scan(result[cur - 1].key, len - cur, result + cur);
 }
 
 void ROLeaf::Dump(std::vector<Record> & out) {

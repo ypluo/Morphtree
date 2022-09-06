@@ -19,7 +19,7 @@ protected:
 
     virtual void SetUp() {
         recs.resize(TEST_SCALE);
-        for(int i = 0; i < TEST_SCALE; i++) {
+        for(uint64_t i = 0; i < TEST_SCALE; i++) {
             recs[i].key = _key_t(i);
             recs[i].val = uint64_t(i);
         }
@@ -78,4 +78,25 @@ TEST_F(rotest, remove) {
             ASSERT_EQ(v, uint64_t(recs[i].val));
         }
     }
+}
+
+// scan test is predicated on that key/values are sequencial number for 0 to TEST_SCALE - 1
+TEST_F(rotest, scan) {
+    int max_scan_len = TEST_SCALE / 2;
+    Record * buf = new Record[max_scan_len];
+
+    for(int step = 5; step < max_scan_len; step *= 5) {
+        // printf("Step: %d\n", step);
+        for(int i = 0; i < TEST_SCALE - step; i += step / 2) {
+            // do scan
+            int count = tree->scan(_key_t(i), step, buf);
+            // do validate
+            ASSERT_EQ(count, step);
+            for(int j = 0; j < count; j++) {
+                ASSERT_EQ(buf[j].val, uint64_t(i + j));
+            }
+        }
+    }
+
+    delete [] buf;
 }
