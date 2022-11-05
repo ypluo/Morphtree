@@ -36,7 +36,7 @@ if (CMAKE_VERSION VERSION_LESS 2.8.11)
 endif()
 
 include_directories(include)
-# add_compile_options(-O3)
+add_compile_options(-O3)
 
 # Now add what we want to compile
 add_subdirectory(src)

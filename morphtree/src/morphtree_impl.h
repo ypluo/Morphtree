@@ -29,9 +29,6 @@ public:
     void Print();
     
 private:
-    bool insert_recursive(BaseNode * n, const _key_t & key, const uint64_t val, 
-                                _key_t * split_k, BaseNode ** split_n);
-
     BaseNode * root_;
 };
 
@@ -83,37 +80,27 @@ bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::lookup(const _key_t &key, uint64_t
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 void MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::insert(const _key_t &key, uint64_t val) {
     // global_stats = (global_stats << 1) + 1;
+    BaseNode * cur = root_;
 
-    _key_t split_k;
-    BaseNode * split_node;
-    bool splitIf = insert_recursive(root_, key, val, &split_k, &split_node);
-    
-    if(splitIf) {
-        Record tmp[2] = {Record(MIN_KEY, (uint64_t)root_), Record(split_k, (uint64_t)split_node)};
-        ROInner * newroot = new ROInner(tmp, 2);
-        root_ = newroot;
+    uint64_t v;
+    while(!cur->Leaf()) {
+        cur->Lookup(key, v);
+        cur = (BaseNode *) v;
     }
-}
-
-template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
-bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::insert_recursive(BaseNode * n, const _key_t & key, const uint64_t val, 
-                                    _key_t * split_k, BaseNode ** split_n) {
-    if(n->Leaf()) {
-        return n->Store(key, val, split_k, split_n);
-    } else {
-        uint64_t v; n->Lookup(key, v);
-        BaseNode * child = (BaseNode *) v;
-
-        _key_t split_k_child;
-        BaseNode * split_n_child;
-        bool splitIf = insert_recursive(child, key, val, &split_k_child, &split_n_child);
-
-        if(splitIf) {
-            bool found = n->Store(split_k_child, (uint64_t)split_n_child, split_k, split_n);
-
-            return found;
+    _key_t split_k_child;
+    BaseNode * split_n_child;
+    bool splitIf = cur->Store(key, val, &split_k_child, &split_n_child);
+    
+    if(splitIf == true) {
+        if(root_ == cur) { 
+            // no any leaf node
+            Record tmp[2] = {Record(MIN_KEY, (uint64_t)root_), 
+                                Record(split_k_child, (uint64_t)split_n_child)};
+            ROInner * newroot = new ROInner(tmp, 2);
+            root_ = newroot;
         } else {
-            return false;
+            // insert into the root node
+            root_->Store(split_k_child, (uint64_t)split_n_child, nullptr, nullptr);
         }
     }
 }

@@ -80,8 +80,9 @@ private:
         return std::min(std::max(0.0, slope * k + intercept), capacity - 1.0);
     }
 
-    bool ShouldRebuild() {
-        return of_count >= count / 4;
+    inline bool ShouldRebuild() {
+        // more than 67% index records are overflowed
+        return of_count > (count << 1) / 3;
     }
     
     void RebuildSubTree();
@@ -182,7 +183,7 @@ private:
     void DoSplit(_key_t * split_key, WOLeaf ** split_node);
 
     static const int NODE_SIZE = GLOBAL_LEAF_SIZE;
-    static const int PIECE_SIZE = 1024;
+    static const int PIECE_SIZE = GLOBAL_LEAF_SIZE / 10;
 
     // meta data
     Record * recs; 
