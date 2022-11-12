@@ -12,7 +12,8 @@
 namespace morphtree {
     
 WOLeaf::WOLeaf() {
-    node_type = NodeType::WOLEAF;
+    node_type = WOLEAF;
+    next_node_type = WOLEAF;
     stats = WOSTATS;
 
     recs = new Record[NODE_SIZE];
@@ -22,7 +23,8 @@ WOLeaf::WOLeaf() {
 }
 
 WOLeaf::WOLeaf(Record * recs_in, int num) {
-    node_type = NodeType::WOLEAF;
+    node_type = WOLEAF;
+    next_node_type = WOLEAF;
     stats = WOSTATS;
 
     recs = new Record[NODE_SIZE];

@@ -94,6 +94,7 @@ struct OFNode {
 
 ROLeaf::ROLeaf() {
     node_type = ROLEAF;
+    next_node_type = ROLEAF;
     stats = ROSTATS;
     of_count = 0;
     count = 0;
@@ -106,6 +107,7 @@ ROLeaf::ROLeaf() {
 
 ROLeaf::ROLeaf(Record * recs_in, int num) {
     node_type = ROLEAF;
+    next_node_type = ROLEAF;
     stats = ROSTATS;
     of_count = 0;
     count = 0;

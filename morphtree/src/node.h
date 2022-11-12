@@ -13,15 +13,17 @@
 
 #include "../include/util.h"
 
-namespace morphtree {
 using std::string;
-// Node types: all non-leaf nodes are of type ROLEAF
-enum NodeType {ROINNER = 0, ROLEAF, WOLEAF};
 
+namespace morphtree {
 // hyper parameters of Morphtree
+const int GLOBAL_LEAF_SIZE   = 10240;    // the maximum node size of a leaf node
+const int SAMPLE_FREQ        = 9;
+
+// Node types: all non-leaf nodes are of type ROLEAF
+enum NodeType {ROINNER = (uint8_t)0, ROLEAF, WOLEAF};
 const uint64_t ROSTATS = 0x0000000000000000; // default statistic of RONode
 const uint64_t WOSTATS = 0xFFFFFFFFFFFFFFFF; // default statistic of WONode
-const int GLOBAL_LEAF_SIZE   = 10240;    // the maximum node size of a leaf node
 
 // We do NOT use virtual function here, 
 // as it brings extra overhead of searching virtual table
@@ -31,7 +33,7 @@ public:
     
     void DeleteNode();
 
-    void TypeManager(bool isWrite);
+    void MorphJudge(bool isWrite);
 
 public:
     bool Store(const _key_t & k, uint64_t v, _key_t * split_key, BaseNode ** split_node);
@@ -53,9 +55,11 @@ public:
 public:
     // Node header
     uint8_t node_type;
-    uint8_t lock;
-    char padding[6];
-    uint64_t stats;
+    uint8_t next_node_type;
+    uint8_t node_status;   //[000000LM] L for locking and M for morphing
+    uint8_t unused;
+    uint32_t lsn;   // last morphing lsn, leaf node only
+    uint64_t stats; // sampled history
 };
 
 // Inner node structures
@@ -92,10 +96,6 @@ private:
 public:
     static const int PROBE_SIZE       = 4;
     static const int BNODE_SIZE       = 12;
-
-    int32_t capacity;
-    int32_t count;
-    ROInner *sibling;
     
     // model
     double slope;
@@ -103,7 +103,9 @@ public:
     // data
     Record *recs;
     int32_t of_count;
-    char dummy[4];
+    int32_t capacity;
+    int32_t count;
+    char dummy[12];
 };
 
 // read optimized leaf nodes
@@ -146,14 +148,17 @@ public:
     static const int PROBE_SIZE = 8;
     static const int NODE_SIZE = GLOBAL_LEAF_SIZE;
 
-    // meta data
+public:
+    // public: meta data
+    BaseNode *sibling;
+    BaseNode *shadow;
+
+private:
+    Record *recs;
     double slope;
     double intercept;
-    Record *recs;
     int32_t of_count;
     int32_t count;
-    ROLeaf *sibling;
-    char dummy[8];
 };
 
 // write optimzied leaf nodes
@@ -182,17 +187,21 @@ public:
 private:
     void DoSplit(_key_t * split_key, WOLeaf ** split_node);
 
+public:
+    // public meta data
+    BaseNode * sibling;
+    BaseNode *shadow;
+
+private:
     static const int NODE_SIZE = GLOBAL_LEAF_SIZE;
     static const int PIECE_SIZE = GLOBAL_LEAF_SIZE / 10;
-
-    // meta data
+    // private meta data
     Record * recs; 
-    WOLeaf * sibling;
     int16_t inital_count;
     int16_t insert_count;
     int16_t swap_pos;
     int16_t unused;
-    char dummy[24];
+    char dummy[16];
 };
 
 // Swap the metadata of two nodes
@@ -204,10 +213,6 @@ inline void SwapNode(BaseNode * a, BaseNode *b) {
     memcpy(b, tmp, COMMON_SIZE);
 }
 
-// Global variables and functions controling the morphing of Morphtree 
-extern bool do_morphing;
-extern uint64_t global_stats;
-extern void MorphNode(BaseNode * leaf, NodeType from, NodeType to);
 } // namespace morphtree
 
 #endif // __MORPHTREE_BASENODE__

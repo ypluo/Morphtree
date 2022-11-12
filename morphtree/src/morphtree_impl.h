@@ -2,6 +2,7 @@
 #define __MORPHTREE_IMPL_H__
 
 #include "node.h"
+#include "do_morph.h"
 
 namespace morphtree {
 
@@ -37,17 +38,16 @@ MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::MorphtreeImpl() {
     switch(INIT_LEAF_TYPE) {
     case NodeType::ROLEAF:
         root_ = new ROLeaf(); // TODO
-        global_stats = ROSTATS;
         break;
     case NodeType::WOLEAF:
         root_ = new WOLeaf();
-        global_stats = WOSTATS;
         break;
     }
 
     // global variables assignment
     do_morphing = MORPH_IF;
-    global_stats = 0;
+    glsn = 0;
+    gacn = 0;
 }
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
@@ -55,7 +55,6 @@ MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::MorphtreeImpl(std::vector<Record> & ini
     root_ = bulkload(initial_recs);
     // global variables assignment
     do_morphing = MORPH_IF;
-    global_stats = 0;
 }
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
@@ -65,7 +64,6 @@ MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::~MorphtreeImpl() {
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::lookup(const _key_t &key, uint64_t & val) {
-    // global_stats = (global_stats << 1);
     BaseNode * cur = root_;
 
     uint64_t v;
@@ -79,7 +77,6 @@ bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::lookup(const _key_t &key, uint64_t
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 void MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::insert(const _key_t &key, uint64_t val) {
-    // global_stats = (global_stats << 1) + 1;
     BaseNode * cur = root_;
 
     uint64_t v;
@@ -112,7 +109,6 @@ void MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::Print() {
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::update(const _key_t & key, const uint64_t val) {
-    // global_stats = (global_stats << 1);
     BaseNode * cur = root_;
 
     uint64_t v;
@@ -126,7 +122,6 @@ bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::update(const _key_t & key, const u
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::remove(const _key_t & key) {
-    // global_stats = (global_stats << 1);
     BaseNode * cur = root_;
 
     uint64_t v;
