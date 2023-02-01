@@ -4,6 +4,7 @@
 namespace morphtree {
 // Predict the node type of a leaf node according to its access history
 void BaseNode::MorphJudge(bool isWrite) {
+    return ;
     // update sampled history
     stats = (stats << 1) + (isWrite ? 1 : 0);
     

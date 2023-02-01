@@ -89,6 +89,7 @@ void load(std::vector<KeyType> &init_keys, std::vector<KeyType> &keys,
   std::string read("READ");
   std::string update("UPDATE");
   std::string scan("SCAN");
+  std::string remove("DELETE");
 
   size_t count = 0;
   while (true) {
@@ -142,6 +143,10 @@ void load(std::vector<KeyType> &init_keys, std::vector<KeyType> &keys,
       ops.push_back(OP_SCAN);
       keys.push_back(key);
       ranges.push_back(range);
+    }
+    else if (op.compare(remove) == 0) {
+      ops.push_back(OP_DELETE);
+      keys.push_back(key);
     }
     else {
       std::cout << "UNRECOGNIZED CMD!\n";
@@ -217,11 +222,11 @@ void exec(int index_type,
     return;
   }
   
-  size_t warmup_size;
-  if(detail_tp == false)
-    warmup_size = ops.size() / 10;
-  else 
-    warmup_size = 0;
+  size_t warmup_size = 0;
+  // if(detail_tp == false)
+  //   warmup_size = ops.size() / 10;
+  // else 
+  //   warmup_size = 0;
 
   // warmup part
   ValType v;
@@ -231,12 +236,13 @@ void exec(int index_type,
         idx->insert(keys[i], ValType(std::abs(keys[i])));
       } else if (op == OP_READ) { //READ
         bool found = idx->find(keys[i], &v);
-        // assert(v == ValType(std::abs(keys[i])));
         // assert(found == true);
       } else if (op == OP_UPSERT) { //UPDATE
         idx->upsert(keys[i], ValType(std::abs(keys[i])));
       } else if (op == OP_SCAN) { //SCAN
         idx->scan(keys[i], ranges[i]);
+      } else if (op == OP_DELETE) {
+        idx->remove(keys[i]);
       }
   }
   
@@ -260,13 +266,14 @@ void exec(int index_type,
         idx->insert(keys[i], ValType(std::abs(keys[i])));
       } else if (op == OP_READ) { //READ
         bool found = idx->find(keys[i], &v);
-        // assert(v == ValType(std::abs(keys[i])));
         // assert(found == true);
         if(!found) counter += 1; 
       } else if (op == OP_UPSERT) { //UPDATE
         idx->upsert(keys[i], ValType(std::abs(keys[i])));
       } else if (op == OP_SCAN) { //SCAN
         idx->scan(keys[i], ranges[i]);
+      } else if (op == OP_DELETE) {
+        idx->remove(keys[i]);
       }
 
       if(detail_tp == true && (i + 1) % INTERVAL == 0) {
