@@ -11,6 +11,7 @@
 #include <cstring>
 #include <string>
 
+#include "versionlock.h"
 #include "../include/util.h"
 
 namespace morphtree {
@@ -51,11 +52,14 @@ public:
     void Print(string prefix);
 
 public:
-    // Node header
+    // Node header: 32 bytes
     uint8_t node_type;
-    uint8_t lock;
-    char padding[6];
+    uint8_t flag;
+    VersionLock lock;
+    uint32_t count;
     uint64_t stats;
+    BaseNode * sibling;
+    BaseNode * shadow;
 };
 
 // Inner node structures
@@ -92,21 +96,17 @@ private:
 public:
     static const int PROBE_SIZE       = 4;
     static const int BNODE_SIZE       = 12;
-
-    int32_t capacity;
-    int32_t count;
-    ROInner *sibling;
-    
-    // model
+    // model: 16 Bytes
     double slope;
     double intercept;
     // data
     Record *recs;
-    int32_t of_count;
-    char dummy[4];
+    uint32_t capacity;
+    uint32_t of_count;
 };
 
 // read optimized leaf nodes
+struct Bucket;
 class ROLeaf : public BaseNode {
 public:
     ROLeaf();
@@ -130,12 +130,10 @@ public:
     void Print(string prefix);
 
 private:
-    void ScanOneBucket(int startPos, Record *result, int & cur, int end);
-
     void DoSplit(_key_t * split_key, ROLeaf ** split_node);
 
     inline bool ShouldSplit() {
-        return count >= GLOBAL_LEAF_SIZE || of_count > (GLOBAL_LEAF_SIZE / 6);
+        return count >= GLOBAL_LEAF_SIZE || of_count > (GLOBAL_LEAF_SIZE / 4);
     }
 
     inline int Predict(const _key_t & k) {
@@ -143,17 +141,17 @@ private:
     }
 
 public:
-    static const int PROBE_SIZE = 8;
+    static const int PROBE_SIZE = 16;
     static const int NODE_SIZE = GLOBAL_LEAF_SIZE;
 
-    // meta data
+    // model
     double slope;
     double intercept;
-    Record *recs;
-    int32_t of_count;
-    int32_t count;
-    ROLeaf *sibling;
-    char dummy[8];
+
+    // data
+    Bucket *buckets;
+    uint32_t of_count;
+    char dummy[4];
 };
 
 // write optimzied leaf nodes
@@ -185,14 +183,12 @@ private:
     static const int NODE_SIZE = GLOBAL_LEAF_SIZE;
     static const int PIECE_SIZE = GLOBAL_LEAF_SIZE / 10;
 
-    // meta data
+    // data
     Record * recs; 
-    WOLeaf * sibling;
-    int16_t inital_count;
-    int16_t insert_count;
-    int16_t swap_pos;
-    int16_t unused;
-    char dummy[24];
+    uint32_t initial_count;
+    uint32_t insert_count;
+    uint32_t swap_pos;
+    char dummy[12];
 };
 
 // Swap the metadata of two nodes

@@ -9,86 +9,119 @@
 
 namespace morphtree {
 
-static const int MARGIN = ROLeaf::PROBE_SIZE;
-
-// Overflow node
-struct OFNode {
+struct Bucket {
+    // bucket header
+    uint32_t versioned_lock;
+    uint16_t cap;
     uint16_t len;
-    uint8_t lock;
-    char dummy[5];
+    Record * recs;
 
-    Record recs_[0];
-    
-    OFNode(): len(0) {}
+    Bucket() {
+        cap = ROLeaf::PROBE_SIZE;
+        len = 0;
+        recs = new Record[cap];
+    }
+
+    ~Bucket() {
+        delete [] recs;
+    }
 
     bool Store(const _key_t & k, uint64_t v) {
-        // this function can be slow
-        if(recs_[len - 1].key == MAX_KEY) {
-            uint16_t i;
-            for(i = 0; i < len; i++) {
-                if(recs_[i].key > k) {
-                    break;
-                }
-            }
+        if(len >= cap) { // no more space
+            uint16_t new_cap = cap * 3 / 2;
+            Record * new_recs = new Record[new_cap];
+            memcpy(new_recs, recs, sizeof(Record) * len);
+            std::swap(new_recs, recs);
+            cap = new_cap;
+            delete [] new_recs;
+        } 
 
-            memmove(&recs_[i + 1], &recs_[i], sizeof(Record) * (len - 1 - i));
-            recs_[i] = Record(k, v);
-
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    bool Lookup(const _key_t & k, uint64_t & v) {
-        if(len < 64) {
-            // scan search
-            uint16_t i;
-            for(i = 0; i < len; i++) {
-                if(recs_[i].key >= k) {
-                    break;
-                }
-            }
-
-            if (recs_[i].key == k) {
-                v = recs_[i].val;
-                return true;
-            } else {
-                return false;
-            }
-        } else {
-            return BinSearch(recs_, len, k, v);
-        }
-    }
-
-    bool update(const _key_t & k, uint64_t v) {
-        auto binary_update = [&v](Record & r) {
-            if(r.flag == 1) {
-                return false;
-            } else {
-                r.val = v;
-                return true;
-            }
-        };
-        return BinSearch_CallBack(recs_, len, k, binary_update);
-    }
-
-    bool remove(const _key_t & k) {
-        // this function might be slow
         uint16_t i;
         for(i = 0; i < len; i++) {
-            if(recs_[i].key >= k) {
+            if(recs[i].key > k) {
+                break;
+            }
+        }
+        memmove(&recs[i + 1], &recs[i], sizeof(Record) * (len - i));
+        recs[i] = Record(k, v);
+
+        return (++len) > ROLeaf::PROBE_SIZE;
+    }
+
+    bool Lookup(const _key_t & k, uint64_t &v) {
+        if(len > 64) {
+            return BinSearch(recs, len, k, v);
+        }
+
+        uint16_t i;
+        for(i = 0; i < len; i++) {
+            if(recs[i].key >= k) {
                 break;
             }
         }
 
-        if(recs_[i].key == k) {
-            memmove(&recs_[i], &recs_[i + 1], (len - i) * sizeof(Record));
-            recs_[len - 1] = Record();
+        if (recs[i].key == k) {
+            v = recs[i].val;
             return true;
         } else {
             return false;
         }
+    }
+
+    bool Update(const _key_t & k, uint64_t v) {
+        if(len > 64) {
+            auto binary_update = [&v](Record & r) {
+                r.val = v;
+                return true;
+            };
+            return BinSearch_CallBack(recs, len, k, binary_update);
+        }
+
+        uint16_t i;
+        for(i = 0; i < len; i++) {
+            if(recs[i].key >= k) {
+                break;
+            }
+        }
+
+        if (recs[i].key == k) {
+            recs[i].val = v;
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    bool Remove(const _key_t & k) {
+        uint16_t i;
+        for(i = 0; i < len; i++) {
+            if(recs[i].key >= k) {
+                break;
+            }
+        }
+
+        if(recs[i].key == k) {
+            memmove(&recs[i], &recs[i + 1], sizeof(Record) * (len - i));
+            len--;
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    int Scan(const _key_t & k, int out_len, Record *result) {
+        uint16_t i;
+        for(i = 0; i < len; i++) {
+            if(recs[i].key >= k) {
+                break;
+            }
+        }
+
+        int no = 0;
+        for(; i < len && no < out_len; i++) {
+            result[no++] = recs[i];
+        }
+        return no;
     }
 };
 
@@ -101,7 +134,7 @@ ROLeaf::ROLeaf() {
 
     slope = (double)(NODE_SIZE - 1) / MAX_KEY;
     intercept = 0;
-    recs = new Record[NODE_SIZE];
+    buckets = new Bucket[NODE_SIZE / PROBE_SIZE];
 }
 
 ROLeaf::ROLeaf(Record * recs_in, int num) {
@@ -121,7 +154,7 @@ ROLeaf::ROLeaf(Record * recs_in, int num) {
     // caculate the linear model
     slope = model.a_ * NODE_SIZE / num;
     intercept = model.b_ * NODE_SIZE / num;
-    recs = new Record[NODE_SIZE];
+    buckets = new Bucket[NODE_SIZE / PROBE_SIZE];
 
     for(int i = 0; i < num; i++) {
         this->Store(recs_in[i].key, recs_in[i].val, nullptr, nullptr);
@@ -129,73 +162,15 @@ ROLeaf::ROLeaf(Record * recs_in, int num) {
 }
 
 ROLeaf::~ROLeaf() {
-    for(int i = 0; i < NODE_SIZE / PROBE_SIZE; i++) {
-        if(recs[PROBE_SIZE * i + PROBE_SIZE - 1].val != 0){
-            uint64_t v = recs[PROBE_SIZE * i + PROBE_SIZE - 1].val;
-            delete (char *)v;
-        }
-    }
-
-    delete recs;
+    delete [] buckets;
 }
 
 bool ROLeaf::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROLeaf ** split_node) {
-    _key_t kk = k;
-    int predict = Predict(kk);
-    predict = predict / PROBE_SIZE * PROBE_SIZE;
+    int bucket_no = Predict(k) / PROBE_SIZE;
 
-    int i;
-    for (i = predict; i < predict + PROBE_SIZE - 1; i++) {
-        if(recs[i].key > kk)
-            break;
-    }
-
-    // try to find a empty slot
-    Record last_one = recs[predict + PROBE_SIZE - 2];
-    if(last_one.key == MAX_KEY) { 
-        // there is an empty slot
-        memmove(&recs[i + 1], &recs[i], sizeof(Record) * (predict + PROBE_SIZE - 2 - i));
-        recs[i] = Record(kk, v);
-    } else {
-        // no empty slot found
-        uint64_t vv = recs[predict + PROBE_SIZE - 1].val;
-        OFNode * ofnode = (OFNode *) vv;
-        if (ofnode == nullptr) {
-            ofnode = (OFNode *) new char[sizeof(OFNode) + 8 * sizeof(Record)];
-            Record * _discard = new(ofnode->recs_) Record[8]; // just for initializition
-
-            ofnode->len = 8;
-            recs[predict + PROBE_SIZE - 1].val = (uint64_t) ofnode;
-        }
-
-        if(last_one.key > kk) { // kick the last record into overflow node
-            memmove(&recs[i + 1], &recs[i], sizeof(Record) * (predict + PROBE_SIZE - 2 - i));
-            recs[i] = Record(kk, v); 
-            kk = last_one.key;
-            v = last_one.val;
-        }
-
-        // store the target record into overflow node
-        if(!ofnode->Store(kk, v)) {
-            // the overflow node is full
-            OFNode * old_ofnode = ofnode;
-            
-            // create a new overflow node, two times the formal one
-            int16_t newlen = old_ofnode->len * 2;
-            ofnode = (OFNode *) new char[sizeof(OFNode) + newlen * sizeof(Record)];
-            Record * _discard = new(ofnode->recs_) Record[newlen]; // just for initializition
-            
-            // copy records into it
-            ofnode->len = newlen;
-            memcpy(ofnode->recs_, old_ofnode->recs_, sizeof(Record) * old_ofnode->len);
-            ofnode->Store(kk, v);
-            recs[predict + PROBE_SIZE - 1].val = (uint64_t) ofnode;
-
-            delete old_ofnode;
-        }
+    bool overflow = buckets[bucket_no].Store(k, v);
+    if (overflow)
         of_count += 1;
-    }
-    count += 1;
 
     if(split_node != nullptr && ShouldSplit()) {
         DoSplit(split_key, split_node);
@@ -206,193 +181,40 @@ bool ROLeaf::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROLeaf ** s
 }
 
 bool ROLeaf::Lookup(const _key_t & k, uint64_t &v) {
-    int predict = Predict(k);
-    predict = predict / PROBE_SIZE * PROBE_SIZE;
-
-    int i;
-    for (i = predict; i < predict + PROBE_SIZE - 1; i++) {
-        if(recs[i].key == k) {
-            v = recs[i].val;
-            return true;
-        } else if(recs[i].key > k) {
-            return false;
-        }
-    }
-
-    uint64_t vv = recs[predict + PROBE_SIZE - 1].val;
-    OFNode * ofnode = (OFNode *) vv;
-    if(ofnode != nullptr) {  
-        return ofnode->Lookup(k, v);
-    } else {
-        return false;
-    }
+    int bucket_no = Predict(k) / PROBE_SIZE;
+    return buckets[bucket_no].Lookup(k, v);
 }
 
 bool ROLeaf::Update(const _key_t & k, uint64_t v) {
-    int predict = Predict(k);
-    predict = predict / PROBE_SIZE * PROBE_SIZE;
-
-    int i;
-    for (i = predict; i < predict + PROBE_SIZE - 1; i++) {
-        if(recs[i].key == k) {
-            recs[i].val = v;
-            return true;
-        } else if(recs[i].key > k) {
-            return false;
-        }
-    }
-
-    uint64_t vv = recs[predict + PROBE_SIZE - 1].val;
-    OFNode * ofnode = (OFNode *) vv;
-    if(ofnode != nullptr) {  
-        return ofnode->update(k, v);
-    } else {
-        return false;
-    }
+    int bucket_no = Predict(k) / PROBE_SIZE;
+    return buckets[bucket_no].Update(k, v);
 }
 
 bool ROLeaf::Remove(const _key_t & k) {
-    int predict = Predict(k);
-    predict = predict / PROBE_SIZE * PROBE_SIZE;
-
-    int i;
-    for (i = predict; i < predict + PROBE_SIZE - 1; i++) {
-        if(recs[i].key >= k)
-            break;
-    }
-
-    uint64_t vv = recs[predict + PROBE_SIZE - 1].val;
-    OFNode * ofnode = (OFNode *) vv;
-    if(i < predict + PROBE_SIZE - 1 && recs[i].key == k) {
-        // found the record in inline bucket
-        memmove(&recs[i], &recs[i + 1], (predict + PROBE_SIZE - 2 - i) * sizeof(Record));
-        recs[predict + PROBE_SIZE - 2] = Record();
-
-        if(ofnode != nullptr) {
-            // shift one record from ofnode into inline bucket
-            recs[predict + PROBE_SIZE - 2] = ofnode->recs_[0];
-            bool foundIf = ofnode->remove(ofnode->recs_[0].key);
-            if(ofnode->recs_[0].key == MAX_KEY) { // delete the ofnode if necessary
-                recs[predict + PROBE_SIZE - 1] = Record();
-                delete ofnode;
-            }
-            return foundIf;
-        }
-
-        return true;
-    } else if(ofnode != nullptr) {  
-        bool foundIf = ofnode->remove(k);
-        if(ofnode->recs_[0].key == MAX_KEY) { // delete the ofnode if necessary
-            recs[predict + PROBE_SIZE - 1] = Record();
-            delete ofnode;
-        }
-        return foundIf;
-    }
-    return false;
-}
-
-void ROLeaf::ScanOneBucket(int startPos, Record *result, int &cur, int end) {
-    for(int i = startPos; i < startPos + PROBE_SIZE - 1; i++) {
-        if(recs[i].key != MAX_KEY)
-            result[cur++] = recs[i];
-        else // no overflow node
-            return;
-        if(cur >= end) return;
-    }
-    
-    uint64_t vv = recs[startPos + PROBE_SIZE - 1].val;
-    OFNode * ofnode = (OFNode *) vv;
-    if(ofnode != nullptr) {  
-        for(int i = 0; i < ofnode->len; i++) {
-            if(ofnode->recs_[i].key != MAX_KEY)
-                result[cur++] = ofnode->recs_[i];
-            if(cur >= end) return;
-        }
-    }
-
-    return;
+    int bucket_no = Predict(k) / PROBE_SIZE;
+    return buckets[bucket_no].Remove(k);
 }
 
 int ROLeaf::Scan(const _key_t &startKey, int len, Record *result) {
-    int predict = Predict(startKey);
-    predict = predict / PROBE_SIZE * PROBE_SIZE;
-
-    int i;
-    for (i = predict; i < predict + PROBE_SIZE - 1; i++) {
-        if(recs[i].key >= startKey) 
-            break;
+    int bucket_no = Predict(startKey) / PROBE_SIZE;
+    int new_len = len;
+    while(new_len > 0 && bucket_no < (NODE_SIZE / PROBE_SIZE)) {
+        int no = buckets[bucket_no].Scan(startKey, new_len, result);
+        new_len -= no; 
+        result += no;
+        bucket_no += 1;
     }
 
-    // scan in the first bucket that the startKey resides
-    int cur = 0;
-    if(i < predict + PROBE_SIZE - 1) {
-        for (; i < predict + PROBE_SIZE - 1; i++) {
-            if(recs[i].key != MAX_KEY)
-                result[cur++] = recs[i];
-            else 
-                break;
-            if(cur >= len) return len;
-        }
-
-        uint64_t vv = recs[predict + PROBE_SIZE - 1].val;
-        OFNode * ofnode = (OFNode *) vv;
-        if(ofnode != nullptr) {  
-            for(int i = 0; i < ofnode->len; i++) {
-                if(ofnode->recs_[i].key != MAX_KEY)
-                    result[cur++] = ofnode->recs_[i];
-                else 
-                    break;
-                if(cur >= len) return len;
-            }
-        }
+    if(new_len > 0) {
+        return (len - new_len) + sibling->Scan(startKey, new_len, result);
     } else {
-        uint64_t vv = recs[predict + PROBE_SIZE - 1].val;
-        OFNode * ofnode = (OFNode *) vv;
-        if(ofnode != nullptr) {
-            int i = 0;
-            for(i = 0; i < ofnode->len; i++) {
-                if(ofnode->recs_[i].key >= startKey) {
-                    break;
-                }
-            }
-
-            for(; i < ofnode->len; i++) {
-                if(ofnode->recs_[i].key != MAX_KEY)
-                    result[cur++] = ofnode->recs_[i];
-                else 
-                    break;
-                if(cur >= len) return len;
-            }
-        }
-    }
-
-    // scan the next buckets if necessary
-    int startPos = predict + PROBE_SIZE;
-    while(cur < len && startPos < NODE_SIZE) {
-        ScanOneBucket(startPos, result, cur, len);
-        startPos += PROBE_SIZE;
-    }
-
-    if(cur >= len) 
         return len;
-    else if(sibling == nullptr) 
-        return cur;
-    else
-        return cur + ((BaseNode *) sibling)->Scan(result[cur - 1].key, len - cur, result + cur);
+    }
 }
 
 void ROLeaf::Dump(std::vector<Record> & out) {
-    // retrieve records from this node
-    for(int i = 0; i < NODE_SIZE; i++) {
-        if(recs[i].key != MAX_KEY) {
-            out.push_back(recs[i]);
-        } else if(recs[i].val != 0) {
-            uint64_t vv = recs[i].val;
-            OFNode * ofnode = (OFNode *) vv;
-            for(int j = 0; j < ofnode->len && ofnode->recs_[j].key != MAX_KEY; j++) {
-                out.push_back(ofnode->recs_[j]);
-            }
-        }
+    for(int i = 0; i < (NODE_SIZE / PROBE_SIZE); i++) {
+        out.insert(out.end(), buckets[i].recs, buckets[i].recs + buckets[i].len);
     }
 }
 
