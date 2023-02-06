@@ -11,7 +11,8 @@ namespace morphtree {
 
 struct Bucket {
     // bucket header
-    uint32_t versioned_lock;
+    VersionLock lock;
+    uint16_t unused;
     uint16_t cap;
     uint16_t len;
     Record * recs;
@@ -26,7 +27,8 @@ struct Bucket {
         delete [] recs;
     }
 
-    bool Store(const _key_t & k, uint64_t v) {
+    bool Append(const _key_t & k, uint64_t v) {
+        // without any lock on bucket
         if(len >= cap) { // no more space
             uint16_t new_cap = cap * 3 / 2;
             Record * new_recs = new Record[new_cap];
@@ -48,10 +50,17 @@ struct Bucket {
         return (++len) > ROLeaf::PROBE_SIZE;
     }
 
-    bool Lookup(const _key_t & k, uint64_t &v) {
-        if(len > 64) {
-            return BinSearch(recs, len, k, v);
-        }
+    bool Store(const _key_t & k, uint64_t v) {
+        // lock-based insertion
+        lock.Lock();
+        if(len >= cap) { // no more space
+            uint16_t new_cap = cap * 3 / 2;
+            Record * new_recs = new Record[new_cap];
+            memcpy(new_recs, recs, sizeof(Record) * len);
+            std::swap(new_recs, recs);
+            cap = new_cap;
+            delete [] new_recs;
+        } 
 
         uint16_t i;
         for(i = 0; i < len; i++) {
@@ -60,8 +69,42 @@ struct Bucket {
             }
         }
 
+        if(recs[i].key == k) { // an update operation
+            recs[i].val = v;
+            lock.UnLock();
+            return false;
+        }
+
+        memmove(&recs[i + 1], &recs[i], sizeof(Record) * (len - i));
+        recs[i] = Record(k, v);
+
+        lock.UnLock();
+        return (++len) > ROLeaf::PROBE_SIZE;
+    }
+
+    bool Lookup(const _key_t & k, uint64_t &v) {
+        // lock-free lookup operation
+        retry_lookup:
+        auto v1 = lock.Version();
+        if(len > 64) {
+            bool found = BinSearch(recs, len, k, v);
+            if(lock.IsLocked() || v1 != lock.Version()) goto retry_lookup;
+
+            return found;
+        }
+
+        uint16_t i;
+        for(i = 0; i < len; i++) {
+            if(recs[i].key >= k) {
+                break;
+            }
+        }
+        
+        uint64_t get_val = recs[i].val;
+        if(lock.IsLocked() || v1 != lock.Version()) goto retry_lookup;
+
         if (recs[i].key == k) {
-            v = recs[i].val;
+            v = get_val;
             return true;
         } else {
             return false;
@@ -69,12 +112,17 @@ struct Bucket {
     }
 
     bool Update(const _key_t & k, uint64_t v) {
+        // lock-based update operation
+        lock.Lock();
         if(len > 64) {
             auto binary_update = [&v](Record & r) {
                 r.val = v;
                 return true;
             };
-            return BinSearch_CallBack(recs, len, k, binary_update);
+            bool found = BinSearch_CallBack(recs, len, k, binary_update);
+
+            lock.UnLock();
+            return found;
         }
 
         uint16_t i;
@@ -86,13 +134,18 @@ struct Bucket {
 
         if (recs[i].key == k) {
             recs[i].val = v;
+
+            lock.UnLock();
             return true;
         } else {
+            lock.UnLock();
             return false;
         }
     }
 
     bool Remove(const _key_t & k) {
+        // lock-based deletion
+        lock.Lock();
         uint16_t i;
         for(i = 0; i < len; i++) {
             if(recs[i].key >= k) {
@@ -103,13 +156,19 @@ struct Bucket {
         if(recs[i].key == k) {
             memmove(&recs[i], &recs[i + 1], sizeof(Record) * (len - i));
             len--;
+
+            lock.UnLock();
             return true;
         } else {
+            lock.UnLock();
             return false;
         }
     }
 
     int Scan(const _key_t & k, int out_len, Record *result) {
+        // lock-free scan operation
+        retry_scan:
+        auto v1 = lock.Version();
         uint16_t i;
         for(i = 0; i < len; i++) {
             if(recs[i].key >= k) {
@@ -121,7 +180,22 @@ struct Bucket {
         for(; i < len && no < out_len; i++) {
             result[no++] = recs[i];
         }
+
+        if(lock.IsLocked() || v1 != lock.Version()) goto retry_scan;
+
         return no;
+    }
+
+    void Dump(std::vector<Record> & out) {
+        retry_dump:
+        auto v1 = lock.Version();
+        auto old_size = out.size();
+        out.insert(out.end(), recs, recs + len);
+        if(lock.IsLocked() || v1 != lock.Version()) {
+            out.resize(old_size);
+            goto retry_dump;
+        }
+        return;
     }
 };
 
@@ -157,7 +231,7 @@ ROLeaf::ROLeaf(Record * recs_in, int num) {
     buckets = new Bucket[NODE_SIZE / PROBE_SIZE];
 
     for(int i = 0; i < num; i++) {
-        this->Store(recs_in[i].key, recs_in[i].val, nullptr, nullptr);
+        this->Append(recs_in[i].key, recs_in[i].val);
     }
 }
 
@@ -165,10 +239,21 @@ ROLeaf::~ROLeaf() {
     delete [] buckets;
 }
 
-bool ROLeaf::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROLeaf ** split_node) {
+bool ROLeaf::Append(const _key_t & k, uint64_t v) {
     int bucket_no = Predict(k) / PROBE_SIZE;
+    bool overflow = buckets[bucket_no].Append(k, v);
+    if (overflow)
+        of_count += 1;
+    return false;
+}
 
+bool ROLeaf::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROLeaf ** split_node) {
+    roleaf_store_retry:
+    auto v1 = nodelock.Version();
+    int bucket_no = Predict(k) / PROBE_SIZE;
     bool overflow = buckets[bucket_no].Store(k, v);
+    if(nodelock.IsLocked() || v1 != nodelock.Version()) goto roleaf_store_retry;
+
     if (overflow)
         of_count += 1;
 
@@ -181,21 +266,42 @@ bool ROLeaf::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROLeaf ** s
 }
 
 bool ROLeaf::Lookup(const _key_t & k, uint64_t &v) {
-    int bucket_no = Predict(k) / PROBE_SIZE;
-    return buckets[bucket_no].Lookup(k, v);
+    roleaf_lookup_retry:
+    auto v1 = nodelock.Version();
+    // critical section
+    int bucket_no = Predict(k) / PROBE_SIZE; 
+    bool found = buckets[bucket_no].Lookup(k, v); 
+    if(nodelock.IsLocked() || v1 != nodelock.Version()) goto roleaf_lookup_retry;
+
+    // In the critical section, current node does not split
+    return found;
 }
 
 bool ROLeaf::Update(const _key_t & k, uint64_t v) {
-    int bucket_no = Predict(k) / PROBE_SIZE;
-    return buckets[bucket_no].Update(k, v);
+    roleaf_update_retry:
+    auto v1 = nodelock.Version();
+    // critical section
+    int bucket_no = Predict(k) / PROBE_SIZE;    
+    bool found = buckets[bucket_no].Update(k, v);
+    if(nodelock.IsLocked() || v1 != nodelock.Version()) goto roleaf_update_retry;
+
+    // In the critical section, current node does not split
+    return found;
 }
 
 bool ROLeaf::Remove(const _key_t & k) {
+    roleaf_remove_retry:
+    auto v1 = nodelock.Version();
+    // critical section
     int bucket_no = Predict(k) / PROBE_SIZE;
-    return buckets[bucket_no].Remove(k);
+    bool found = buckets[bucket_no].Remove(k);
+    if(nodelock.IsLocked() || v1 != nodelock.Version()) goto roleaf_remove_retry;
+    return found;
 }
 
 int ROLeaf::Scan(const _key_t &startKey, int len, Record *result) {
+    roleaf_scan_retry:
+    auto v1 = nodelock.Version();
     int bucket_no = Predict(startKey) / PROBE_SIZE;
     int new_len = len;
     while(new_len > 0 && bucket_no < (NODE_SIZE / PROBE_SIZE)) {
@@ -205,7 +311,9 @@ int ROLeaf::Scan(const _key_t &startKey, int len, Record *result) {
         bucket_no += 1;
     }
 
-    if(new_len > 0) {
+    if(nodelock.IsLocked() || v1 != nodelock.Version()) goto roleaf_scan_retry;
+
+    if(new_len > 0) {  
         return (len - new_len) + sibling->Scan(startKey, new_len, result);
     } else {
         return len;
@@ -214,7 +322,7 @@ int ROLeaf::Scan(const _key_t &startKey, int len, Record *result) {
 
 void ROLeaf::Dump(std::vector<Record> & out) {
     for(int i = 0; i < (NODE_SIZE / PROBE_SIZE); i++) {
-        out.insert(out.end(), buckets[i].recs, buckets[i].recs + buckets[i].len);
+        buckets[i].Dump(out);
     }
 }
 
@@ -230,6 +338,9 @@ void ROLeaf::Print(string prefix) {
 }
 
 void ROLeaf::DoSplit(_key_t * split_key, ROLeaf ** split_node) {
+    // lock-based split operation
+    nodelock.Lock();
+    
     std::vector<Record> data;
     data.reserve(count);
     Dump(data);
@@ -237,6 +348,7 @@ void ROLeaf::DoSplit(_key_t * split_key, ROLeaf ** split_node) {
     int pid = getSubOptimalSplitkey(data.data(), data.size());
     // creat two new nodes
     ROLeaf * left = new ROLeaf(data.data(), pid);
+    left->nodelock.Lock();
     ROLeaf * right = new ROLeaf(data.data() + pid, data.size() - pid);
     left->sibling = right;
     right->sibling = sibling;
@@ -246,6 +358,8 @@ void ROLeaf::DoSplit(_key_t * split_key, ROLeaf ** split_node) {
     *split_node = right;
 
     SwapNode(this, left);
+
+    nodelock.UnLock();
     delete left;
 }
 

@@ -37,7 +37,7 @@ protected:
     }
 };
 
-TEST_F(rotest, DISABLED_lookup) { 
+TEST_F(rotest, lookup) { 
     uint64_t v;
     for(int i = 0; i < TEST_SCALE; i++) {
         // printf("%lf\n", recs[i].key);
@@ -46,7 +46,7 @@ TEST_F(rotest, DISABLED_lookup) {
     }
 } 
 
-TEST_F(rotest, DISABLED_update) { 
+TEST_F(rotest, update) { 
     for(int i = 0; i < TEST_SCALE; i += 2) {
         tree->update(recs[i].key, uint64_t(recs[i].val) * 2);
     }
@@ -62,7 +62,7 @@ TEST_F(rotest, DISABLED_update) {
     }
 } 
 
-TEST_F(rotest, DISABLED_remove) {
+TEST_F(rotest, remove) {
     // remove half of the records
     for(int i = 0; i < TEST_SCALE; i += 2) {
         tree->remove(recs[i].key);

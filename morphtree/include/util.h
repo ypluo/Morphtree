@@ -17,11 +17,10 @@ const _key_t MIN_KEY = typeid(_key_t) == typeid(double) || typeid(_key_t) == typ
 
 struct Record {
     _key_t key;
-    uint64_t flag : 1;  // 0 for valid and 1 for deleted
-    uint64_t val  : 63; // 63 bits for value
+    uint64_t val;
     
-    Record(): key(MAX_KEY), flag(0), val(0) {}
-    Record(_key_t k, uint64_t v) : key(k), flag(0), val(v) {}
+    Record(): key(MAX_KEY), val(0) {}
+    Record(_key_t k, uint64_t v) : key(k), val(v) {}
 
     inline bool operator < (const Record & oth) {
         return key < oth.key;

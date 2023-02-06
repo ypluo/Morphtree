@@ -6,6 +6,7 @@
 #include <vector>
 #include <cstring>
 #include <cmath>
+#include <thread>
 
 #include "node.h"
 
@@ -16,9 +17,7 @@ WOLeaf::WOLeaf() {
     stats = WOSTATS;
 
     recs = new Record[NODE_SIZE];
-    initial_count = 0;
-    insert_count = 0;
-    swap_pos = initial_count;
+    count = 0;
 }
 
 WOLeaf::WOLeaf(Record * recs_in, int num) {
@@ -27,9 +26,7 @@ WOLeaf::WOLeaf(Record * recs_in, int num) {
 
     recs = new Record[NODE_SIZE];
     memcpy(recs, recs_in, sizeof(Record) * num);
-    initial_count = num;
-    insert_count = 0;
-    swap_pos = initial_count;
+    count = num;
 }
 
 WOLeaf::~WOLeaf() {
@@ -37,15 +34,34 @@ WOLeaf::~WOLeaf() {
 }
 
 bool WOLeaf::Store(const _key_t & k, uint64_t v, _key_t * split_key, WOLeaf ** split_node) {
-    recs[initial_count + insert_count++] = Record(k, v);
-
-    if(insert_count % PIECE_SIZE == 0) {
-        int16_t start = insert_count - PIECE_SIZE;
-        std::sort(recs + initial_count + start, recs + initial_count + insert_count);
-        swap_pos = initial_count + insert_count;
+    woleaf_store_retry:
+    // stage 1: reserve a slot
+    uint32_t cur = alloc_count.fetch_add(1, std::memory_order_relaxed);
+    if(cur >= GLOBAL_LEAF_SIZE) { // no more empty slot, wait for the node to split
+        alloc_count.fetch_sub(1, std::memory_order_relaxed); // restore to old value
+        std::this_thread::yield();
+        goto woleaf_store_retry;
     }
     
-    if(initial_count + insert_count == GLOBAL_LEAF_SIZE) {
+    // stage 2: store key value to the slot
+    recs[cur] = {k, v};
+    if(cur - readonly_count == PIECE_SIZE) { // only one writer thread will do sorting
+        sortlock.Lock(); // sortlock helps to coordinate with other operations
+        std::sort(recs + readonly_count, recs + readable_count + PIECE_SIZE);
+        readonly_count += PIECE_SIZE;
+        sortlock.UnLock();
+    }
+
+    // stage 3: thread writing the smallest slot is responsible for updating readable_count
+    while(cur == readable_count && mutex.TryLock()) {
+        while(recs[readable_count].key != MAX_KEY) {
+            readable_count = readable_count + 1;
+        }
+        mutex.UnLock();
+    }
+
+    // handle splittion
+    if(cur == GLOBAL_LEAF_SIZE - 1) {
         DoSplit(split_key, split_node);
         return true;
     } else {
@@ -54,34 +70,36 @@ bool WOLeaf::Store(const _key_t & k, uint64_t v, _key_t * split_key, WOLeaf ** s
 }
 
 bool WOLeaf::Lookup(const _key_t & k, uint64_t &v) {
-    // do binary search in all sorted runs
-    if(BinSearch(recs, initial_count, k, v)) {
+    // do binary search in the initial run
+    if(BinSearch(recs, count, k, v)) {
         return true;
     }
 
-    int16_t bin_end = insert_count / PIECE_SIZE * PIECE_SIZE;
-    for(int i = initial_count; i < initial_count + bin_end; i += PIECE_SIZE) {
+    // do binary search in sorted pieces
+    for(int i = count; i < readonly_count; i += PIECE_SIZE) {
         if(BinSearch(recs + i, PIECE_SIZE, k, v)) {
             return true;
         }
     }
 
-    // do scan in unsorted runs
-    for(int i = initial_count + bin_end; i < initial_count + insert_count; i++) {
+    woleaf_look_retry:
+    auto v1 = sortlock.Version();
+    // do binary search in the unsorted piece
+    for(int i = readonly_count; i < readable_count; i++) {
         if(recs[i].key == k) {
             v = recs[i].val;
-            if(i - initial_count - bin_end > 64) 
-                std::swap(recs[swap_pos++], recs[i]); // bubble the record to the front of unsorted run
+            if(sortlock.IsLocked() || v1 != sortlock.Version()) goto woleaf_look_retry;
             return true;
         }
     }
 
+    if(sortlock.IsLocked() || v1 != sortlock.Version()) goto woleaf_look_retry;
     return false;
 }
 
 bool WOLeaf::Update(const _key_t & k, uint64_t v) {
     auto binary_update = [&v](Record & r) {
-        if(r.flag == 1) {
+        if(r.val == 0) {
             return false;
         } else {
             r.val = v;
@@ -89,64 +107,76 @@ bool WOLeaf::Update(const _key_t & k, uint64_t v) {
         }
     };
 
+    woleaf_update_retry:
+    auto v1 = nodelock.Version();
     // do binary update in all sorted runs
-    if(BinSearch_CallBack(recs, initial_count, k, binary_update)) {
+    if(BinSearch_CallBack(recs, count, k, binary_update)) {
+        if(nodelock.IsLocked() || v1 != nodelock.Version()) goto woleaf_update_retry;
         return true;
     }
 
-    int16_t bin_end = insert_count / PIECE_SIZE * PIECE_SIZE;
-    for(int i = initial_count; i < initial_count + bin_end; i += PIECE_SIZE) {
+    for(int i = count; i < readonly_count; i += PIECE_SIZE) {
         if(BinSearch_CallBack(recs + i, PIECE_SIZE, k, binary_update)) {
+            if(nodelock.IsLocked() || v1 != nodelock.Version()) goto woleaf_update_retry;
             return true;
         }
     }
 
+    sortlock.Lock();
     // do scan in unsorted runs
-    for(int i = initial_count + bin_end; i < initial_count + insert_count; i++) {
+    for(int i = readonly_count; i < readable_count; i++) {
         if(recs[i].key == k) {
             recs[i].val = v;
-            if(i - initial_count - bin_end > 64) 
-                std::swap(recs[swap_pos++], recs[i]); // bubble the record to the front of unsorted run
+            
+            sortlock.UnLock();
+            if(nodelock.IsLocked() && v1 != nodelock.Version()) goto woleaf_update_retry;
             return true;
         }
     }
 
+    sortlock.UnLock();
+    if(nodelock.IsLocked() && v1 != nodelock.Version()) goto woleaf_update_retry;
     return false;
 }
 
 bool WOLeaf::Remove(const _key_t & k) {
     auto binary_remove = [](Record & r) {
-        if(r.flag == 1) {
+        if(r.val == 0) {
             return false;
         } else {
-            r.flag = 1;
+            r.val == 0;
             return true;
         }
     };
 
+    woleaf_remove_retry:
+    auto v1 = nodelock.Version();
     // do binary remove in all sorted runs
-    if(BinSearch_CallBack(recs, initial_count, k, binary_remove)) {
+    if(BinSearch_CallBack(recs, count, k, binary_remove)) {
         return true;
     }
 
-    int16_t bin_end = insert_count / PIECE_SIZE * PIECE_SIZE;
-    for(int i = initial_count; i < initial_count + bin_end; i += PIECE_SIZE) {
+    for(int i = count; i < readonly_count; i += PIECE_SIZE) {
         if(BinSearch_CallBack(recs + i, PIECE_SIZE, k, binary_remove)) {
             return true;
         }
     }
 
+    sortlock.Lock();
     // do scan in unsorted runs
-    for(int i = initial_count + bin_end; i < initial_count + insert_count; i++) {
+    for(int i = readonly_count; i < readable_count; i++) {
         if(recs[i].key == k) {
-            // replace the record under removing with last record in node
-            std::swap(recs[i], recs[initial_count + insert_count - 1]);
-            insert_count -= 1;
+            recs[i].val = 0;
+        
+            sortlock.UnLock();
+            if(nodelock.IsLocked() && v1 != nodelock.Version()) goto woleaf_remove_retry;
             return true;
         }
     }
 
-    return true;
+    sortlock.UnLock();
+    if(nodelock.IsLocked() && v1 != nodelock.Version()) goto woleaf_remove_retry;
+    return false;
 }
 
 int WOLeaf::Scan(const _key_t &startKey, int len, Record *result) {
@@ -154,19 +184,18 @@ int WOLeaf::Scan(const _key_t &startKey, int len, Record *result) {
     Record * sort_runs[MAX_RUN_NUM + 1];
     int ends[MAX_RUN_NUM + 1];
 
-    int16_t total_count = initial_count + insert_count;
-    int16_t bin_end = insert_count / PIECE_SIZE * PIECE_SIZE;
-    if(bin_end < insert_count) {
-        std::sort(recs + initial_count + bin_end, recs + total_count);
-    }
+    uint32_t total_count = readable_count;
+    sortlock.Lock();
+    std::sort(recs + readonly_count, recs + readable_count);
+    sortlock.UnLock();
 
     int run_cnt = 0;
-    if(initial_count > 0) {
+    if(count > 0) {
         sort_runs[0] = recs;
-        ends[0] = initial_count;
+        ends[0] = count;
         run_cnt += 1;
     }
-    for(int i = initial_count; i < total_count; i += PIECE_SIZE) {
+    for(int i = count; i < total_count; i += PIECE_SIZE) {
         sort_runs[run_cnt] = recs + i;
         ends[run_cnt] = (i + PIECE_SIZE <= total_count) ? PIECE_SIZE : total_count - i;
         run_cnt += 1;
@@ -187,19 +216,14 @@ void WOLeaf::Dump(std::vector<Record> & out) {
     Record * sort_runs[MAX_RUN_NUM + 1];
     int ends[MAX_RUN_NUM + 1];
 
-    int16_t total_count = initial_count + insert_count;
-    int16_t bin_end = insert_count / PIECE_SIZE * PIECE_SIZE;
-    if(bin_end < insert_count) {
-        std::sort(recs + initial_count + bin_end, recs + total_count);
-    }
-
+    uint32_t total_count = readable_count;
     int run_cnt = 0;
-    if(initial_count > 0) {
+    if(count > 0) {
         sort_runs[0] = recs;
-        ends[0] = initial_count;
+        ends[0] = count;
         run_cnt += 1;
     }
-    for(int i = initial_count; i < total_count; i += PIECE_SIZE) {
+    for(int i = count; i < total_count; i += PIECE_SIZE) {
         sort_runs[run_cnt] = recs + i;
         ends[run_cnt] = (i + PIECE_SIZE <= total_count) ? PIECE_SIZE : total_count - i;
         run_cnt += 1;
@@ -210,13 +234,16 @@ void WOLeaf::Dump(std::vector<Record> & out) {
 }
 
 void WOLeaf::DoSplit(_key_t * split_key, WOLeaf ** split_node) {
+    nodelock.Lock();
+
     std::vector<Record> data;
-    data.reserve(initial_count + insert_count);
+    data.reserve(GLOBAL_LEAF_SIZE);
     Dump(data);
 
-    int pid = getSubOptimalSplitkey(data.data(), initial_count + insert_count);
+    int pid = getSubOptimalSplitkey(data.data(), GLOBAL_LEAF_SIZE);
     // creat two new nodes
     WOLeaf * left = new WOLeaf(data.data(), pid);
+    left->nodelock.Lock();
     WOLeaf * right = new WOLeaf(data.data() + pid, data.size() - pid);
     left->sibling = right;
     right->sibling = sibling;
@@ -226,6 +253,8 @@ void WOLeaf::DoSplit(_key_t * split_key, WOLeaf ** split_node) {
     *split_node = right;
 
     SwapNode(this, left);
+    
+    nodelock.UnLock();
     delete left;
 }
 
@@ -233,7 +262,7 @@ void WOLeaf::Print(string prefix) {
     std::vector<Record> out;
     Dump(out);
 
-    printf("%s(%d, %d)[", prefix.c_str(), node_type, initial_count + insert_count);
+    printf("%s(%d, %d)[", prefix.c_str(), node_type, readable_count);
     for(int i = 0; i < out.size(); i++) {
         printf("%12.8lf, ", out[i].key);
     }

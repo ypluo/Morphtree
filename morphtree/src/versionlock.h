@@ -5,19 +5,24 @@
 
 class VersionLock {
 private:
-    uint16_t lock : 2;
-    uint16_t ver1 : 7;
-    uint16_t ver2 : 7;
+    uint8_t lock : 1;
+    uint8_t version : 7;
 
 public:
     VersionLock() {
         lock = 0;
-        ver1 = ver2 = 0;
+        version = 0;
     }
 
-    uint16_t GetVer1() {return ver1;}
+    uint16_t Version() {return version;}
 
-    uint16_t GetVer2() {return ver2;}
+    bool TryLock() {
+        VersionLock expected = *this;
+        expected.lock = 0; // we always expect the lock to be free
+        VersionLock desired = *this; // the desired value should always be fresh
+        desired.lock = 1;
+        return __atomic_compare_exchange(this, &expected, &desired, false, __ATOMIC_RELAXED, __ATOMIC_RELAXED);
+    }
 
     void Lock() {
         bool success;
@@ -28,90 +33,61 @@ public:
             desired.lock = 1;
             success = __atomic_compare_exchange(this, &expected, &desired, false, __ATOMIC_RELAXED, __ATOMIC_RELAXED);
         } while(success == false);
-        // lock first and update verion1
+        // lock first and update verion
         __asm__ __volatile__("sfence":::"memory");
-        ver1 += 1;
+        version += 1;
     }
 
-    void Unlock() {
-        ver2 += 1;
-        // update verion2 and unlock
+    void UnLock() {
+        version += 1;
+        // update verion and UnLock
         __asm__ __volatile__("sfence":::"memory");
         lock = 0;
     }
+
+    bool IsLocked() {
+        return lock == 0;
+    }
 };
+
+class ExtVersionLock {
+public:
+    static uint8_t Version(uint64_t v) {
+        return ((v >> 56) & 0x7f);
+    }
+
+    static void Lock(uint64_t *v) {
+        bool success;
+        do {
+            uint64_t expected =  (*v & 0x7fffffffffffffff); // we always expect the lock to be free
+            uint64_t desired = (*v | 0x8000000000000000);
+            success = __atomic_compare_exchange(&v, &expected, &desired, false, __ATOMIC_RELAXED, __ATOMIC_RELAXED);
+        } while(success == false);
+        // lock first and update verion
+        __asm__ __volatile__("sfence":::"memory");
+        if((*v & 0x7f00000000000000) == 0x7f00000000000000) {
+            *v = *v + (0x1 << 56);
+        } else {
+            *v = (*v & 0x80ffffffffffffff);
+        }
+    }
+
+    static void UnLock(uint64_t *v) {
+        if((*v & 0x7f00000000000000) == 0x7f00000000000000) {
+            *v = *v + (0x1 << 56);
+        } else {
+            *v = (*v & 0x80ffffffffffffff);
+        }
+        // update verion and UnLock
+        __asm__ __volatile__("sfence":::"memory");
+        if(IsLocked(*v))
+            *v = (*v & 0x7fffffffffffffff);
+    }
+
+    static bool IsLocked(uint64_t v) {
+        return v > 0x8000000000000000;
+    }
+};
+
+
 #endif // __VERSION_LOCK__
-
-/* test code for version lock */
-/* 
-
-#include <iostream>
-#include <unistd.h>
-#include <thread>
-#include <mutex>
-
-std::mutex mtx;
-VersionLock lock;
-int global_i;
-
-int run1(int pid) {
-    lock.Lock();
-
-    for(int i = 0; i < 10; i++) {
-        global_i = pid * 100 + i;
-    }
-
-    usleep(100);
-    mtx.lock();
-    std::cout << "writer: " <<  global_i << std::endl;
-    mtx.unlock();
-
-    lock.Unlock();
-
-    return 0;
-}
-
-int run2(int pid) {
-    int i;
-    uint16_t v1, v2;
-    retry:
-    v1 = lock.GetVer1();
-    i = global_i;
-    v2 = lock.GetVer2();
-    if(v1 != v2) 
-        goto retry;
-    
-    mtx.lock();
-    std::cout << "=======reader: " << i << std::endl;
-    mtx.unlock();
-    return 0;
-}
-
-
-int main() {
-    int writer = 5;
-    int reader = 20;
-
-    std::thread wths[writer];
-    std::thread rths[reader];
-    
-    for(int i = 0; i < writer; i++) {
-        wths[i] = std::move(std::thread(run1, i));
-    }
-
-    for(int i = 0; i < reader; i++) {
-        rths[i] = std::move(std::thread(run2, i));
-    }
-    
-    for(int i = 0; i < writer; i++) {
-        wths[i].join();
-    }
-        
-    for(int i = 0; i < reader; i++) {
-        rths[i].join();
-    }
-
-    return 0;
-}
-
-*/

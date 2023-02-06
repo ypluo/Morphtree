@@ -105,6 +105,7 @@ void ROInner::Print(string prefix) {
 
 bool ROInner::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROInner ** split_node) {
     if(count < BNODE_SIZE) {
+        nodelock.Lock();
         int i;
         for(i = 0; i < count; i++) {
             if(recs[i].key > k) {
@@ -118,10 +119,14 @@ bool ROInner::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROInner **
 
         if(count == BNODE_SIZE) { // create a new inner node
             ROInner * new_inner = new ROInner(recs, count);
+            new_inner->nodelock.Lock();
+            
             SwapNode(new_inner, this);
             new_inner->Clear();
             delete new_inner;
         }
+
+        nodelock.UnLock();
     } else {
         int predict = Predict(k);
         predict = (predict / PROBE_SIZE) * PROBE_SIZE;
@@ -132,6 +137,7 @@ bool ROInner::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROInner **
                 break;
         }
 
+        ExtVersionLock::Lock(&recs[predict].val);
         Record last_one = recs[predict + PROBE_SIZE - 1];
         if(last_one.key == MAX_KEY) { // there is an empty slot
             memmove(&recs[i + 1], &recs[i], sizeof(Record) * (predict + PROBE_SIZE - 1 - i));
@@ -171,6 +177,7 @@ bool ROInner::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROInner **
             }
         }
         count += 1;
+        ExtVersionLock::UnLock(&recs[predict].val);
 
         if(ShouldRebuild()) {
             RebuildSubTree();
@@ -182,6 +189,8 @@ bool ROInner::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROInner **
 
 bool ROInner::Lookup(const _key_t & k, uint64_t &v) {
     if(count < BNODE_SIZE) {
+        roinner_lookup_retry:
+        auto v1 = nodelock.Version();
         int i;
         for(i = 0; i < BNODE_SIZE; i++) {
             if(recs[i].key > k) {
@@ -189,6 +198,8 @@ bool ROInner::Lookup(const _key_t & k, uint64_t &v) {
             }
         }
         v = recs[i - 1].val;
+        if(nodelock.IsLocked() || v1 == nodelock.Version()) goto roinner_lookup_retry;
+
         return true;
     } else {
         int predict = Predict(k);
@@ -198,23 +209,28 @@ bool ROInner::Lookup(const _key_t & k, uint64_t &v) {
         while(recs[predict].key > k) {
             predict -= PROBE_SIZE;
         }
-
+        
+        roinner_lookup_retry2:
+        auto v1 = ExtVersionLock::Version(recs[predict].val);
         // probe right by 1 to find a proper index record
         int i = predict + 1;
         for (; i < predict + PROBE_SIZE; i++) {
             if(recs[i].key > k) {
                 v = recs[i - 1].val;
+                if(ExtVersionLock::IsLocked(recs[predict].val) || v1 == ExtVersionLock::Version(recs[predict].val)) goto roinner_lookup_retry2;
                 return true;
             }
         }
 
         // this bucket is probed
         v = recs[i - 1].val;
+        if(ExtVersionLock::IsLocked(recs[predict].val) || v1 == ExtVersionLock::Version(recs[predict].val)) goto roinner_lookup_retry2;
         return true;
     }
 }
 
 void ROInner::RebuildSubTree() {
+    nodelock.Lock();
     std::vector<Record> all_record;
     all_record.reserve(count);
 
@@ -238,7 +254,9 @@ void ROInner::RebuildSubTree() {
     }
 
     ROInner * new_inner = new ROInner(all_record.data(), all_record.size());
+    new_inner->nodelock.Lock();
     SwapNode(new_inner, this);
+    nodelock.UnLock();
     delete new_inner;
 }
 

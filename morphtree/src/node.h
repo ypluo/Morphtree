@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <atomic>
 
 #include "versionlock.h"
 #include "../include/util.h"
@@ -54,8 +55,8 @@ public:
 public:
     // Node header: 32 bytes
     uint8_t node_type;
-    uint8_t flag;
-    VersionLock lock;
+    VersionLock nodelock;
+    uint16_t unused;
     uint32_t count;
     uint64_t stats;
     BaseNode * sibling;
@@ -130,6 +131,8 @@ public:
     void Print(string prefix);
 
 private:
+    bool Append(const _key_t & k, uint64_t v);
+
     void DoSplit(_key_t * split_key, ROLeaf ** split_node);
 
     inline bool ShouldSplit() {
@@ -185,10 +188,12 @@ private:
 
     // data
     Record * recs; 
-    uint32_t initial_count;
-    uint32_t insert_count;
-    uint32_t swap_pos;
-    char dummy[12];
+    uint32_t readonly_count;
+    uint32_t readable_count;
+    std::atomic<uint32_t> alloc_count;
+    VersionLock sortlock;
+    VersionLock mutex;
+    char dummy[10];
 };
 
 // Swap the metadata of two nodes
