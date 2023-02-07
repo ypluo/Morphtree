@@ -46,7 +46,7 @@ public:
     }
 
     bool IsLocked() {
-        return lock == 0;
+        return lock == 1;
     }
 };
 
@@ -59,33 +59,32 @@ public:
     static void Lock(uint64_t *v) {
         bool success;
         do {
-            uint64_t expected =  (*v & 0x7fffffffffffffff); // we always expect the lock to be free
-            uint64_t desired = (*v | 0x8000000000000000);
-            success = __atomic_compare_exchange(&v, &expected, &desired, false, __ATOMIC_RELAXED, __ATOMIC_RELAXED);
+            uint64_t expected = (*v & 0x7fffffffffffffff); // we always expect the lock to be free
+            uint64_t desired  = (*v | 0x8000000000000000);
+            success = __atomic_compare_exchange(v, &expected, &desired, false, __ATOMIC_RELAXED, __ATOMIC_RELAXED);
         } while(success == false);
         // lock first and update verion
         __asm__ __volatile__("sfence":::"memory");
         if((*v & 0x7f00000000000000) == 0x7f00000000000000) {
-            *v = *v + (0x1 << 56);
-        } else {
             *v = (*v & 0x80ffffffffffffff);
+        } else {
+            *v = *v + ((uint64_t)0x1 << 56);
         }
     }
 
     static void UnLock(uint64_t *v) {
         if((*v & 0x7f00000000000000) == 0x7f00000000000000) {
-            *v = *v + (0x1 << 56);
-        } else {
             *v = (*v & 0x80ffffffffffffff);
+        } else {
+            *v = *v + ((uint64_t)0x1 << 56);
         }
         // update verion and UnLock
         __asm__ __volatile__("sfence":::"memory");
-        if(IsLocked(*v))
-            *v = (*v & 0x7fffffffffffffff);
+        *v = (*v & 0x7fffffffffffffff);
     }
 
     static bool IsLocked(uint64_t v) {
-        return v > 0x8000000000000000;
+        return v >= 0x8000000000000000;
     }
 };
 

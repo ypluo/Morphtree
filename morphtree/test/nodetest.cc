@@ -19,7 +19,7 @@ TEST(SingleNode, woleaf) {
     Record * tmp = new Record[SCALE1];
     for(uint64_t i = 0; i < SCALE1; i++) {
         tmp[i].key = i;
-        tmp[i].val = (uint64_t)i;
+        tmp[i].val = (uint64_t)i + 1;
     }
     std::shuffle(tmp, tmp + SCALE1 - 1, std::default_random_engine(997));
 
@@ -33,7 +33,7 @@ TEST(SingleNode, woleaf) {
     for(uint64_t i = 0; i < SCALE1; i++) {
         //printf("%d\n", i);
         ASSERT_TRUE(n->Lookup(tmp[i].key, res));
-        ASSERT_EQ(res, uint64_t(tmp[i].key));
+        ASSERT_EQ(res, uint64_t(tmp[i].val));
     }
     ASSERT_EQ(split_node, nullptr);
 
@@ -49,7 +49,7 @@ TEST(SingleNode, roleaf) {
     Record * tmp = new Record[SCALE1];
     for(uint64_t i = 0; i < SCALE1; i++) {
         tmp[i].key = i;
-        tmp[i].val = (uint64_t)i;
+        tmp[i].val = (uint64_t)i + 1;
     }
     std::shuffle(tmp, tmp + SCALE1 - 1, std::default_random_engine(997));
 
@@ -68,7 +68,7 @@ TEST(SingleNode, roleaf) {
     for(uint64_t i = 0; i < SCALE1; i++) {
         // printf("%lu\n", i);
         ASSERT_TRUE(n->Lookup(tmp[i].key, res));
-        ASSERT_EQ(res, uint64_t(tmp[i].key));
+        ASSERT_EQ(res, uint64_t(tmp[i].val));
     }
 
     delete tmp;

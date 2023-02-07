@@ -15,18 +15,24 @@ namespace morphtree {
 WOLeaf::WOLeaf() {
     node_type = NodeType::WOLEAF;
     stats = WOSTATS;
+    sibling = nullptr;
+    shadow = nullptr;
 
     recs = new Record[NODE_SIZE];
     count = 0;
+    readable_count = readonly_count = alloc_count = count;
 }
 
 WOLeaf::WOLeaf(Record * recs_in, int num) {
     node_type = NodeType::WOLEAF;
     stats = WOSTATS;
+    sibling = nullptr;
+    shadow = nullptr;
 
     recs = new Record[NODE_SIZE];
     memcpy(recs, recs_in, sizeof(Record) * num);
     count = num;
+    readable_count = readonly_count = alloc_count = count;
 }
 
 WOLeaf::~WOLeaf() {
@@ -34,6 +40,11 @@ WOLeaf::~WOLeaf() {
 }
 
 bool WOLeaf::Store(const _key_t & k, uint64_t v, _key_t * split_key, WOLeaf ** split_node) {
+    auto cur_shadow = shadow;
+    if(cur_shadow != nullptr) { // this node is under morphing
+        cur_shadow->Store(k, v, split_key, (BaseNode **)split_node);
+    }
+
     woleaf_store_retry:
     // stage 1: reserve a slot
     uint32_t cur = alloc_count.fetch_add(1, std::memory_order_relaxed);
@@ -47,17 +58,22 @@ bool WOLeaf::Store(const _key_t & k, uint64_t v, _key_t * split_key, WOLeaf ** s
     recs[cur] = {k, v};
     if(cur - readonly_count == PIECE_SIZE) { // only one writer thread will do sorting
         sortlock.Lock(); // sortlock helps to coordinate with other operations
-        std::sort(recs + readonly_count, recs + readable_count + PIECE_SIZE);
+        std::sort(recs + readonly_count, recs + readonly_count + PIECE_SIZE);
         readonly_count += PIECE_SIZE;
         sortlock.UnLock();
     }
 
     // stage 3: thread writing the smallest slot is responsible for updating readable_count
     while(cur == readable_count && mutex.TryLock()) {
-        while(recs[readable_count].key != MAX_KEY) {
+        while(readable_count < GLOBAL_LEAF_SIZE && recs[readable_count].key != MAX_KEY) {
             readable_count = readable_count + 1;
         }
         mutex.UnLock();
+    }
+    
+    cur_shadow = shadow;
+    if(cur_shadow != nullptr) { // this node is under morphing
+        cur_shadow->Store(k, v, split_key, (BaseNode **)split_node);
     }
 
     // handle splittion
@@ -69,7 +85,7 @@ bool WOLeaf::Store(const _key_t & k, uint64_t v, _key_t * split_key, WOLeaf ** s
     }
 }
 
-bool WOLeaf::Lookup(const _key_t & k, uint64_t &v) {
+bool WOLeaf::Lookup(const _key_t & k, uint64_t &v) {    
     // do binary search in the initial run
     if(BinSearch(recs, count, k, v)) {
         return true;
@@ -94,10 +110,20 @@ bool WOLeaf::Lookup(const _key_t & k, uint64_t &v) {
     }
 
     if(sortlock.IsLocked() || v1 != sortlock.Version()) goto woleaf_look_retry;
+    
+    auto cur_shadow = shadow;
+    if(cur_shadow != nullptr) { // this node is under morphing
+        return cur_shadow->Lookup(k, v);
+    }
     return false;
 }
 
 bool WOLeaf::Update(const _key_t & k, uint64_t v) {
+    auto cur_shadow = shadow;
+    if(cur_shadow != nullptr) { // this node is under morphing
+        return cur_shadow->Update(k, v);
+    }
+
     auto binary_update = [&v](Record & r) {
         if(r.val == 0) {
             return false;
@@ -136,10 +162,20 @@ bool WOLeaf::Update(const _key_t & k, uint64_t v) {
 
     sortlock.UnLock();
     if(nodelock.IsLocked() && v1 != nodelock.Version()) goto woleaf_update_retry;
+    
+    cur_shadow = shadow;
+    if(cur_shadow != nullptr) { // this node is under morphing
+        return cur_shadow->Update(k, v);
+    }
     return false;
 }
 
 bool WOLeaf::Remove(const _key_t & k) {
+    auto cur_shadow = shadow;
+    if(cur_shadow != nullptr) { // this node is under morphing
+        return cur_shadow->Remove(k);
+    }
+
     auto binary_remove = [](Record & r) {
         if(r.val == 0) {
             return false;
@@ -176,10 +212,21 @@ bool WOLeaf::Remove(const _key_t & k) {
 
     sortlock.UnLock();
     if(nodelock.IsLocked() && v1 != nodelock.Version()) goto woleaf_remove_retry;
+
+    cur_shadow = shadow;
+    if(cur_shadow != nullptr) { // this node is under morphing
+        return cur_shadow->Remove(k);
+    }
     return false;
 }
 
 int WOLeaf::Scan(const _key_t &startKey, int len, Record *result) {
+    woleaf_scan_retry:
+    if(shadow != nullptr) { // this node is under morphing
+        std::this_thread::yield();
+        goto woleaf_scan_retry;
+    }
+
     static const int MAX_RUN_NUM = GLOBAL_LEAF_SIZE / PIECE_SIZE;
     Record * sort_runs[MAX_RUN_NUM + 1];
     int ends[MAX_RUN_NUM + 1];
@@ -217,6 +264,10 @@ void WOLeaf::Dump(std::vector<Record> & out) {
     int ends[MAX_RUN_NUM + 1];
 
     uint32_t total_count = readable_count;
+    sortlock.Lock();
+    std::sort(&recs[readonly_count], &recs[readable_count]);
+    sortlock.UnLock();
+
     int run_cnt = 0;
     if(count > 0) {
         sort_runs[0] = recs;
@@ -234,6 +285,7 @@ void WOLeaf::Dump(std::vector<Record> & out) {
 }
 
 void WOLeaf::DoSplit(_key_t * split_key, WOLeaf ** split_node) {
+    morphlock.Lock();
     nodelock.Lock();
 
     std::vector<Record> data;
@@ -243,7 +295,9 @@ void WOLeaf::DoSplit(_key_t * split_key, WOLeaf ** split_node) {
     int pid = getSubOptimalSplitkey(data.data(), GLOBAL_LEAF_SIZE);
     // creat two new nodes
     WOLeaf * left = new WOLeaf(data.data(), pid);
+    left->morphlock.Lock();
     left->nodelock.Lock();
+    
     WOLeaf * right = new WOLeaf(data.data() + pid, data.size() - pid);
     left->sibling = right;
     right->sibling = sibling;
@@ -255,7 +309,7 @@ void WOLeaf::DoSplit(_key_t * split_key, WOLeaf ** split_node) {
     SwapNode(this, left);
     
     nodelock.UnLock();
-    delete left;
+    morphlock.UnLock();
 }
 
 void WOLeaf::Print(string prefix) {

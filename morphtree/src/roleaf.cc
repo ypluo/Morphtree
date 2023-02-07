@@ -4,6 +4,7 @@
 
 #include <cstring>
 #include <cmath>
+#include <thread>
 
 #include "node.h"
 
@@ -205,6 +206,7 @@ ROLeaf::ROLeaf() {
     of_count = 0;
     count = 0;
     sibling = nullptr;
+    shadow = nullptr;
 
     slope = (double)(NODE_SIZE - 1) / MAX_KEY;
     intercept = 0;
@@ -217,6 +219,7 @@ ROLeaf::ROLeaf(Record * recs_in, int num) {
     of_count = 0;
     count = 0;
     sibling = nullptr;
+    shadow = nullptr;
 
     // caculate the linear model
     LinearModelBuilder model;
@@ -248,16 +251,23 @@ bool ROLeaf::Append(const _key_t & k, uint64_t v) {
 }
 
 bool ROLeaf::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROLeaf ** split_node) {
+    auto cur_shadow = shadow;
+    if(cur_shadow != nullptr) { // this node is under morphing
+        return cur_shadow->Store(k, v, split_key, (BaseNode **)split_node);
+    }
+
     roleaf_store_retry:
     auto v1 = nodelock.Version();
     int bucket_no = Predict(k) / PROBE_SIZE;
     bool overflow = buckets[bucket_no].Store(k, v);
     if(nodelock.IsLocked() || v1 != nodelock.Version()) goto roleaf_store_retry;
 
-    if (overflow)
-        of_count += 1;
+    cur_shadow = shadow;
+    if(cur_shadow != nullptr) { // this node is under morphing
+        cur_shadow->Store(k, v, split_key, (BaseNode **)split_node);
+    }
 
-    if(split_node != nullptr && ShouldSplit()) {
+    if(ShouldSplit()) {
         DoSplit(split_key, split_node);
         return true;
     } else {
@@ -266,18 +276,24 @@ bool ROLeaf::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROLeaf ** s
 }
 
 bool ROLeaf::Lookup(const _key_t & k, uint64_t &v) {
-    roleaf_lookup_retry:
-    auto v1 = nodelock.Version();
     // critical section
     int bucket_no = Predict(k) / PROBE_SIZE; 
-    bool found = buckets[bucket_no].Lookup(k, v); 
-    if(nodelock.IsLocked() || v1 != nodelock.Version()) goto roleaf_lookup_retry;
+    bool found = buckets[bucket_no].Lookup(k, v);
 
+    auto cur_shadow = shadow;
+    if(cur_shadow != nullptr) { // this node is under morphing
+        return cur_shadow->Lookup(k, v);
+    }
     // In the critical section, current node does not split
     return found;
 }
 
 bool ROLeaf::Update(const _key_t & k, uint64_t v) {
+    auto cur_shadow = shadow;
+    if(cur_shadow != nullptr) { // this node is under morphing
+        return cur_shadow->Update(k, v);
+    }
+
     roleaf_update_retry:
     auto v1 = nodelock.Version();
     // critical section
@@ -285,22 +301,43 @@ bool ROLeaf::Update(const _key_t & k, uint64_t v) {
     bool found = buckets[bucket_no].Update(k, v);
     if(nodelock.IsLocked() || v1 != nodelock.Version()) goto roleaf_update_retry;
 
+    cur_shadow = shadow;
+    if(cur_shadow != nullptr) { // this node is under morphing
+        return cur_shadow->Update(k, v);
+    }
+
     // In the critical section, current node does not split
     return found;
 }
 
 bool ROLeaf::Remove(const _key_t & k) {
+    auto cur_shadow = shadow;
+    if(cur_shadow != nullptr) { // this node is under morphing
+        return cur_shadow->Remove(k);
+    }
+
     roleaf_remove_retry:
     auto v1 = nodelock.Version();
     // critical section
     int bucket_no = Predict(k) / PROBE_SIZE;
     bool found = buckets[bucket_no].Remove(k);
     if(nodelock.IsLocked() || v1 != nodelock.Version()) goto roleaf_remove_retry;
+
+    cur_shadow = shadow;
+    if(cur_shadow != nullptr) { // this node is under morphing
+        return cur_shadow->Remove(k);
+    }
+
     return found;
 }
 
 int ROLeaf::Scan(const _key_t &startKey, int len, Record *result) {
     roleaf_scan_retry:
+    if(shadow != nullptr) { // this node is under morphing
+        std::this_thread::yield();
+        goto roleaf_scan_retry;
+    }
+
     auto v1 = nodelock.Version();
     int bucket_no = Predict(startKey) / PROBE_SIZE;
     int new_len = len;
@@ -339,6 +376,7 @@ void ROLeaf::Print(string prefix) {
 
 void ROLeaf::DoSplit(_key_t * split_key, ROLeaf ** split_node) {
     // lock-based split operation
+    morphlock.Lock();
     nodelock.Lock();
     
     std::vector<Record> data;
@@ -348,6 +386,7 @@ void ROLeaf::DoSplit(_key_t * split_key, ROLeaf ** split_node) {
     int pid = getSubOptimalSplitkey(data.data(), data.size());
     // creat two new nodes
     ROLeaf * left = new ROLeaf(data.data(), pid);
+    left->morphlock.Lock();
     left->nodelock.Lock();
     ROLeaf * right = new ROLeaf(data.data() + pid, data.size() - pid);
     left->sibling = right;
@@ -359,8 +398,8 @@ void ROLeaf::DoSplit(_key_t * split_key, ROLeaf ** split_node) {
 
     SwapNode(this, left);
 
+    morphlock.UnLock();
     nodelock.UnLock();
-    delete left;
 }
 
 } // namespace morphtree

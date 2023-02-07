@@ -5,6 +5,7 @@ namespace morphtree {
 // definitions of global variables
 bool do_morphing;
 uint64_t global_stats;
+NodeReclaimer reclaimer;
 
 // Predict the node type of a leaf node according to its access history
 void BaseNode::TypeManager(bool isWrite) {
@@ -28,8 +29,22 @@ void BaseNode::TypeManager(bool isWrite) {
     }
 }
 
+// Swap the metadata of two nodes
+void SwapNode(BaseNode * oldone, BaseNode *newone) {
+    static const int HEADER_SIZE = 64;
+    char * tmp = new char[HEADER_SIZE];
+
+    memcpy(tmp, oldone, HEADER_SIZE); // record the old node
+    memcpy(oldone, newone, HEADER_SIZE); // replace the old node with the newone
+    
+    // the old node is recliamed
+    reclaimer.Add((BaseNode *)tmp, false);
+    reclaimer.Add(newone, true);
+}
+
 // Morph a leaf node from From-type to To-type
 void MorphNode(BaseNode * leaf, NodeType from, NodeType to) {
+    leaf->morphlock.Lock();
     BaseNode * newLeaf;
     std::vector<Record> tmp;
     tmp.reserve(GLOBAL_LEAF_SIZE);
@@ -43,19 +58,12 @@ void MorphNode(BaseNode * leaf, NodeType from, NodeType to) {
         newLeaf = new WOLeaf(tmp.data(), tmp.size());
         break;
     }
+
+    leaf->shadow = newLeaf;
+    newLeaf->morphlock.Lock();
     // swap the header of two nodes
     SwapNode(leaf, newLeaf);
-
-    switch(from) {
-    case NodeType::ROLEAF:
-        delete reinterpret_cast<ROLeaf *>(newLeaf); 
-        return;
-    case NodeType::WOLEAF:
-        delete reinterpret_cast<WOLeaf *>(newLeaf);
-        return;
-    }
-    assert(false);
-    __builtin_unreachable();
+    leaf->morphlock.UnLock();
 }
 
 bool BaseNode::Store(const _key_t & k, uint64_t v, _key_t * split_key, BaseNode ** split_node) {

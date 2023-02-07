@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.11)
 project(vibench)
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_FLAGS "-march=native -O3 -fmax-errors=5")
+set(CMAKE_CXX_FLAGS "-march=native -g -fmax-errors=5")
 
 #======= include directories =======
 include_directories(${CMAKE_SOURCE_DIR}/ALEX/src/core)

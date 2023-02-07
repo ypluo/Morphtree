@@ -11,6 +11,7 @@
 #include <cstring>
 #include <string>
 #include <atomic>
+#include <list>
 
 #include "versionlock.h"
 #include "../include/util.h"
@@ -56,7 +57,8 @@ public:
     // Node header: 32 bytes
     uint8_t node_type;
     VersionLock nodelock;
-    uint16_t unused;
+    VersionLock morphlock;
+    uint8_t unused;
     uint32_t count;
     uint64_t stats;
     BaseNode * sibling;
@@ -72,7 +74,7 @@ public:
 
     ~ROInner();
 
-    void Clear() {capacity = 0;}
+    // void Clear() {capacity = 0;}
 
     bool Store(const _key_t & k, uint64_t v, _key_t * split_key, ROInner ** split_node);
 
@@ -196,19 +198,36 @@ private:
     char dummy[10];
 };
 
-// Swap the metadata of two nodes
-inline void SwapNode(BaseNode * a, BaseNode *b) {
-    static const int COMMON_SIZE = 64;
-    char tmp[COMMON_SIZE];
-    memcpy(tmp, a, COMMON_SIZE);
-    memcpy(a, b, COMMON_SIZE);
-    memcpy(b, tmp, COMMON_SIZE);
-}
+class NodeReclaimer {
+    typedef std::tuple<BaseNode *, bool, int> ReclaimEle;
+    std::list<ReclaimEle> list;
+
+public:
+    void Add(BaseNode * node, bool header_only, int epoch = 1) {
+        list.emplace(list.end(), node, header_only, epoch);
+    }
+
+    void Reclaim(int safe_epoch = 0) {
+        for(auto iter = list.begin(); iter != list.end(); iter++) {
+            if(std::get<2>(*iter) <= safe_epoch) { 
+                // this node is safe to reclaim
+                BaseNode * tmp = std::get<0>(*iter);
+                if(std::get<1>(*iter) == false) 
+                    tmp->DeleteNode(); // should also reclaim its data
+                else 
+                    delete (char *)tmp; // reclaim its header only
+            }
+        }
+    }
+};
 
 // Global variables and functions controling the morphing of Morphtree 
 extern bool do_morphing;
 extern uint64_t global_stats;
+extern NodeReclaimer reclaimer;
 extern void MorphNode(BaseNode * leaf, NodeType from, NodeType to);
+extern void SwapNode(BaseNode * oldone, BaseNode *newone);
+
 } // namespace morphtree
 
 #endif // __MORPHTREE_BASENODE__

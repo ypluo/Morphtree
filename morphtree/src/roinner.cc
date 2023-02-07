@@ -9,6 +9,7 @@
 
 namespace morphtree {
 
+const uint64_t POINTER_MARK = 0x0000ffffffffffff;
 static const int MARGIN = ROInner::PROBE_SIZE;
 
 ROInner::ROInner(Record * recs_in, int num) {
@@ -73,10 +74,9 @@ ROInner::ROInner(Record * recs_in, int num) {
 
 ROInner::~ROInner() {
     for(int i = PROBE_SIZE - 1; i < capacity; i += PROBE_SIZE) {
-        uint64_t vv = recs[i].val;
-        BaseNode * child = (ROInner *) vv;
+        BaseNode * child = (ROInner *) (recs[i].val & POINTER_MARK);
         if(child != nullptr && !child->Leaf()) {
-            ((ROInner *)child)->Clear();
+            // ((ROInner *)child)->Clear();
             delete child;
         }
     }
@@ -96,8 +96,7 @@ void ROInner::Print(string prefix) {
     printf("]\n");
     for(int i = 0; i < capacity; i++) {
         if(recs[i].key != MAX_KEY) {
-            uint64_t vv = recs[i].val;
-            BaseNode * child = (BaseNode *) vv;
+            BaseNode * child = (BaseNode *) (recs[i].val & POINTER_MARK);
             child->Print(prefix + "\t");
         }
     }
@@ -119,11 +118,7 @@ bool ROInner::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROInner **
 
         if(count == BNODE_SIZE) { // create a new inner node
             ROInner * new_inner = new ROInner(recs, count);
-            new_inner->nodelock.Lock();
-            
-            SwapNode(new_inner, this);
-            new_inner->Clear();
-            delete new_inner;
+            SwapNode(this, new_inner);
         }
 
         nodelock.UnLock();
@@ -143,8 +138,7 @@ bool ROInner::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROInner **
             memmove(&recs[i + 1], &recs[i], sizeof(Record) * (predict + PROBE_SIZE - 1 - i));
             recs[i] = Record(k, v);
         } else {
-            uint64_t vv = last_one.val;
-            BaseNode * rightmost = (BaseNode *)vv;
+            BaseNode * rightmost = (BaseNode *)(last_one.val & POINTER_MARK);
             if(rightmost->Leaf()) { // has no overflow inner node
                 // copy records in this bucket into a tmp array
                 Record tmp[PROBE_SIZE + 1];
@@ -197,8 +191,8 @@ bool ROInner::Lookup(const _key_t & k, uint64_t &v) {
                 break;
             }
         }
-        v = recs[i - 1].val;
-        if(nodelock.IsLocked() || v1 == nodelock.Version()) goto roinner_lookup_retry;
+        v = (recs[i - 1].val & POINTER_MARK);
+        if(nodelock.IsLocked() || v1 != nodelock.Version()) goto roinner_lookup_retry;
 
         return true;
     } else {
@@ -216,15 +210,15 @@ bool ROInner::Lookup(const _key_t & k, uint64_t &v) {
         int i = predict + 1;
         for (; i < predict + PROBE_SIZE; i++) {
             if(recs[i].key > k) {
-                v = recs[i - 1].val;
-                if(ExtVersionLock::IsLocked(recs[predict].val) || v1 == ExtVersionLock::Version(recs[predict].val)) goto roinner_lookup_retry2;
+                v = (recs[i - 1].val & POINTER_MARK);
+                if(ExtVersionLock::IsLocked(recs[predict].val) || v1 != ExtVersionLock::Version(recs[predict].val)) goto roinner_lookup_retry2;
                 return true;
             }
         }
 
         // this bucket is probed
-        v = recs[i - 1].val;
-        if(ExtVersionLock::IsLocked(recs[predict].val) || v1 == ExtVersionLock::Version(recs[predict].val)) goto roinner_lookup_retry2;
+        v = (recs[i - 1].val & POINTER_MARK);
+        if(ExtVersionLock::IsLocked(recs[predict].val) || v1 != ExtVersionLock::Version(recs[predict].val)) goto roinner_lookup_retry2;
         return true;
     }
 }
@@ -233,31 +227,11 @@ void ROInner::RebuildSubTree() {
     nodelock.Lock();
     std::vector<Record> all_record;
     all_record.reserve(count);
-
-    // gather all the records start with this node
-    for(int i = 0; i < capacity; i += PROBE_SIZE) {
-        for(int j = 0; j < PROBE_SIZE; j++) {
-            if(recs[i + j].key == MAX_KEY) {
-                break;
-            } else if(j == PROBE_SIZE - 1) {
-                uint64_t vv = recs[i + j].val;
-                BaseNode * node = (BaseNode *) vv;
-                if(!node->Leaf()) {
-                    ((ROInner *)node)->Dump(all_record);
-                } else {
-                    all_record.push_back(recs[i + j]);
-                }
-            } else {
-                all_record.push_back(recs[i + j]);
-            }
-        }
-    }
-
+    Dump(all_record);
     ROInner * new_inner = new ROInner(all_record.data(), all_record.size());
     new_inner->nodelock.Lock();
-    SwapNode(new_inner, this);
+    SwapNode(this, new_inner);
     nodelock.UnLock();
-    delete new_inner;
 }
 
 void ROInner::Dump(std::vector<Record> & out) {
@@ -266,11 +240,11 @@ void ROInner::Dump(std::vector<Record> & out) {
             if(recs[i + j].key == MAX_KEY) {
                 break;
             } else if(j == PROBE_SIZE - 1) {
-                uint64_t vv = recs[i + j].val;
-                BaseNode * node = (BaseNode *) vv;
+                BaseNode * node = (BaseNode *) (recs[i + j].val & POINTER_MARK);
                 if(!node->Leaf()) {
                     ((ROInner *)node)->Dump(out);
                 } else {
+                    recs[i + j].val = recs[i + j].val & POINTER_MARK;
                     out.push_back(recs[i + j]);
                 }
             } else {
