@@ -46,6 +46,9 @@ bool WOLeaf::Store(const _key_t & k, uint64_t v, _key_t * split_key, WOLeaf ** s
     }
 
     woleaf_store_retry:
+    if(k >= mysplitkey) {
+        return sibling->Store(k, v, split_key, (BaseNode **)split_node);
+    }
     // stage 1: reserve a slot
     uint32_t cur = alloc_count.fetch_add(1, std::memory_order_relaxed);
     if(cur >= GLOBAL_LEAF_SIZE) { // no more empty slot, wait for the node to split
@@ -134,6 +137,10 @@ bool WOLeaf::Update(const _key_t & k, uint64_t v) {
     };
 
     woleaf_update_retry:
+    if(k >= mysplitkey) {
+        return sibling->Update(k, v);
+    }
+
     auto v1 = nodelock.Version();
     // do binary update in all sorted runs
     if(BinSearch_CallBack(recs, count, k, binary_update)) {
@@ -186,6 +193,9 @@ bool WOLeaf::Remove(const _key_t & k) {
     };
 
     woleaf_remove_retry:
+    if(k >= mysplitkey) {
+        return sibling->Remove(k);
+    }
     auto v1 = nodelock.Version();
     // do binary remove in all sorted runs
     if(BinSearch_CallBack(recs, count, k, binary_remove)) {

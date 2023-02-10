@@ -14,7 +14,7 @@ public:
         version = 0;
     }
 
-    uint16_t Version() {return version;}
+    uint8_t Version() {return version;}
 
     bool TryLock() {
         VersionLock expected = *this;

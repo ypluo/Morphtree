@@ -162,7 +162,7 @@ BaseNode * MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::bulkload(std::vector<Record>
     for(; i < initial_recs.size() / GLOBAL_LEAF_SIZE; i++) {
         Record * base = initial_recs.data() + i * GLOBAL_LEAF_SIZE;
         int split_pos = getSubOptimalSplitkey(base, GLOBAL_LEAF_SIZE);
-        index_record[i * 2].key = base[0].key;
+        index_record[i * 2].key = i == 0 ? MIN_KEY : base[0].key;
         index_record[i * 2].val = uint64_t(new ROLeaf(base, split_pos));
         index_record[i * 2 + 1].key = base[split_pos].key;
         index_record[i * 2 + 1].val = uint64_t(new ROLeaf(base + split_pos, GLOBAL_LEAF_SIZE - split_pos));

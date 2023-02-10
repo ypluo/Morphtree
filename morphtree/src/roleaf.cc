@@ -78,9 +78,10 @@ struct Bucket {
 
         memmove(&recs[i + 1], &recs[i], sizeof(Record) * (len - i));
         recs[i] = Record(k, v);
+        ++len;
 
         lock.UnLock();
-        return (++len) > ROLeaf::PROBE_SIZE;
+        return len > ROLeaf::PROBE_SIZE;
     }
 
     bool Lookup(const _key_t & k, uint64_t &v) {
@@ -188,14 +189,9 @@ struct Bucket {
     }
 
     void Dump(std::vector<Record> & out) {
-        retry_dump:
-        auto v1 = lock.Version();
-        auto old_size = out.size();
+        lock.Lock();
         out.insert(out.end(), recs, recs + len);
-        if(lock.IsLocked() || v1 != lock.Version()) {
-            out.resize(old_size);
-            goto retry_dump;
-        }
+        lock.UnLock();
         return;
     }
 };
@@ -203,10 +199,10 @@ struct Bucket {
 ROLeaf::ROLeaf() {
     node_type = ROLEAF;
     stats = ROSTATS;
-    of_count = 0;
     count = 0;
     sibling = nullptr;
     shadow = nullptr;
+    mysplitkey = MAX_KEY;
 
     slope = (double)(NODE_SIZE - 1) / MAX_KEY;
     intercept = 0;
@@ -216,10 +212,10 @@ ROLeaf::ROLeaf() {
 ROLeaf::ROLeaf(Record * recs_in, int num) {
     node_type = ROLEAF;
     stats = ROSTATS;
-    of_count = 0;
     count = 0;
     sibling = nullptr;
     shadow = nullptr;
+    mysplitkey = MAX_KEY;
 
     // caculate the linear model
     LinearModelBuilder model;
@@ -245,8 +241,7 @@ ROLeaf::~ROLeaf() {
 bool ROLeaf::Append(const _key_t & k, uint64_t v) {
     int bucket_no = Predict(k) / PROBE_SIZE;
     bool overflow = buckets[bucket_no].Append(k, v);
-    if (overflow)
-        of_count += 1;
+    count += 1;
     return false;
 }
 
@@ -257,15 +252,22 @@ bool ROLeaf::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROLeaf ** s
     }
 
     roleaf_store_retry:
+    if(k >= mysplitkey) {
+        return sibling->Store(k, v, split_key, (BaseNode **)split_node);
+    }
+
     auto v1 = nodelock.Version();
     int bucket_no = Predict(k) / PROBE_SIZE;
     bool overflow = buckets[bucket_no].Store(k, v);
-    if(nodelock.IsLocked() || v1 != nodelock.Version()) goto roleaf_store_retry;
-
+    if(nodelock.IsLocked() || v1 != nodelock.Version()) {
+        goto roleaf_store_retry;
+    }
+    
     cur_shadow = shadow;
     if(cur_shadow != nullptr) { // this node is under morphing
         cur_shadow->Store(k, v, split_key, (BaseNode **)split_node);
     }
+    count += 1;
 
     if(ShouldSplit()) {
         DoSplit(split_key, split_node);
@@ -295,6 +297,10 @@ bool ROLeaf::Update(const _key_t & k, uint64_t v) {
     }
 
     roleaf_update_retry:
+    if(k >= mysplitkey) {
+        return sibling->Update(k, v);
+    }
+
     auto v1 = nodelock.Version();
     // critical section
     int bucket_no = Predict(k) / PROBE_SIZE;    
@@ -317,6 +323,9 @@ bool ROLeaf::Remove(const _key_t & k) {
     }
 
     roleaf_remove_retry:
+    if(k >= mysplitkey) {
+        return sibling->Remove(k);
+    }
     auto v1 = nodelock.Version();
     // critical section
     int bucket_no = Predict(k) / PROBE_SIZE;
@@ -347,7 +356,6 @@ int ROLeaf::Scan(const _key_t &startKey, int len, Record *result) {
         result += no;
         bucket_no += 1;
     }
-
     if(nodelock.IsLocked() || v1 != nodelock.Version()) goto roleaf_scan_retry;
 
     if(new_len > 0) {  
@@ -367,7 +375,7 @@ void ROLeaf::Print(string prefix) {
     std::vector<Record> out;
     Dump(out);
 
-    printf("%s(%d)[(%f)", prefix.c_str(), node_type, (float)of_count / count);
+    printf("%s(%d)[(%d)", prefix.c_str(), node_type, count);
     for(int i = 0; i < out.size(); i++) {
         printf("%lf, ", out[i].key);
     }
@@ -388,9 +396,12 @@ void ROLeaf::DoSplit(_key_t * split_key, ROLeaf ** split_node) {
     ROLeaf * left = new ROLeaf(data.data(), pid);
     left->morphlock.Lock();
     left->nodelock.Lock();
+    
     ROLeaf * right = new ROLeaf(data.data() + pid, data.size() - pid);
     left->sibling = right;
     right->sibling = sibling;
+    left->mysplitkey = data[pid].key;
+    right->mysplitkey = this->mysplitkey;
 
     // update splitting info
     *split_key = data[pid].key;

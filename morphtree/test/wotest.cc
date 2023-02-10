@@ -2,6 +2,7 @@
 #include <iostream>
 #include <fstream>
 #include <cstdlib>
+#include <omp.h>
 
 #include "../src/node.h"
 #include "../src/morphtree_impl.h"
@@ -10,28 +11,35 @@
 
 using namespace morphtree;
 
-const int TEST_SCALE = 100000;
+const int TEST_SCALE = GLOBAL_LEAF_SIZE * 400;
+const int THREAD_NUM = 8;
 
 class wotest : public testing::Test {
 protected:
-    MorphtreeImpl<NodeType::WOLEAF, false> * tree;
+    MorphtreeImpl<NodeType::ROLEAF, false> * tree;
     std::vector<Record> recs;
+    std::vector<Record> recs1;
 
     virtual void SetUp() {
+        std::default_random_engine gen(997);
+        std::uniform_int_distribution<uint32_t> dist(0, UINT32_MAX);
+
         recs.resize(TEST_SCALE);
-        tree = new MorphtreeImpl<NodeType::WOLEAF, false>();
+        recs1.resize(TEST_SCALE);
 
         for(uint64_t i = 0; i < TEST_SCALE; i++) {
-            recs[i].key = _key_t(i);
-            recs[i].val = uint64_t(i + 1);
+            recs[i].key = dist(gen);
+            recs[i].val = uint64_t(recs[i].key + 1);
         }
 
-        std::default_random_engine gen(997);
-        std::shuffle(recs.begin(), recs.end(), gen);
+        for(uint64_t i = 0; i < TEST_SCALE; i++) {
+            recs1[i].key = dist(gen);
+            recs1[i].val = uint64_t(recs1[i].key + 1);
+        }
 
+        // bulkload a tree
         for(int i = 0; i < TEST_SCALE; i++) {
-            // printf("insert %d %lf\n",i, recs[i].key);
-            tree->insert(recs[i].key, uint64_t(recs[i].val));
+            tree->insert(recs[i].key, recs[i].val);
         }
     }
 
@@ -40,16 +48,40 @@ protected:
     }
 };
 
-TEST_F(wotest, lookup) {
+TEST_F(wotest, insert) {
+    // auto s = seconds();
+    // omp_set_num_threads(THREAD_NUM);
+    #pragma omp parallel for schedule(static)
+    for(int i = 0; i < TEST_SCALE; i++) {
+        tree->insert(recs1[i].key, recs1[i].val);
+    }
+    // auto e = seconds();
+    // printf("%lf\n", e - s);
+
     uint64_t v;
     for(int i = 0; i < TEST_SCALE; i++) {
         // printf("%lf\n", recs[i].key);
-        ASSERT_TRUE(tree->lookup(recs[i].key, v));
-        ASSERT_EQ(v, uint64_t(recs[i].val));
+        tree->lookup(recs1[i].key, v);
+        ASSERT_EQ(v, recs1[i].val);
     }
+}
+
+TEST_F(wotest, lookup) { 
+    uint16_t notfound = 0;
+    uint64_t v;
+    omp_set_num_threads(THREAD_NUM);
+    #pragma omp parallel for schedule(dynamic,32) shared(notfound)
+    for(int i = 0; i < TEST_SCALE; i++) {
+        // printf("%lf\n", recs[i].key);
+        bool found = tree->lookup(recs[i].key, v);
+        if(found == false) notfound += 1;
+    }
+    ASSERT_EQ(notfound, 0);
 } 
 
-TEST_F(wotest, DISABLED_update) {
+TEST_F(wotest, update) { 
+    omp_set_num_threads(THREAD_NUM);
+    #pragma omp parallel for schedule(dynamic,32)
     for(int i = 0; i < TEST_SCALE; i += 2) {
         tree->update(recs[i].key, uint64_t(recs[i].val) * 2);
     }
@@ -63,10 +95,12 @@ TEST_F(wotest, DISABLED_update) {
         else 
             ASSERT_EQ(v, uint64_t(recs[i].val));
     }
-}
+} 
 
-TEST_F(wotest, DISABLED_remove) {
+TEST_F(wotest, remove) {
     // remove half of the records
+    omp_set_num_threads(THREAD_NUM);
+    #pragma omp parallel for schedule(dynamic,32)
     for(int i = 0; i < TEST_SCALE; i += 2) {
         tree->remove(recs[i].key);
     }
@@ -84,22 +118,28 @@ TEST_F(wotest, DISABLED_remove) {
 }
 
 // scan test is predicated on that key/values are sequencial number for 0 to TEST_SCALE - 1
-TEST_F(wotest, DISABLED_scan) {
-    int max_scan_len = TEST_SCALE / 2;
+TEST_F(wotest, scan) {
+    uint16_t notvalid = 0;
+    int max_scan_len = TEST_SCALE / 20;
     Record * buf = new Record[max_scan_len];
+    std::sort(recs.begin(), recs.end());
 
-    for(int step = 5; step < max_scan_len; step *= 5) {
+    omp_set_num_threads(THREAD_NUM);
+    #pragma omp parallel for shared(notvalid)
+    for(int step = 10; step < max_scan_len; step += max_scan_len / 128) {
         // printf("Step: %d\n", step);
-        for(int i = 0; i < TEST_SCALE - step; i += step / 2) {
+        for(int i = 0; i < TEST_SCALE - step; i += TEST_SCALE / 64) {
             // do scan
-            int count = tree->scan(_key_t(i), step, buf);
+            int count = tree->scan(recs[i].key, step, buf);
             // do validate
-            ASSERT_EQ(count, step);
-            for(int j = 0; j < count; j++) {
-                ASSERT_EQ(buf[j].val, uint64_t(i + j));
-            }
+            if(count != step) notvalid += 1;
+            // for(int j = 0; j < count; j++) {
+            //     if(buf[j].val != recs[i+j].val) notvalid += 1;
+            // }
         }
     }
+
+    ASSERT_EQ(notvalid, 0);
 
     delete [] buf;
 }

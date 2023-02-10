@@ -38,8 +38,8 @@ void SwapNode(BaseNode * oldone, BaseNode *newone) {
     memcpy(oldone, newone, HEADER_SIZE); // replace the old node with the newone
     
     // the old node is recliamed
-    reclaimer.Add((BaseNode *)tmp, false);
-    reclaimer.Add(newone, true);
+    reclaimer.Add((BaseNode *)tmp, true);
+    reclaimer.Add(newone, false);
 }
 
 // Morph a leaf node from From-type to To-type

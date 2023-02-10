@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.11)
 project(vibench)
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_FLAGS "-march=native -g -fmax-errors=5")
+set(CMAKE_CXX_FLAGS "-march=native -g -fmax-errors=5 -fopenmp")
 
 #======= include directories =======
 include_directories(${CMAKE_SOURCE_DIR}/ALEX/src/core)
@@ -14,7 +14,7 @@ include_directories(${CMAKE_SOURCE_DIR}/morphtree)
 
 #==== set compile and link options =====
 # link options must be prior to adding sub directories
-add_link_options(-pthread)
+add_link_options(-pthread -fopenmp)
 
 #======= add sub directories =======
 add_subdirectory(morphtree)

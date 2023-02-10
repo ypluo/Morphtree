@@ -138,7 +138,7 @@ private:
     void DoSplit(_key_t * split_key, ROLeaf ** split_node);
 
     inline bool ShouldSplit() {
-        return count >= GLOBAL_LEAF_SIZE || of_count > (GLOBAL_LEAF_SIZE / 4);
+        return count >= GLOBAL_LEAF_SIZE;
     }
 
     inline int Predict(const _key_t & k) {
@@ -155,8 +155,7 @@ public:
 
     // data
     Bucket *buckets;
-    uint32_t of_count;
-    char dummy[4];
+    _key_t mysplitkey;
 };
 
 // write optimzied leaf nodes
@@ -195,7 +194,8 @@ private:
     std::atomic<uint32_t> alloc_count;
     VersionLock sortlock;
     VersionLock mutex;
-    char dummy[10];
+    uint16_t dummy;
+    _key_t mysplitkey;
 };
 
 class NodeReclaimer {
