@@ -9,6 +9,7 @@
 
 namespace morphtree {
 
+const uint64_t LOCK_MARK    = 0xffff000000000000;
 const uint64_t POINTER_MARK = 0x0000ffffffffffff;
 static const int MARGIN = ROInner::PROBE_SIZE;
 
@@ -91,7 +92,7 @@ void ROInner::Print(string prefix) {
             printf("><");
         }
         if(recs[i].key != MAX_KEY)
-            printf("%lf, ", recs[i].key);
+            printf("(%lf,%lu), ", recs[i].key, recs[i].val);
     }
     printf("]\n");
     for(int i = 0; i < capacity; i++) {
@@ -134,6 +135,9 @@ bool ROInner::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROInner **
 
         ExtVersionLock::Lock(&recs[predict].val);
         Record last_one = recs[predict + PROBE_SIZE - 1];
+        if(i == predict) { // needed for the bucket lock
+            v = (recs[predict].val & LOCK_MARK) + v;
+        }
         if(last_one.key == MAX_KEY) { // there is an empty slot
             memmove(&recs[i + 1], &recs[i], sizeof(Record) * (predict + PROBE_SIZE - 1 - i));
             recs[i] = Record(k, v);
@@ -155,7 +159,7 @@ bool ROInner::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROInner **
             } else { // has a overflow inner node
                 if(i < predict + PROBE_SIZE - 1) {
                     _key_t new_k = recs[predict + PROBE_SIZE - 2].key;
-                    uint64_t new_v = recs[predict + PROBE_SIZE - 2].val;
+                    uint64_t new_v = recs[predict + PROBE_SIZE - 2].val & POINTER_MARK;
                     memmove(&recs[i + 1], &recs[i], sizeof(Record) * (predict + PROBE_SIZE - 2 - i));
                     recs[i] = Record(k, v);
                     
@@ -244,11 +248,10 @@ void ROInner::Dump(std::vector<Record> & out) {
                 if(!node->Leaf()) {
                     ((ROInner *)node)->Dump(out);
                 } else {
-                    recs[i + j].val = recs[i + j].val & POINTER_MARK;
-                    out.push_back(recs[i + j]);
+                    out.emplace_back(recs[i + j].key, recs[i + j].val & POINTER_MARK);
                 }
             } else {
-                out.push_back(recs[i + j]);
+                out.emplace_back(recs[i + j].key, recs[i + j].val & POINTER_MARK);
             }
         }
     }

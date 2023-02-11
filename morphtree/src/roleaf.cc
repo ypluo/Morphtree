@@ -347,6 +347,10 @@ int ROLeaf::Scan(const _key_t &startKey, int len, Record *result) {
         goto roleaf_scan_retry;
     }
 
+    if(startKey >= mysplitkey) {
+        return sibling->Scan(startKey, len, result);
+    }
+
     auto v1 = nodelock.Version();
     int bucket_no = Predict(startKey) / PROBE_SIZE;
     int new_len = len;

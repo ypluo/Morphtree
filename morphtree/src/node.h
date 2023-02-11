@@ -191,10 +191,10 @@ private:
     Record * recs; 
     uint32_t readonly_count;
     uint32_t readable_count;
-    std::atomic<uint32_t> alloc_count;
+    VersionLock writelock;
     VersionLock sortlock;
     VersionLock mutex;
-    uint16_t dummy;
+    char dummy[5];
     _key_t mysplitkey;
 };
 

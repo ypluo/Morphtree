@@ -17,10 +17,11 @@ WOLeaf::WOLeaf() {
     stats = WOSTATS;
     sibling = nullptr;
     shadow = nullptr;
+    mysplitkey = MAX_KEY;
 
     recs = new Record[NODE_SIZE];
     count = 0;
-    readable_count = readonly_count = alloc_count = count;
+    readable_count = readonly_count = count;
 }
 
 WOLeaf::WOLeaf(Record * recs_in, int num) {
@@ -28,11 +29,12 @@ WOLeaf::WOLeaf(Record * recs_in, int num) {
     stats = WOSTATS;
     sibling = nullptr;
     shadow = nullptr;
+    mysplitkey = MAX_KEY;
 
     recs = new Record[NODE_SIZE];
     memcpy(recs, recs_in, sizeof(Record) * num);
     count = num;
-    readable_count = readonly_count = alloc_count = count;
+    readable_count = readonly_count = count;
 }
 
 WOLeaf::~WOLeaf() {
@@ -49,29 +51,24 @@ bool WOLeaf::Store(const _key_t & k, uint64_t v, _key_t * split_key, WOLeaf ** s
     if(k >= mysplitkey) {
         return sibling->Store(k, v, split_key, (BaseNode **)split_node);
     }
-    // stage 1: reserve a slot
-    uint32_t cur = alloc_count.fetch_add(1, std::memory_order_relaxed);
-    if(cur >= GLOBAL_LEAF_SIZE) { // no more empty slot, wait for the node to split
-        alloc_count.fetch_sub(1, std::memory_order_relaxed); // restore to old value
+
+    writelock.Lock();
+    uint32_t next_count;
+    if(readable_count == GLOBAL_LEAF_SIZE) { // no more empty slot, wait for the node to split
+        writelock.UnLock();
         std::this_thread::yield();
         goto woleaf_store_retry;
+    } else {
+        recs[readable_count] = {k, v};
+        next_count = ++readable_count;
+        writelock.UnLock();
     }
     
-    // stage 2: store key value to the slot
-    recs[cur] = {k, v};
-    if(cur - readonly_count == PIECE_SIZE) { // only one writer thread will do sorting
-        sortlock.Lock(); // sortlock helps to coordinate with other operations
-        std::sort(recs + readonly_count, recs + readonly_count + PIECE_SIZE);
+    if(next_count - readonly_count == PIECE_SIZE) { // handle sort
+        sortlock.Lock();
+        std::sort(&recs[readonly_count], &recs[next_count]);
         readonly_count += PIECE_SIZE;
         sortlock.UnLock();
-    }
-
-    // stage 3: thread writing the smallest slot is responsible for updating readable_count
-    while(cur == readable_count && mutex.TryLock()) {
-        while(readable_count < GLOBAL_LEAF_SIZE && recs[readable_count].key != MAX_KEY) {
-            readable_count = readable_count + 1;
-        }
-        mutex.UnLock();
     }
     
     cur_shadow = shadow;
@@ -80,7 +77,7 @@ bool WOLeaf::Store(const _key_t & k, uint64_t v, _key_t * split_key, WOLeaf ** s
     }
 
     // handle splittion
-    if(cur == GLOBAL_LEAF_SIZE - 1) {
+    if(next_count == GLOBAL_LEAF_SIZE) {
         DoSplit(split_key, split_node);
         return true;
     } else {
@@ -102,13 +99,17 @@ bool WOLeaf::Lookup(const _key_t & k, uint64_t &v) {
     }
 
     woleaf_look_retry:
+    if (k >= mysplitkey) {
+        return sibling->Lookup(k, v);
+    }
+
     auto v1 = sortlock.Version();
     // do binary search in the unsorted piece
     for(int i = readonly_count; i < readable_count; i++) {
         if(recs[i].key == k) {
             v = recs[i].val;
             if(sortlock.IsLocked() || v1 != sortlock.Version()) goto woleaf_look_retry;
-            return true;
+            return v != 0;
         }
     }
 
@@ -187,7 +188,7 @@ bool WOLeaf::Remove(const _key_t & k) {
         if(r.val == 0) {
             return false;
         } else {
-            r.val == 0;
+            r.val = 0;
             return true;
         }
     };
@@ -311,6 +312,8 @@ void WOLeaf::DoSplit(_key_t * split_key, WOLeaf ** split_node) {
     WOLeaf * right = new WOLeaf(data.data() + pid, data.size() - pid);
     left->sibling = right;
     right->sibling = sibling;
+    left->mysplitkey = data[pid].key;
+    right->mysplitkey = this->mysplitkey;
 
     // update splitting info
     *split_key = data[pid].key;

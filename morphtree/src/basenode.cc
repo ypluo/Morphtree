@@ -142,6 +142,7 @@ void BaseNode::Print(string prefix) {
     if(!Leaf()) {
         reinterpret_cast<ROInner *>(this)->Print(prefix);
     } else {
+        return ;
         switch(node_type) {
         case NodeType::ROLEAF: 
             return reinterpret_cast<ROLeaf *>(this)->Print(prefix);
