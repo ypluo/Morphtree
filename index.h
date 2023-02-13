@@ -19,6 +19,8 @@ class Index
 
     virtual bool upsert(KeyType key, ValType value) = 0;
 
+    virtual bool remove(KeyType key) {return true;}
+
     virtual uint64_t scan(KeyType key, int range) = 0;
 
     virtual int64_t printTree() const = 0;
@@ -65,6 +67,11 @@ public:
 
     uint64_t scan(KeyType key, int range) {
         return 0;
+    }
+
+    bool remove(KeyType key) {
+        idx->erase(key);
+        return true;
     }
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
@@ -160,6 +167,11 @@ public:
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
         idx = new pgm::DynamicPGMIndex<KeyType, ValType>(recs, recs + len);
+    }
+
+    bool remove(KeyType key) {
+        idx->erase(key);
+        return true;
     }
 
     int64_t printTree() const {return 0;}
@@ -258,6 +270,11 @@ public:
         idx->Print();
         return 0;
     }
+
+    bool remove(KeyType key) {
+        idx->remove(key);
+        return true;
+    }
     
 private:
     morphtree::MorphtreeImpl<morphtree::NodeType::WOLEAF, false> * idx;
@@ -304,6 +321,11 @@ public:
         idx->Print();
         return 0;
     }
+
+    bool remove(KeyType key) {
+        idx->remove(key);
+        return true;
+    }
     
 private:
     morphtree::MorphtreeImpl<morphtree::NodeType::ROLEAF, false> * idx;
@@ -344,6 +366,11 @@ public:
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
         return;
+    }
+
+    bool remove(KeyType key) {
+        idx->remove(key);
+        return true;
     }
 
     int64_t printTree() const {
@@ -399,6 +426,11 @@ public:
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
         return;
+    }
+
+    bool remove(KeyType key) {
+        idx->erase(key);
+        return true;
     }
     
 private:

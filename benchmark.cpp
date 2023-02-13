@@ -5,6 +5,8 @@
 #include <cassert>
 #include <unistd.h>
 
+#include <glog/logging.h>
+
 #include "utils.h"
 #include "index.h"
 
@@ -71,8 +73,8 @@ void load(std::vector<KeyType> &init_keys, std::vector<KeyType> &keys,
   std::string init_file;
   std::string txn_file;
 
-  init_file = "../build/dataset.dat";
-  txn_file = "../build/query.dat";
+  init_file = "/home/lyp/morphtree/build/dataset.dat";
+  txn_file = "/home/lyp/morphtree/build/query.dat";
 
   std::ifstream infile_load(init_file);
   if(!infile_load) {
@@ -88,6 +90,7 @@ void load(std::vector<KeyType> &init_keys, std::vector<KeyType> &keys,
   std::string insert("INSERT");
   std::string read("READ");
   std::string update("UPDATE");
+  std::string remove("REMOVE");
   std::string scan("SCAN");
 
   size_t count = 0;
@@ -137,6 +140,10 @@ void load(std::vector<KeyType> &init_keys, std::vector<KeyType> &keys,
       ops.push_back(OP_UPSERT);
       keys.push_back(key);
     }
+    else if (op.compare(remove) == 0) {
+      ops.push_back(OP_REMOVE);
+      keys.push_back(key);
+    }
     else if (op.compare(scan) == 0) {
       infile_txn >> range;
       ops.push_back(OP_SCAN);
@@ -174,14 +181,15 @@ Index<KeyType, ValType> * populate(int index_type, std::vector<KeyType> &init_ke
     
     // generate records
     for (int i = 0; i < bulkload_size; i++) {
-      recs[i] = {bulk_keys[i], ValType(std::abs(bulk_keys[i]))};
+      recs[i] = {bulk_keys[i], ValType(std::abs(bulk_keys[i]) + 1)};
     }
 
     idx->bulkload(recs, bulkload_size);
     delete recs;
   } else {
     for(size_t i = 0; i < bulkload_size; i++) {
-      idx->insert(init_keys[i], ValType(std::abs(init_keys[i])));
+      idx->insert(init_keys[i], ValType(std::abs(init_keys[i] + 1)));
+      LOG(INFO) << "Populating key = " << init_keys[i];
     } 
   }
   
@@ -189,7 +197,7 @@ Index<KeyType, ValType> * populate(int index_type, std::vector<KeyType> &init_ke
   size_t total_num_key = init_keys.size() - bulkload_size;
   size_t end_index = bulkload_size + total_num_key;
   for(size_t i = bulkload_size; i < end_index;i++) {
-    idx->insert(init_keys[i], ValType(std::abs(init_keys[i])));
+    idx->insert(init_keys[i], ValType(std::abs(init_keys[i] + 1)));
   } 
   double end_time = get_now();
   
@@ -216,39 +224,16 @@ void exec(int index_type,
     printf("%d \n", mem / 1024);
     return;
   }
-  
-  size_t warmup_size;
-  if(detail_tp == false)
-    warmup_size = ops.size() / 10;
-  else 
-    warmup_size = 0;
 
-  // warmup part
-  ValType v;
-  for(size_t i = 0; i < warmup_size; i++) {
-      int op = ops[i];
-      if (op == OP_INSERT) { //INSERT
-        idx->insert(keys[i], ValType(std::abs(keys[i])));
-      } else if (op == OP_READ) { //READ
-        bool found = idx->find(keys[i], &v);
-        // assert(v == ValType(std::abs(keys[i])));
-        // assert(found == true);
-      } else if (op == OP_UPSERT) { //UPDATE
-        idx->upsert(keys[i], ValType(std::abs(keys[i])));
-      } else if (op == OP_SCAN) { //SCAN
-        idx->scan(keys[i], ranges[i]);
-      }
-  }
-  
   // test part
   auto func2 = [num_thread, 
-                idx, index_type, warmup_size,
+                idx, index_type,
                 &keys,
                 &ranges,
-                &ops](uint64_t thread_id, bool) {
-    size_t txn_num = ops.size() - warmup_size;
+                &ops](uint64_t thread_id) {
+    size_t txn_num = ops.size();
     size_t op_per_thread = txn_num / num_thread;
-    size_t start_index = warmup_size + op_per_thread * thread_id;
+    size_t start_index = op_per_thread * thread_id;
     size_t end_index = start_index + op_per_thread;
 
     uint64_t v;
@@ -256,15 +241,20 @@ void exec(int index_type,
     double last_ts = get_now(), cur_ts;
     for(size_t i = start_index;i < end_index;i++) {
       int op = ops[i];
+      DLOG(INFO) << " key = " << keys[i] << " " << op;
       if (op == OP_INSERT) { //INSERT
-        idx->insert(keys[i], ValType(std::abs(keys[i])));
+        idx->insert(keys[i], ValType(std::abs(keys[i]) + 1));
       } else if (op == OP_READ) { //READ
+        if(keys[i] == 4455494.010179) 
+          int a = 0;
         bool found = idx->find(keys[i], &v);
-        // assert(v == ValType(std::abs(keys[i])));
-        // assert(found == true);
-        if(!found) counter += 1; 
+        if(found == false) {
+          DLOG(ERROR) << " key = " << keys[i] << " not found";
+        }
       } else if (op == OP_UPSERT) { //UPDATE
-        idx->upsert(keys[i], ValType(std::abs(keys[i])));
+        idx->upsert(keys[i], ValType(std::abs(keys[i]) + 2));
+      } else if (op == OP_REMOVE) {
+        idx->remove(keys[i]);
       } else if (op == OP_SCAN) { //SCAN
         idx->scan(keys[i], ranges[i]);
       }
@@ -277,25 +267,37 @@ void exec(int index_type,
       }
     }
 
-    if(counter == 997)
-      std::cout << counter << std::endl;
-
     return;
   };
 
-  auto start_time = get_now();  
-  func2(0, false);
+  auto start_time = get_now();
+  
+  std::thread test_threads[num_thread];
+  for(int i = 0; i < num_thread; i++)
+    test_threads[i] = std::move(std::thread(func2, i));
+
+  for(int i = 0; i < num_thread; i++)
+    test_threads[i].join();
+
   auto end_time = get_now();
 
-  double tput = (ops.size() - warmup_size) / (end_time - start_time) / 1000000; //Mops/sec
+  double tput = (ops.size()) / (end_time - start_time) / 1000000; //Mops/sec
   if(detail_tp == false)
-    std::cout << tput << " ";
+    std::cout << tput << std::endl;
   
   delete idx;
   return;
 }
 
+
 int main(int argc, char *argv[]) {
+  google::InitGoogleLogging(argv[0]);
+
+  google::SetLogDestination(google::GLOG_INFO, "/home/lyp/morphtree/build/log/INFO-");
+  google::SetLogDestination(google::GLOG_ERROR, "/home/lyp/morphtree/build/log/ERROR-");
+  google::SetStderrLogging(google::GLOG_FATAL);
+  
+
   if (argc == 1) {
     std::cout << "Usage:\n";
     std::cout << "1. index type \n";
@@ -355,5 +357,7 @@ int main(int argc, char *argv[]) {
   }
 
   exec(index_type, num_thread, init_keys, keys, ranges, ops);
+
+  google::ShutdownGoogleLogging();
   return 0;
 }

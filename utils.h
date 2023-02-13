@@ -21,6 +21,7 @@ enum {
   OP_INSERT,
   OP_READ,
   OP_UPSERT,
+  OP_REMOVE,
   OP_SCAN,
 };
 
