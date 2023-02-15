@@ -5,6 +5,7 @@
 #include <cassert>
 #include <unistd.h>
 
+#include <iomanip>
 #include <glog/logging.h>
 
 #include "utils.h"
@@ -168,31 +169,26 @@ Index<KeyType, ValType> * populate(int index_type, std::vector<KeyType> &init_ke
   Index<KeyType, ValType> *idx = getInstance<KeyType, ValType>(index_type);
   uint64_t bulkload_size = init_keys.size() / 4;
 
-  if (index_type <= 3) {
-    std::pair<KeyType, uint64_t> *recs;
-    recs = new std::pair<KeyType, uint64_t>[bulkload_size];
+  // bulkload
+  std::pair<KeyType, uint64_t> *recs;
+  recs = new std::pair<KeyType, uint64_t>[bulkload_size];
 
-    // sort the keys
-    std::vector<KeyType> bulk_keys;
-    for(int i = 0; i < bulkload_size; i++) {
-      bulk_keys.push_back(init_keys[i]);
-    }
-    std::sort(bulk_keys.begin(), bulk_keys.end());
-    
-    // generate records
-    for (int i = 0; i < bulkload_size; i++) {
-      recs[i] = {bulk_keys[i], ValType(std::abs(bulk_keys[i]) + 1)};
-    }
-
-    idx->bulkload(recs, bulkload_size);
-    delete recs;
-  } else {
-    for(size_t i = 0; i < bulkload_size; i++) {
-      idx->insert(init_keys[i], ValType(std::abs(init_keys[i] + 1)));
-      LOG(INFO) << "Populating key = " << init_keys[i];
-    } 
+  // sort the keys
+  std::vector<KeyType> bulk_keys;
+  for(int i = 0; i < bulkload_size; i++) {
+    bulk_keys.push_back(init_keys[i]);
   }
+  std::sort(bulk_keys.begin(), bulk_keys.end());
   
+  // generate records
+  for (int i = 0; i < bulkload_size; i++) {
+    recs[i] = {bulk_keys[i], ValType(std::abs(bulk_keys[i]) + 1)};
+  }
+
+  idx->bulkload(recs, bulkload_size);
+  delete recs;
+
+  // warmup 
   double start_time = get_now(); 
   size_t total_num_key = init_keys.size() - bulkload_size;
   size_t end_index = bulkload_size + total_num_key;
@@ -202,8 +198,6 @@ Index<KeyType, ValType> * populate(int index_type, std::vector<KeyType> &init_ke
   double end_time = get_now();
   
   double tput = (init_keys.size() - bulkload_size) / (end_time - start_time) / 1000000; //Mops/sec
-  // if(detail_tp == false)
-  //   std::cout << tput << "\t";
   return idx;
 }
 
@@ -241,15 +235,12 @@ void exec(int index_type,
     double last_ts = get_now(), cur_ts;
     for(size_t i = start_index;i < end_index;i++) {
       int op = ops[i];
-      DLOG(INFO) << " key = " << keys[i] << " " << op;
       if (op == OP_INSERT) { //INSERT
         idx->insert(keys[i], ValType(std::abs(keys[i]) + 1));
       } else if (op == OP_READ) { //READ
-        if(keys[i] == 4455494.010179) 
-          int a = 0;
         bool found = idx->find(keys[i], &v);
         if(found == false) {
-          DLOG(ERROR) << " key = " << keys[i] << " not found";
+          DLOG(ERROR) << std::setprecision(15) << " key = " << keys[i] << " not found";
         }
       } else if (op == OP_UPSERT) { //UPDATE
         idx->upsert(keys[i], ValType(std::abs(keys[i]) + 2));
@@ -335,7 +326,7 @@ int main(int argc, char *argv[]) {
   std::vector<KeyType> init_keys;
   std::vector<KeyType> keys;
   std::vector<int> ranges;
-  std::vector<int> ops; //INSERT = 0, READ = 1, UPDATE = 2, SCAN = 3
+  std::vector<int> ops; //INSERT = 0, READ = 1, UPDATE = 2, REMOVE=3, SCAN = 4
 
   init_keys.reserve(64000000);
   keys.reserve(64000000);

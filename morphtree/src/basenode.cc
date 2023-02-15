@@ -4,7 +4,6 @@ namespace morphtree {
 
 // definitions of global variables
 bool do_morphing;
-uint64_t global_stats;
 NodeReclaimer reclaimer;
 
 // Predict the node type of a leaf node according to its access history
@@ -142,7 +141,7 @@ void BaseNode::Print(string prefix) {
     if(!Leaf()) {
         reinterpret_cast<ROInner *>(this)->Print(prefix);
     } else {
-        return ;
+        // return ;
         switch(node_type) {
         case NodeType::ROLEAF: 
             return reinterpret_cast<ROLeaf *>(this)->Print(prefix);

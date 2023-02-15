@@ -109,7 +109,7 @@ void CoreWorkload::Init(const utils::Properties &p) {
     // If the generator picks a key that is not inserted yet, we just ignore it
     // and pick another key.
     int op_count = std::stoi(p.GetProperty(OPERATION_COUNT_PROPERTY));
-    int new_keys = (int)(op_count * insert_proportion); // a fudge factor
+    int new_keys = 0; //(int)(op_count * insert_proportion); // a fudge factor
     key_chooser_ = new ScrambledZipfianGenerator(insert_start + record_count_ + new_keys, zipfian_skewness);
   } else if (request_dist == "latest") {
     key_chooser_ = new SkewedLatestGenerator(insert_key_sequence_, zipfian_skewness);

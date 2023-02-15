@@ -263,7 +263,9 @@ public:
     }
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
-        return;
+        for(size_t i = 0; i < len; i++) {
+            idx->insert(recs[i].first, recs[i].second);
+        }
     }
 
     int64_t printTree() const {
@@ -314,7 +316,9 @@ public:
     }
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
-        return;
+        for(size_t i = 0; i < len; i++) {
+            idx->insert(recs[i].first, recs[i].second);
+        }
     }
 
     int64_t printTree() const {
@@ -365,7 +369,9 @@ public:
     }
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
-        return;
+        for(size_t i = 0; i < len; i++) {
+            idx->insert(recs[i].first, recs[i].second);
+        }
     }
 
     bool remove(KeyType key) {
@@ -425,7 +431,9 @@ public:
     }
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
-        return;
+        for(size_t i = 0; i < len; i++) {
+            idx->insert(recs[i].first, recs[i].second);
+        }
     }
 
     bool remove(KeyType key) {

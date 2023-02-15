@@ -54,13 +54,14 @@ struct Bucket {
     bool Store(const _key_t & k, uint64_t v) {
         // lock-based insertion
         lock.Lock();
-        if(len >= cap) { // no more space
+        if(len >= cap - 1) { // no more space
             uint16_t new_cap = cap * 3 / 2;
             Record * new_recs = new Record[new_cap];
             memcpy(new_recs, recs, sizeof(Record) * len);
-            std::swap(new_recs, recs);
+            Record * tmp = recs;
+            recs = new_recs;
             cap = new_cap;
-            delete [] new_recs;
+            delete [] tmp;
         } 
 
         uint16_t i;
@@ -102,11 +103,11 @@ struct Bucket {
             }
         }
         
-        uint64_t get_val = recs[i].val;
+        Record get_rec = recs[i];
         if(lock.IsLocked() || v1 != lock.Version()) goto retry_lookup;
 
-        if (recs[i].key == k) {
-            v = get_val;
+        if (get_rec.key == k) {
+            v = get_rec.val;
             return true;
         } else {
             return false;
@@ -267,8 +268,8 @@ bool ROLeaf::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROLeaf ** s
     if(cur_shadow != nullptr) { // this node is under morphing
         cur_shadow->Store(k, v, split_key, (BaseNode **)split_node);
     }
-    count += 1;
-
+    __atomic_fetch_add(&count, 1, __ATOMIC_RELAXED);
+    
     if(ShouldSplit()) {
         DoSplit(split_key, split_node);
         return true;
@@ -286,8 +287,13 @@ bool ROLeaf::Lookup(const _key_t & k, uint64_t &v) {
     if(cur_shadow != nullptr) { // this node is under morphing
         return cur_shadow->Lookup(k, v);
     }
-    // In the critical section, current node does not split
-    return found;
+
+    // check its sibling node
+    if(found == false && k >= mysplitkey) {
+        return sibling->Lookup(k, v);
+    } else {
+        return true;
+    }
 }
 
 bool ROLeaf::Update(const _key_t & k, uint64_t v) {

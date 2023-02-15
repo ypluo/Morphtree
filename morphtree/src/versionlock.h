@@ -14,7 +14,7 @@ public:
         version = 0;
     }
 
-    uint8_t Version() {return version;}
+    uint8_t Version() const {return version;}
 
     bool TryLock() {
         VersionLock expected = *this;

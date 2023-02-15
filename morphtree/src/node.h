@@ -13,6 +13,9 @@
 #include <atomic>
 #include <list>
 
+#include <iomanip>
+#include <glog/logging.h>
+
 #include "versionlock.h"
 #include "../include/util.h"
 
@@ -74,7 +77,7 @@ public:
 
     ~ROInner();
 
-    // void Clear() {capacity = 0;}
+    void Clear() {capacity = 0;}
 
     bool Store(const _key_t & k, uint64_t v, _key_t * split_key, ROInner ** split_node);
 
@@ -91,7 +94,7 @@ private:
         // more than 67% index records are overflowed
         return of_count > (count << 1) / 3;
     }
-    
+
     void RebuildSubTree();
 
     void Dump(std::vector<Record> & out);
@@ -100,8 +103,9 @@ public:
     static const int PROBE_SIZE       = 4;
     static const int BNODE_SIZE       = 12;
     // model: 16 Bytes
-    double slope;
     double intercept;
+    double slope;
+    
     // data
     Record *recs;
     uint32_t capacity;
@@ -150,9 +154,9 @@ public:
     static const int NODE_SIZE = GLOBAL_LEAF_SIZE;
 
     // model
-    double slope;
     double intercept;
-
+    double slope;
+    
     // data
     Bucket *buckets;
     _key_t mysplitkey;
@@ -187,15 +191,16 @@ private:
     static const int NODE_SIZE = GLOBAL_LEAF_SIZE;
     static const int PIECE_SIZE = GLOBAL_LEAF_SIZE / 10;
 
+public:
     // data
     Record * recs; 
     uint32_t readonly_count;
     uint32_t readable_count;
+    _key_t mysplitkey;
     VersionLock writelock;
     VersionLock sortlock;
     VersionLock mutex;
     char dummy[5];
-    _key_t mysplitkey;
 };
 
 class NodeReclaimer {
@@ -212,7 +217,7 @@ public:
             if(std::get<2>(*iter) <= safe_epoch) { 
                 // this node is safe to reclaim
                 BaseNode * tmp = std::get<0>(*iter);
-                if(std::get<1>(*iter) == false) 
+                if(std::get<1>(*iter) == true) 
                     tmp->DeleteNode(); // should also reclaim its data
                 else 
                     delete (char *)tmp; // reclaim its header only
@@ -223,7 +228,6 @@ public:
 
 // Global variables and functions controling the morphing of Morphtree 
 extern bool do_morphing;
-extern uint64_t global_stats;
 extern NodeReclaimer reclaimer;
 extern void MorphNode(BaseNode * leaf, NodeType from, NodeType to);
 extern void SwapNode(BaseNode * oldone, BaseNode *newone);
