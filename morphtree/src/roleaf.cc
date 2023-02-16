@@ -51,40 +51,6 @@ struct Bucket {
         return (++len) > ROLeaf::PROBE_SIZE;
     }
 
-    bool Store(const _key_t & k, uint64_t v) {
-        // lock-based insertion
-        lock.Lock();
-        if(len >= cap - 1) { // no more space
-            uint16_t new_cap = cap * 3 / 2;
-            Record * new_recs = new Record[new_cap];
-            memcpy(new_recs, recs, sizeof(Record) * len);
-            Record * tmp = recs;
-            recs = new_recs;
-            cap = new_cap;
-            delete [] tmp;
-        } 
-
-        uint16_t i;
-        for(i = 0; i < len; i++) {
-            if(recs[i].key >= k) {
-                break;
-            }
-        }
-
-        if(recs[i].key == k) { // an update operation
-            recs[i].val = v;
-            lock.UnLock();
-            return false;
-        }
-
-        memmove(&recs[i + 1], &recs[i], sizeof(Record) * (len - i));
-        recs[i] = Record(k, v);
-        ++len;
-
-        lock.UnLock();
-        return len > ROLeaf::PROBE_SIZE;
-    }
-
     bool Lookup(const _key_t & k, uint64_t &v) {
         // lock-free lookup operation
         retry_lookup:
@@ -115,8 +81,6 @@ struct Bucket {
     }
 
     bool Update(const _key_t & k, uint64_t v) {
-        // lock-based update operation
-        lock.Lock();
         if(len > 64) {
             auto binary_update = [&v](Record & r) {
                 r.val = v;
@@ -124,7 +88,6 @@ struct Bucket {
             };
             bool found = BinSearch_CallBack(recs, len, k, binary_update);
 
-            lock.UnLock();
             return found;
         }
 
@@ -138,17 +101,13 @@ struct Bucket {
         if (recs[i].key == k) {
             recs[i].val = v;
 
-            lock.UnLock();
             return true;
         } else {
-            lock.UnLock();
             return false;
         }
     }
 
-    bool Remove(const _key_t & k) {
-        // lock-based deletion
-        lock.Lock();
+    bool Remove(const _key_t & k, uint64_t &v) {
         uint16_t i;
         for(i = 0; i < len; i++) {
             if(recs[i].key >= k) {
@@ -157,13 +116,11 @@ struct Bucket {
         }
 
         if(recs[i].key == k) {
+            v = recs[i].val;
             memmove(&recs[i], &recs[i + 1], sizeof(Record) * (len - i));
             len--;
-
-            lock.UnLock();
             return true;
         } else {
-            lock.UnLock();
             return false;
         }
     }
@@ -189,16 +146,26 @@ struct Bucket {
         return no;
     }
 
-    void Dump(std::vector<Record> & out) {
+    int Dump(std::vector<Record> & out) {
         lock.Lock();
+        int num = len;
         out.insert(out.end(), recs, recs + len);
         lock.UnLock();
-        return;
+        return num;
+    }
+
+    int Dump(Record * out) {
+        lock.Lock();
+        int num = len;
+        memcpy(out, recs, sizeof(Record) * len);
+        lock.UnLock();
+        return num;
     }
 };
 
 ROLeaf::ROLeaf() {
-    node_type = ROLEAF;
+    node_type = NodeType::ROLEAF;
+    next_node_type = NodeType::ROLEAF;
     stats = ROSTATS;
     count = 0;
     sibling = nullptr;
@@ -211,7 +178,8 @@ ROLeaf::ROLeaf() {
 }
 
 ROLeaf::ROLeaf(Record * recs_in, int num) {
-    node_type = ROLEAF;
+    node_type = NodeType::ROLEAF;
+    next_node_type = NodeType::ROLEAF;
     stats = ROSTATS;
     count = 0;
     sibling = nullptr;
@@ -233,6 +201,20 @@ ROLeaf::ROLeaf(Record * recs_in, int num) {
     for(int i = 0; i < num; i++) {
         this->Append(recs_in[i].key, recs_in[i].val);
     }
+}
+
+ROLeaf::ROLeaf(double a, double b) {
+    node_type = NodeType::ROLEAF;
+    next_node_type = NodeType::ROLEAF;
+    stats = ROSTATS;
+    count = 0;
+    sibling = nullptr;
+    shadow = nullptr;
+    mysplitkey = MAX_KEY;
+
+    slope = a;
+    intercept = b;
+    buckets = new Bucket[NODE_SIZE / PROBE_SIZE];
 }
 
 ROLeaf::~ROLeaf() {
@@ -259,16 +241,24 @@ bool ROLeaf::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROLeaf ** s
 
     auto v1 = nodelock.Version();
     int bucket_no = Predict(k) / PROBE_SIZE;
-    bool overflow = buckets[bucket_no].Store(k, v);
+    
+    buckets[bucket_no].lock.Lock();
+    bool overflow = buckets[bucket_no].Append(k, v);
     if(nodelock.IsLocked() || v1 != nodelock.Version()) {
+        buckets[bucket_no].lock.UnLock();
         goto roleaf_store_retry;
     }
     
     cur_shadow = shadow;
     if(cur_shadow != nullptr) { // this node is under morphing
-        cur_shadow->Store(k, v, split_key, (BaseNode **)split_node);
+        uint64_t tmp_v;
+        buckets[bucket_no].Remove(k, tmp_v); // reverse the store operation
+        buckets[bucket_no].lock.UnLock();
+        return cur_shadow->Store(k, v, split_key, (BaseNode **)split_node);
+    } else {
+        buckets[bucket_no].lock.UnLock();
+        __atomic_fetch_add(&count, 1, __ATOMIC_RELAXED);
     }
-    __atomic_fetch_add(&count, 1, __ATOMIC_RELAXED);
     
     if(ShouldSplit()) {
         DoSplit(split_key, split_node);
@@ -309,8 +299,10 @@ bool ROLeaf::Update(const _key_t & k, uint64_t v) {
 
     auto v1 = nodelock.Version();
     // critical section
-    int bucket_no = Predict(k) / PROBE_SIZE;    
+    int bucket_no = Predict(k) / PROBE_SIZE;
+    buckets[bucket_no].lock.Lock();
     bool found = buckets[bucket_no].Update(k, v);
+    buckets[bucket_no].lock.UnLock();
     if(nodelock.IsLocked() || v1 != nodelock.Version()) goto roleaf_update_retry;
 
     cur_shadow = shadow;
@@ -335,12 +327,23 @@ bool ROLeaf::Remove(const _key_t & k) {
     auto v1 = nodelock.Version();
     // critical section
     int bucket_no = Predict(k) / PROBE_SIZE;
-    bool found = buckets[bucket_no].Remove(k);
-    if(nodelock.IsLocked() || v1 != nodelock.Version()) goto roleaf_remove_retry;
-
+    buckets[bucket_no].lock.Lock();
+    uint64_t v;
+    bool found = buckets[bucket_no].Remove(k, v);
+    
+    if(nodelock.IsLocked() || v1 != nodelock.Version()) {
+        buckets[bucket_no].lock.UnLock();
+        goto roleaf_remove_retry;
+    }
+    
     cur_shadow = shadow;
     if(cur_shadow != nullptr) { // this node is under morphing
+        if (found) buckets[bucket_no].Append(k, v); // reverse the remove operation
+        buckets[bucket_no].lock.UnLock();
         return cur_shadow->Remove(k);
+    } else {
+        buckets[bucket_no].lock.UnLock();
+        if(found) __atomic_fetch_sub(&count, 1, __ATOMIC_RELAXED);
     }
 
     return found;
@@ -379,6 +382,10 @@ void ROLeaf::Dump(std::vector<Record> & out) {
     for(int i = 0; i < (NODE_SIZE / PROBE_SIZE); i++) {
         buckets[i].Dump(out);
     }
+}
+
+int ROLeaf::Dump(int i, Record * out) {
+    return buckets[i].Dump(out);
 }
 
 void ROLeaf::Print(string prefix) {

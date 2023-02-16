@@ -34,14 +34,12 @@ public:
             success = __atomic_compare_exchange(this, &expected, &desired, false, __ATOMIC_RELAXED, __ATOMIC_RELAXED);
         } while(success == false);
         // lock first and update verion
-        __asm__ __volatile__("sfence":::"memory");
         version += 1;
     }
 
     void UnLock() {
         version += 1;
         // update verion and UnLock
-        __asm__ __volatile__("sfence":::"memory");
         lock = 0;
     }
 
@@ -64,7 +62,6 @@ public:
             success = __atomic_compare_exchange(v, &expected, &desired, false, __ATOMIC_RELAXED, __ATOMIC_RELAXED);
         } while(success == false);
         // lock first and update verion
-        __asm__ __volatile__("sfence":::"memory");
         if((*v & 0x7f00000000000000) == 0x7f00000000000000) {
             *v = (*v & 0x80ffffffffffffff);
         } else {
@@ -79,7 +76,6 @@ public:
             *v = *v + ((uint64_t)0x1 << 56);
         }
         // update verion and UnLock
-        __asm__ __volatile__("sfence":::"memory");
         *v = (*v & 0x7fffffffffffffff);
     }
 

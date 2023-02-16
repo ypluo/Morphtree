@@ -12,24 +12,28 @@
 
 namespace morphtree {
     
-WOLeaf::WOLeaf() {
+WOLeaf::WOLeaf(uint32_t initial_num) {
     node_type = NodeType::WOLEAF;
+    next_node_type = NodeType::WOLEAF;
     stats = WOSTATS;
     sibling = nullptr;
     shadow = nullptr;
     mysplitkey = MAX_KEY;
+    lsn = 0;
 
     recs = new Record[NODE_SIZE];
-    count = 0;
+    count = initial_num;
     readable_count = readonly_count = count;
 }
 
 WOLeaf::WOLeaf(Record * recs_in, int num) {
     node_type = NodeType::WOLEAF;
+    next_node_type = NodeType::WOLEAF;
     stats = WOSTATS;
     sibling = nullptr;
     shadow = nullptr;
     mysplitkey = MAX_KEY;
+    lsn = 0;
 
     recs = new Record[NODE_SIZE];
     memcpy(recs, recs_in, sizeof(Record) * num);
@@ -329,14 +333,14 @@ void WOLeaf::DoSplit(_key_t * split_key, WOLeaf ** split_node) {
 }
 
 void WOLeaf::Print(string prefix) {
-    // std::vector<Record> out;
-    // Dump(out);
+    std::vector<Record> out;
+    Dump(out);
 
-    // printf("%s(%d, %d)[", prefix.c_str(), node_type, readable_count);
-    // for(int i = 0; i < out.size(); i++) {
-    //     printf("%12.8lf, ", out[i].key);
-    // }
-    // printf("]\n");
+    printf("%s(%d, %d)[", prefix.c_str(), node_type, readable_count);
+    for(int i = 0; i < out.size(); i++) {
+        printf("%12.8lf, ", out[i].key);
+    }
+    printf("]\n");
     
     printf("%s(%d, %d)[", prefix.c_str(), node_type, readable_count);
     for(int i = 0; i < readable_count; i++) {

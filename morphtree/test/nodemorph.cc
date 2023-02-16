@@ -23,7 +23,7 @@ TEST(NodeMorph, wonode) {
         n->Store(tmp[i], uint64_t((uint64_t)tmp[i]), &split_key, &split_node);
     }
 
-    MorphNode(n, NodeType::WOLEAF, NodeType::ROLEAF);
+    MorphNode(n, (uint8_t)0, NodeType::ROLEAF);
 
     // test lookup
     uint64_t res;
@@ -58,7 +58,7 @@ TEST(NodeMorph, ronode) {
         ASSERT_FALSE(n->Store(tmp[i].key, tmp[i].val, &split_key, &split_node));
     }
 
-    MorphNode(n, NodeType::ROLEAF, NodeType::WOLEAF);
+    MorphNode(n, (uint8_t)0, NodeType::WOLEAF);
 
     // test lookup
     uint64_t res;

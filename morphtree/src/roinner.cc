@@ -234,7 +234,6 @@ bool ROInner::Lookup(const _key_t & k, uint64_t &v) {
         // probe left: if k is less than the minimal key in current bucket
         while(recs_snapshot[predict].key > k) {
             predict -= PROBE_SIZE;
-            // DLOG(INFO) << "Go Backwards " << std::setprecision(15) << k << " at " << predict;
         }
 
         roinner_lookup_retry2:
@@ -245,6 +244,8 @@ bool ROInner::Lookup(const _key_t & k, uint64_t &v) {
             if(recs_snapshot[i].key > k) {
                 v = (recs_snapshot[i - 1].val & POINTER_MARK);
                 if(ExtVersionLock::IsLocked(recs_snapshot[predict].val) || v1 != ExtVersionLock::Version(recs_snapshot[predict].val)) goto roinner_lookup_retry2;
+
+                DLOG_IF(FATAL, v == 0) << "The child pointer is invalid " << " Key " << k << " at slot " << predict;
                 return true;
             }
         }
@@ -252,6 +253,8 @@ bool ROInner::Lookup(const _key_t & k, uint64_t &v) {
         // this bucket is probed
         v = (recs_snapshot[i - 1].val & POINTER_MARK);
         if(ExtVersionLock::IsLocked(recs_snapshot[predict].val) || v1 != ExtVersionLock::Version(recs_snapshot[predict].val)) goto roinner_lookup_retry2;
+        
+        DLOG_IF(FATAL, v == 0) << "The child pointer is invalid " << " Key " << k << " at slot " << predict;
         return true;
     }
 }

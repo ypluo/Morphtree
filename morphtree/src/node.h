@@ -11,7 +11,8 @@
 #include <cstring>
 #include <string>
 #include <atomic>
-#include <list>
+#include <thread>
+#include <queue>
 
 #include <iomanip>
 #include <glog/logging.h>
@@ -37,7 +38,7 @@ public:
     
     void DeleteNode();
 
-    void TypeManager(bool isWrite);
+    void MorphJudge(bool isWrite);
 
 public:
     bool Store(const _key_t & k, uint64_t v, _key_t * split_key, BaseNode ** split_node);
@@ -58,10 +59,11 @@ public:
 
 public:
     // Node header: 32 bytes
-    uint8_t node_type;
+    uint8_t node_type      : 4;
+    uint8_t next_node_type : 4;
     VersionLock nodelock;
     VersionLock morphlock;
-    uint8_t unused;
+    uint8_t lsn;
     uint32_t count;
     uint64_t stats;
     BaseNode * sibling;
@@ -120,6 +122,8 @@ public:
 
     ROLeaf(Record * recs_in, int num);
 
+    ROLeaf(double a, double b);
+
     ~ROLeaf();
 
     bool Store(const _key_t & k, uint64_t v, _key_t * split_key, ROLeaf ** split_node);
@@ -133,6 +137,8 @@ public:
     int Scan(const _key_t &startKey, int len, Record *result);
 
     void Dump(std::vector<Record> & out);
+
+    int Dump(int i, Record * out);
 
     void Print(string prefix);
 
@@ -165,7 +171,7 @@ public:
 // write optimzied leaf nodes
 class WOLeaf : public BaseNode {
 public:
-    WOLeaf();
+    WOLeaf(uint32_t initial_num = 0);
 
     WOLeaf(Record * recs_in, int num);
 
@@ -194,33 +200,84 @@ private:
 public:
     // data
     Record * recs; 
+    _key_t mysplitkey;
+
     uint32_t readonly_count;
     uint32_t readable_count;
-    _key_t mysplitkey;
     VersionLock writelock;
     VersionLock sortlock;
     VersionLock mutex;
     char dummy[5];
 };
 
+// background threads
 class NodeReclaimer {
     typedef std::tuple<BaseNode *, bool, int> ReclaimEle;
-    std::list<ReclaimEle> list;
+    std::queue<ReclaimEle> que;
+    VersionLock mtx;
 
 public:
-    void Add(BaseNode * node, bool header_only, int epoch = 1) {
-        list.emplace(list.end(), node, header_only, epoch);
+    NodeReclaimer() {
+        // Run();
     }
 
-    void Reclaim(int safe_epoch = 0) {
-        for(auto iter = list.begin(); iter != list.end(); iter++) {
-            if(std::get<2>(*iter) <= safe_epoch) { 
-                // this node is safe to reclaim
-                BaseNode * tmp = std::get<0>(*iter);
-                if(std::get<1>(*iter) == true) 
-                    tmp->DeleteNode(); // should also reclaim its data
-                else 
-                    delete (char *)tmp; // reclaim its header only
+    void Add(BaseNode * node, bool header_only, int epoch = 1) {
+        mtx.Lock();
+        que.emplace(node, header_only, epoch);
+        mtx.UnLock();
+    }
+
+    static void Reclaim(BaseNode * node, bool header_only) {
+        if(header_only)
+            node->DeleteNode(); // should also reclaim its data
+        else 
+            delete (char *)node; // reclaim its header only
+    }
+
+    void Run() {
+        while(true) {
+            mtx.Lock();
+            ReclaimEle r = que.front();
+            if(std::get<2>(r) > 0) { // able to reclaim
+                que.pop();
+                Reclaim(std::get<0>(r), std::get<1>(r));
+            } else {
+                mtx.UnLock();
+            }
+            std::this_thread::yield();
+        }
+    }
+};
+
+class MorphLogger {
+    typedef std::tuple<BaseNode *, uint16_t, uint8_t> MorphRecord;
+    std::queue<MorphRecord> que;
+    VersionLock mtx;
+    uint32_t size;
+
+public:
+    MorphLogger() : size(0) {
+        // Run()
+    }
+
+    void Add(BaseNode * node, uint16_t lsn, uint8_t node_type) {
+        mtx.Lock();
+        que.emplace(node, lsn, node_type);
+        size += 1;
+        mtx.UnLock();
+    }
+
+    static void MorphOneNode(BaseNode * leaf, uint16_t lsn, uint8_t to);
+
+    void Run() {
+        while(true) {
+            if(size > 0) {
+                mtx.Lock();
+                MorphRecord r = que.front();
+                que.pop();
+                size -= 1;
+                mtx.UnLock();
+                MorphOneNode(std::get<0>(r), std::get<1>(r), std::get<2>(r));
             }
         }
     }
@@ -229,7 +286,8 @@ public:
 // Global variables and functions controling the morphing of Morphtree 
 extern bool do_morphing;
 extern NodeReclaimer reclaimer;
-extern void MorphNode(BaseNode * leaf, NodeType from, NodeType to);
+extern MorphLogger morph_log;
+extern void MorphNode(BaseNode * leaf, uint8_t lsn, NodeType to);
 extern void SwapNode(BaseNode * oldone, BaseNode *newone);
 
 } // namespace morphtree
