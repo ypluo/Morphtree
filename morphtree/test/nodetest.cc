@@ -21,7 +21,7 @@ TEST(SingleNode, woleaf) {
         tmp[i].key = i;
         tmp[i].val = (uint64_t)i + 1;
     }
-    std::shuffle(tmp, tmp + SCALE1 - 1, std::default_random_engine(997));
+    std::shuffle(tmp, tmp + SCALE1, std::default_random_engine(997));
 
     // insert data into nodes
     for(uint64_t i = 0; i < SCALE1; i++) {
@@ -51,7 +51,7 @@ TEST(SingleNode, roleaf) {
         tmp[i].key = i;
         tmp[i].val = (uint64_t)i + 1;
     }
-    std::shuffle(tmp, tmp + SCALE1 - 1, std::default_random_engine(997));
+    std::shuffle(tmp, tmp + SCALE1, std::default_random_engine(997));
 
     // bulk load
     std::sort(tmp, tmp + load_size);

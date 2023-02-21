@@ -48,6 +48,9 @@ MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::MorphtreeImpl() {
 
     // global variables assignment
     do_morphing = MORPH_IF;
+    morph_log = new MorphLogger();
+    reclaimer = new NodeReclaimer();
+    gacn = 0;
 }
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
@@ -55,6 +58,9 @@ MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::MorphtreeImpl(std::vector<Record> & ini
     root_ = bulkload(initial_recs);
     // global variables assignment
     do_morphing = MORPH_IF;
+    morph_log = new MorphLogger();
+    reclaimer = new NodeReclaimer();
+    gacn = 0;
 }
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
@@ -72,6 +78,7 @@ MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::~MorphtreeImpl() {
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::lookup(const _key_t &key, uint64_t & val) {
+    gacn++;
     BaseNode * cur = root_;
 
     uint64_t v;
@@ -85,6 +92,7 @@ bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::lookup(const _key_t &key, uint64_t
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 void MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::insert(const _key_t &key, uint64_t val) {
+    gacn++;
     BaseNode * cur = root_;
 
     uint64_t v;
@@ -117,6 +125,7 @@ void MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::Print() {
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::update(const _key_t & key, const uint64_t val) {
+    gacn++;
     BaseNode * cur = root_;
 
     uint64_t v;
@@ -130,6 +139,7 @@ bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::update(const _key_t & key, const u
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::remove(const _key_t & key) {
+    gacn++;
     BaseNode * cur = root_;
 
     uint64_t v;
@@ -143,6 +153,7 @@ bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::remove(const _key_t & key) {
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 int MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::scan(const _key_t &startKey, int len, Record *result) {
+    gacn++;
     // the user is reponsible for reserve enough space for saving result
     BaseNode * cur = root_;
 

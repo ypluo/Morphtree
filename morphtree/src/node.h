@@ -94,7 +94,7 @@ private:
 
     inline bool ShouldRebuild() {
         // more than 67% index records are overflowed
-        return of_count > (count << 1) / 3;
+        return of_count > (count << 1) / 3; // || count >= capacity;
     }
 
     void RebuildSubTree();
@@ -227,7 +227,7 @@ public:
         mtx.UnLock();
     }
 
-    static void Reclaim(BaseNode * node, bool header_only) {
+    static void ReclaimOneNode(BaseNode * node, bool header_only) {
         if(header_only)
             node->DeleteNode(); // should also reclaim its data
         else 
@@ -240,7 +240,7 @@ public:
             ReclaimEle r = que.front();
             if(std::get<2>(r) > 0) { // able to reclaim
                 que.pop();
-                Reclaim(std::get<0>(r), std::get<1>(r));
+                ReclaimOneNode(std::get<0>(r), std::get<1>(r));
             } else {
                 mtx.UnLock();
             }
@@ -257,7 +257,9 @@ class MorphLogger {
 
 public:
     MorphLogger() : size(0) {
-        // Run()
+        #ifdef BG_MORPH
+            Run();
+        #endif
     }
 
     void Add(BaseNode * node, uint16_t lsn, uint8_t node_type) {
@@ -285,8 +287,9 @@ public:
 
 // Global variables and functions controling the morphing of Morphtree 
 extern bool do_morphing;
-extern NodeReclaimer reclaimer;
-extern MorphLogger morph_log;
+extern NodeReclaimer *reclaimer;
+extern MorphLogger *morph_log;
+extern uint64_t gacn;
 extern void MorphNode(BaseNode * leaf, uint8_t lsn, NodeType to);
 extern void SwapNode(BaseNode * oldone, BaseNode *newone);
 

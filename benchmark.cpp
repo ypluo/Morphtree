@@ -127,11 +127,10 @@ void load(std::vector<KeyType> &init_keys, std::vector<KeyType> &keys,
     if(!infile_txn.good()) {
       break;
     }
-
+    ranges.push_back(1);
     if (op.compare(insert) == 0) {
       ops.push_back(OP_INSERT);
       keys.push_back(key);
-      ranges.push_back(1);
     }
     else if (op.compare(read) == 0) {
       ops.push_back(OP_READ);
@@ -149,7 +148,7 @@ void load(std::vector<KeyType> &init_keys, std::vector<KeyType> &keys,
       infile_txn >> range;
       ops.push_back(OP_SCAN);
       keys.push_back(key);
-      ranges.push_back(range);
+      ranges.back() = range;
     }
     else {
       std::cout << "UNRECOGNIZED CMD!\n";

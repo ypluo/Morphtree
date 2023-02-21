@@ -109,17 +109,23 @@ bool ROInner::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROInner **
         nodelock.Lock();
         int i;
         for(i = 0; i < count; i++) {
-            if(recs[i].key > k) {
+            if(recs[i].key >= k) {
                 break;
             }
         }
 
         memmove(&recs[i + 1], &recs[i], sizeof(Record) * (count - i));
-        recs[i] = {k, v};
-        count += 1;
+        if(recs[i].key == k) {
+            recs[i].val = v;
+        } else {
+            recs[i] = {k, v};
+            count += 1;
+        }
 
         if(count == BNODE_SIZE) { // create a new inner node
             ROInner * new_inner = new ROInner(recs, count);
+            new_inner->nodelock.Lock();
+
             SwapNode(this, new_inner);
         }
 
@@ -157,10 +163,12 @@ bool ROInner::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROInner **
         if(i == predict) { // the insert record will rewrite the bucket lock
             v = (recs_snapshot[predict].val & LOCK_MARK) + v;
         }
+        bool not_overflow = false;
         if(last_one.key == MAX_KEY) { // there is an empty slot
             memmove(&recs_snapshot[i + 1], &recs_snapshot[i], sizeof(Record) * (predict + PROBE_SIZE - 1 - i));
             recs_snapshot[i] = Record(k, v);
         } else {
+            not_overflow = true;
             BaseNode * rightmost = (BaseNode *)(last_one.val & POINTER_MARK);
             if(rightmost->Leaf()) { // has no overflow inner node
                 // copy records in this bucket into a tmp array
@@ -177,7 +185,7 @@ bool ROInner::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROInner **
             } else { // has a overflow inner node
                 if(i < predict + PROBE_SIZE - 1) {
                     _key_t new_k = recs_snapshot[predict + PROBE_SIZE - 2].key;
-                    uint64_t new_v = recs_snapshot[predict + PROBE_SIZE - 2].val & POINTER_MARK;
+                    uint64_t new_v = (recs_snapshot[predict + PROBE_SIZE - 2].val & POINTER_MARK);
                     memmove(&recs_snapshot[i + 1], &recs_snapshot[i], sizeof(Record) * (predict + PROBE_SIZE - 2 - i));
                     recs_snapshot[i] = Record(k, v);
                     
@@ -190,16 +198,16 @@ bool ROInner::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROInner **
                     rightmost->Store(k, v, nullptr, nullptr);
                 }
             }
+            __atomic_fetch_add(&of_count, 1, __ATOMIC_RELAXED);
         }
-        
-        __atomic_fetch_add(&of_count, 1, __ATOMIC_RELAXED);
         __atomic_fetch_add(&count, 1, __ATOMIC_RELAXED);
 
         ExtVersionLock::UnLock(&recs_snapshot[predict].val);
         if(nodelock.IsLocked() || v1 != nodelock.Version()) {
             std::this_thread::yield();
-            __atomic_fetch_sub(&of_count, 1, __ATOMIC_RELAXED);
             __atomic_fetch_sub(&count, 1, __ATOMIC_RELAXED);
+            if(not_overflow) 
+                __atomic_fetch_sub(&of_count, 1, __ATOMIC_RELAXED);
             goto roinner_store_retry;
         }
 
@@ -271,7 +279,12 @@ void ROInner::RebuildSubTree() {
 }
 
 void ROInner::Dump(std::vector<Record> & out) {
-    for(int i = 0; i < capacity; i += PROBE_SIZE) {
+    if(count < BNODE_SIZE) {
+        for(int i = 0; i < count; i++) {
+            out.emplace_back(recs[i].key, recs[i].val & POINTER_MARK);
+        }
+    } else {
+        for(int i = 0; i < capacity; i += PROBE_SIZE) {
         ExtVersionLock::Lock(&recs[i].val);
         for(int j = 0; j < PROBE_SIZE; j++) {
             if(recs[i + j].key == MAX_KEY) {
@@ -291,4 +304,5 @@ void ROInner::Dump(std::vector<Record> & out) {
     }
 }
 
+}
 } // namespace morphtree

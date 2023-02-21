@@ -4,8 +4,8 @@ namespace morphtree {
 
 // definitions of global variables
 bool do_morphing;
-NodeReclaimer reclaimer;
-MorphLogger morph_log;
+NodeReclaimer *reclaimer;
+MorphLogger *morph_log;
 uint64_t gacn;
 
 // Predict the node type of a leaf node according to its access history
@@ -28,11 +28,15 @@ void BaseNode::MorphJudge(bool isWrite) {
     if(new_type != next_node_type) { // add a morph record
         this->next_node_type = new_type; // wait for a node morphing
         this->lsn++;         // the lsn for next morphing
-        morph_log.Add(this, this->lsn, new_type);
+        #ifdef BG_MORPH
+            morph_log->Add(this, this->lsn, new_type);
+        #else
+            MorphNode(this, this->lsn, (NodeType)new_type);
+        #endif
+        return ;
     } else {
-        ;// this node is already waitting for a morph, do nothing
+        return ;// this node is already waitting for a morph, do nothing
     }
-    return;
 }
 
 // Swap the metadata of two nodes
@@ -44,8 +48,8 @@ void SwapNode(BaseNode * oldone, BaseNode *newone) {
     memcpy(oldone, newone, HEADER_SIZE); // replace the old node with the newone
     
     // the old node is recliamed
-    reclaimer.Add((BaseNode *)tmp, true);
-    reclaimer.Add(newone, false);
+    reclaimer->Add((BaseNode *)tmp, true);
+    reclaimer->Add(newone, false);
 }
 
 // Morph a leaf node from From-type to To-type
@@ -70,6 +74,7 @@ void MorphLogger::MorphOneNode(BaseNode * leaf, uint16_t lsn, uint8_t to) {
         ROLeaf * rleaf = (ROLeaf *) leaf;
         // create a new leaf node
         newleaf = new WOLeaf(rleaf->count);
+        newleaf->morphlock.Lock();
         newleaf->lsn = leaf->lsn;
         newleaf->sibling = leaf->sibling;
         ((WOLeaf *) newleaf)->mysplitkey = rleaf->mysplitkey;
@@ -93,6 +98,7 @@ void MorphLogger::MorphOneNode(BaseNode * leaf, uint16_t lsn, uint8_t to) {
 
         // create a new roleaf node
         newleaf = new ROLeaf(model.a_ * GLOBAL_LEAF_SIZE / wleaf->count, model.b_ * GLOBAL_LEAF_SIZE / wleaf->count);
+        newleaf->morphlock.Lock();
         newleaf->lsn = leaf->lsn;
         newleaf->sibling = leaf->sibling;
         ((ROLeaf *) newleaf)->mysplitkey = wleaf->mysplitkey;
@@ -103,17 +109,18 @@ void MorphLogger::MorphOneNode(BaseNode * leaf, uint16_t lsn, uint8_t to) {
         // start to migrate
         for(int i = 0; i < wleaf->readable_count; i++) {
             if(wleaf->recs[i].val != 0) {
-                newleaf->Store(wleaf->recs[i].key, wleaf->recs[i].val, nullptr, nullptr);
+                ((ROLeaf *)newleaf)->Store(wleaf->recs[i].key, wleaf->recs[i].val, nullptr, nullptr);
             }
         }
     }
 
     // finish morphing
     SwapNode(leaf, newleaf);
-    leaf->nodelock.UnLock();
+    leaf->morphlock.UnLock();
 }
 
 void MorphNode(BaseNode * leaf, uint8_t lsn, NodeType to) {
+    // printf("%s", to == ROLEAF ? "R" : "W");
     MorphLogger::MorphOneNode(leaf, lsn, to);
 }
 

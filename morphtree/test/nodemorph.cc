@@ -12,15 +12,17 @@ TEST(NodeMorph, wonode) {
     _key_t split_key = 0;
     BaseNode * split_node = nullptr;
     
-    _key_t * tmp = new _key_t[SCALE1];
+    Record * tmp = new Record[SCALE1];
     for(uint64_t i = 0; i < SCALE1; i++) {
-        tmp[i] = i;
+        tmp[i].key = i + 1;
+        tmp[i].val = (uint64_t)tmp[i].key;
     }
-    std::shuffle(tmp, tmp + SCALE1 - 1, std::default_random_engine(getRandom()));
+
+    std::shuffle(tmp, tmp + SCALE1 - 1, std::default_random_engine(997));
 
     // insert data into nodes
     for(uint64_t i = 0; i < SCALE1; i++) {
-        n->Store(tmp[i], uint64_t((uint64_t)tmp[i]), &split_key, &split_node);
+        n->Store(tmp[i].key, (uint64_t)tmp[i].val, &split_key, &split_node);
     }
 
     MorphNode(n, (uint8_t)0, NodeType::ROLEAF);
@@ -28,8 +30,9 @@ TEST(NodeMorph, wonode) {
     // test lookup
     uint64_t res;
     for(uint64_t i = 0; i < SCALE1; i++) {
-        ASSERT_TRUE(n->Lookup(i, res));
-        ASSERT_EQ(res, uint64_t(i));
+        // printf("%lf\n", tmp[i].key);
+        ASSERT_TRUE(n->Lookup(tmp[i].key, res));
+        ASSERT_EQ(res, uint64_t(tmp[i].val));
     }
     ASSERT_EQ(split_node, nullptr);
 
@@ -44,10 +47,10 @@ TEST(NodeMorph, ronode) {
     BaseNode * split_node = nullptr;
     Record * tmp = new Record[SCALE1];
     for(uint64_t i = 0; i < SCALE1; i++) {
-        tmp[i].key = i;
-        tmp[i].val = (uint64_t)i;
+        tmp[i].key = i + 1;
+        tmp[i].val = (uint64_t)tmp[i].key;
     }
-    std::shuffle(tmp, tmp + SCALE1 - 1, std::default_random_engine(getRandom()));
+    std::shuffle(tmp, tmp + SCALE1 - 1, std::default_random_engine(997));
 
     // bulk load
     std::sort(tmp, tmp + load_size);
@@ -63,8 +66,8 @@ TEST(NodeMorph, ronode) {
     // test lookup
     uint64_t res;
     for(uint64_t i = 0; i < SCALE1; i++) {
-        ASSERT_TRUE(n->Lookup(i, res));
-        ASSERT_EQ(res, uint64_t(i));
+        ASSERT_TRUE(n->Lookup(tmp[i].key, res));
+        ASSERT_EQ(res, uint64_t(tmp[i].val));
     }
     ASSERT_EQ(split_node, nullptr);
 

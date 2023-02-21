@@ -68,16 +68,20 @@ bool WOLeaf::Store(const _key_t & k, uint64_t v, _key_t * split_key, WOLeaf ** s
         writelock.UnLock();
     }
     
-    if(next_count - readonly_count == PIECE_SIZE) { // handle sort
-        sortlock.Lock();
-        std::sort(&recs[readonly_count], &recs[next_count]);
-        readonly_count += PIECE_SIZE;
-        sortlock.UnLock();
-    }
+    // if(next_count - readonly_count == PIECE_SIZE) { // handle sort
+    //     sortlock.Lock();
+    //     std::sort(&recs[readonly_count], &recs[next_count]);
+    //     readonly_count += PIECE_SIZE;
+    //     sortlock.UnLock();
+    // }
     
     cur_shadow = shadow;
     if(cur_shadow != nullptr) { // this node is under morphing
         cur_shadow->Store(k, v, split_key, (BaseNode **)split_node);
+    } else {
+        auto v3 = morphlock.Version();
+        if(morphlock.Version() == v2) 
+            goto woleaf_store_retry;
     }
 
     // handle splittion
@@ -150,6 +154,7 @@ bool WOLeaf::Update(const _key_t & k, uint64_t v) {
     }
 
     auto v1 = nodelock.Version();
+    auto v2 = morphlock.Version();
     // do binary update in all sorted runs
     if(BinSearch_CallBack(recs, count, k, binary_update)) {
         if(nodelock.IsLocked() || v1 != nodelock.Version()) goto woleaf_update_retry;
@@ -181,7 +186,12 @@ bool WOLeaf::Update(const _key_t & k, uint64_t v) {
     cur_shadow = shadow;
     if(cur_shadow != nullptr) { // this node is under morphing
         return cur_shadow->Update(k, v);
+    } else {
+        auto v3 = morphlock.Version();
+        if(v2 != v3 && v3 % 2 == 0) 
+            goto woleaf_update_retry;
     }
+
     return false;
 }
 
@@ -205,6 +215,7 @@ bool WOLeaf::Remove(const _key_t & k) {
         return sibling->Remove(k);
     }
     auto v1 = nodelock.Version();
+    auto v2 = morphlock.Version();
     // do binary remove in all sorted runs
     if(BinSearch_CallBack(recs, count, k, binary_remove)) {
         return true;
@@ -234,6 +245,10 @@ bool WOLeaf::Remove(const _key_t & k) {
     cur_shadow = shadow;
     if(cur_shadow != nullptr) { // this node is under morphing
         return cur_shadow->Remove(k);
+    }  else {
+        auto v3 = morphlock.Version();
+        if(v2 != v3 && v3 % 2 == 0) 
+            goto woleaf_remove_retry;
     }
     return false;
 }
