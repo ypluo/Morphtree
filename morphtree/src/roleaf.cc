@@ -107,7 +107,7 @@ struct Bucket {
         }
     }
 
-    bool Remove(const _key_t & k, uint64_t &v) {
+    bool Remove(const _key_t & k) {
         uint16_t i;
         for(i = 0; i < len; i++) {
             if(recs[i].key >= k) {
@@ -116,7 +116,6 @@ struct Bucket {
         }
 
         if(recs[i].key == k) {
-            v = recs[i].val;
             memmove(&recs[i], &recs[i + 1], sizeof(Record) * (len - i));
             len--;
             return true;
@@ -222,51 +221,57 @@ ROLeaf::~ROLeaf() {
 }
 
 bool ROLeaf::Append(const _key_t & k, uint64_t v) {
-    int bucket_no = Predict(k) / PROBE_SIZE;
+    int bucket_no = Predict(k, slope, intercept) / PROBE_SIZE;
     bool overflow = buckets[bucket_no].Append(k, v);
     count += 1;
     return false;
 }
 
 bool ROLeaf::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROLeaf ** split_node) {
-    auto cur_shadow = shadow;
-    if(cur_shadow != nullptr) { 
-        return cur_shadow->Store(k, v, split_key, (BaseNode **)split_node); // case 1: under morphing before we try to store
-    }
-
     roleaf_store_retry:
-    if(k >= mysplitkey) {
-        return sibling->Store(k, v, split_key, (BaseNode **)split_node);
+    auto shadow_st = shadow;
+    if(shadow_st != nullptr) { // this node is under morphing
+        return shadow_st->Store(k, v, split_key, (BaseNode **)split_node);
     }
 
-    auto v1 = nodelock.Version();
-    auto v2 = morphlock.Version();
-    auto buckets_snapshot = buckets;
-    int bucket_no = Predict(k) / PROBE_SIZE;
+    // critical section, write and read to header are safe
+    headerlock.RLock();
+        if(k >= mysplitkey) {
+            headerlock.UnLock();
+            return sibling->Store(k, v, split_key, (BaseNode **)split_node);
+        }
+
+        if(node_type != ROLEAF) {
+            // the node is changed to another type
+            headerlock.UnLock();
+            return ((WOLeaf *)this)->Store(k, v, split_key, (WOLeaf **)split_node);
+        }
+
+        uint32_t cur_count;
+        if(count >= GLOBAL_LEAF_SIZE) {
+            headerlock.UnLock();
+            std::this_thread::yield();
+            goto roleaf_store_retry;
+        } else {
+            int bucket_no = Predict(k, slope, intercept) / PROBE_SIZE;
+            // store to a bucket
+            buckets[bucket_no].lock.Lock();
+            buckets[bucket_no].Append(k, v);
+            if(nodelock.IsLocked()) { // CAUTIOUS: the node starts morphing / splitting after we enter this loop
+                // a better way is to retry and insert the record into its shadow node
+                buckets[bucket_no].Remove(k); // we need to reverse this store op
+                buckets[bucket_no].lock.UnLock();
+
+                headerlock.UnLock();
+                goto roleaf_store_retry;
+            } else {
+                buckets[bucket_no].lock.UnLock();
+                cur_count = __atomic_fetch_add(&count, 1, __ATOMIC_RELEASE);
+            }
+        }
+    headerlock.UnLock();
     
-    buckets_snapshot[bucket_no].lock.Lock();
-    bool overflow = buckets_snapshot[bucket_no].Append(k, v);
-    if(nodelock.IsLocked() || v1 != nodelock.Version()) {
-        buckets_snapshot[bucket_no].lock.UnLock();
-        goto roleaf_store_retry;
-    }
-    
-    cur_shadow = shadow;
-    if(cur_shadow != nullptr) { 
-        // case 2: start morphing after we store a record, not finished
-        uint64_t tmp_v;
-        buckets_snapshot[bucket_no].Remove(k, tmp_v); // reverse the store operation
-        buckets_snapshot[bucket_no].lock.UnLock();
-        return cur_shadow->Store(k, v, split_key, (BaseNode **)split_node);
-    } else {
-        buckets_snapshot[bucket_no].lock.UnLock();
-        auto v3 = morphlock.Version();
-        if(v2 != v3 && v3 % 2 == 0) 
-            goto roleaf_store_retry; // case 3: start morphing after we store a record, finished
-        __atomic_fetch_add(&count, 1, __ATOMIC_RELAXED); // case 4: common case, not overlaped with morphing
-    }
-    
-    if(ShouldSplit()) {
+    if(cur_count + 1 == GLOBAL_LEAF_SIZE) {
         DoSplit(split_key, split_node);
         return true;
     } else {
@@ -275,91 +280,102 @@ bool ROLeaf::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROLeaf ** s
 }
 
 bool ROLeaf::Lookup(const _key_t & k, uint64_t &v) {
-    // critical section
-    auto buckets_snapshot = buckets;
-    int bucket_no = Predict(k) / PROBE_SIZE; 
-    bool found = buckets_snapshot[bucket_no].Lookup(k, v);
+    // critical section: read an valid header
+    roleaf_lookup_retry:
+    auto v1 = headerlock.Version();
+        auto buckets_st = buckets;
+        auto slope_st = slope;
+        auto intercept_st = intercept;
+        auto splitkey_st = mysplitkey;
+        auto sibling_st = sibling;
+    auto v2 = headerlock.Version();
+    if(!(v1 == v2 && v1 % 2 == 0)) goto roleaf_lookup_retry;
 
-    auto cur_shadow = shadow;
-    if(cur_shadow != nullptr) { // this node is under morphing
-        return cur_shadow->Lookup(k, v);
+    if(k >= splitkey_st) {
+        return sibling_st->Lookup(k, v);
     }
-
-    // check its sibling node
-    if(found == false && k >= mysplitkey) {
-        return sibling->Lookup(k, v);
+    int bucket_no = Predict(k, slope_st, intercept_st) / PROBE_SIZE; 
+    bool found = buckets_st[bucket_no].Lookup(k, v);
+    if(found == true) {
+        return true;
+    } else {
+        auto shadow_st = shadow;
+        if(shadow_st != nullptr)
+            return shadow_st->Lookup(k, v);
+        else
+            return false;
     }
-    return found;
 }
 
 bool ROLeaf::Update(const _key_t & k, uint64_t v) {
-    auto cur_shadow = shadow;
-    if(cur_shadow != nullptr) { // this node is under morphing
-        return cur_shadow->Update(k, v);
-    }
-
     roleaf_update_retry:
-    if(k >= mysplitkey) {
-        return sibling->Update(k, v);
+    auto shadow_st = shadow;
+    if(shadow_st != nullptr) { // this node is under morphing
+        return shadow_st->Update(k, v);
     }
 
-    auto v1 = nodelock.Version();
-    auto v2 = morphlock.Version();
-    // critical section
-    auto buckets_snapshot = buckets;
-    int bucket_no = Predict(k) / PROBE_SIZE;
-    buckets_snapshot[bucket_no].lock.Lock();
-    bool found = buckets_snapshot[bucket_no].Update(k, v);
-    buckets_snapshot[bucket_no].lock.UnLock();
-    if(nodelock.IsLocked() || v1 != nodelock.Version()) goto roleaf_update_retry;
+    // critical section, write and read to header are safe
+    headerlock.RLock();
+        if(k >= mysplitkey) {
+            headerlock.UnLock();
+            return sibling->Update(k, v);
+        }
 
-    cur_shadow = shadow;
-    if(cur_shadow != nullptr) { // this node is under morphing
-        return cur_shadow->Update(k, v);
-    } else {
-        auto v3 = morphlock.Version();
-        if(v2 != v3 && v3 % 2 == 0) 
-            goto roleaf_update_retry; // case 3: start morphing after we store a record, finished
-        return found;
-    }
+        if(node_type != ROLEAF) {
+            // the node is changed to another type
+            headerlock.UnLock();
+            return ((WOLeaf *)this)->Update(k, v);
+        }
+
+        int bucket_no = Predict(k, slope, intercept) / PROBE_SIZE;
+        buckets[bucket_no].lock.Lock();
+        bool found = buckets[bucket_no].Update(k, v);
+        buckets[bucket_no].lock.UnLock();
+
+        if(nodelock.IsLocked()) { // CAUTIOUS: the node starts morphing / splitting after we enter this loop
+            // a better way is to retry and insert the record into its shadow node
+            headerlock.UnLock();
+            goto roleaf_update_retry;
+        }
+    headerlock.UnLock();
+
+    return true;
 }
 
 bool ROLeaf::Remove(const _key_t & k) {
-    auto cur_shadow = shadow;
-    if(cur_shadow != nullptr) { // this node is under morphing
-        return cur_shadow->Remove(k);
+    roleaf_remove_retry:
+    auto shadow_st = shadow;
+    if(shadow_st != nullptr) { // this node is under morphing
+        return shadow_st->Remove(k);
     }
 
-    roleaf_remove_retry:
-    if(k >= mysplitkey) {
-        return sibling->Remove(k);
-    }
-    auto v1 = nodelock.Version();
-    auto v2 = morphlock.Version();
-    // critical section
-    auto buckets_snapshot = buckets;
-    int bucket_no = Predict(k) / PROBE_SIZE;
-    buckets_snapshot[bucket_no].lock.Lock();
-    uint64_t v;
-    bool found = buckets_snapshot[bucket_no].Remove(k, v);
-    
-    if(nodelock.IsLocked() || v1 != nodelock.Version()) {
-        buckets_snapshot[bucket_no].lock.UnLock();
-        goto roleaf_remove_retry;
-    }
-    
-    cur_shadow = shadow;
-    if(cur_shadow != nullptr) { // this node is under morphing
-        if (found) buckets_snapshot[bucket_no].Append(k, v); // reverse the remove operation
-        buckets_snapshot[bucket_no].lock.UnLock();
-        return cur_shadow->Remove(k);
-    } else {
-        buckets_snapshot[bucket_no].lock.UnLock();
-        auto v3 = morphlock.Version();
-        if(v2 != v3 && v3 % 2 == 0) 
-            goto roleaf_remove_retry; // case 3: start morphing after we store a record, finished
-        if(found) __atomic_fetch_sub(&count, 1, __ATOMIC_RELAXED);
-    }
+    headerlock.RLock();
+        if(k >= mysplitkey) {
+            headerlock.UnLock();
+            return sibling->Remove(k);
+        }
+
+        if(node_type != ROLEAF) {
+            // the node is changed to another type
+            headerlock.UnLock();
+            return ((WOLeaf *)this)->Remove(k);
+        }
+
+        int bucket_no = Predict(k, slope, intercept) / PROBE_SIZE;
+        buckets[bucket_no].lock.Lock();
+        bool found = buckets[bucket_no].Remove(k);
+        buckets[bucket_no].lock.UnLock();
+        
+        if(nodelock.IsLocked()) { // CAUTIOUS: the node starts morphing / splitting after we enter this loop
+            // a better way is to retry and insert the record into its shadow node
+            headerlock.UnLock();
+            goto roleaf_remove_retry;
+        }
+
+        if(found) {
+            __atomic_fetch_sub(&count, 1, __ATOMIC_RELEASE);
+        }
+    headerlock.UnLock();
 
     return found;
 }
@@ -376,7 +392,7 @@ int ROLeaf::Scan(const _key_t &startKey, int len, Record *result) {
     }
 
     auto v1 = nodelock.Version();
-    int bucket_no = Predict(startKey) / PROBE_SIZE;
+    int bucket_no = Predict(startKey, slope, intercept) / PROBE_SIZE;
     int new_len = len;
     while(new_len > 0 && bucket_no < (NODE_SIZE / PROBE_SIZE)) {
         int no = buckets[bucket_no].Scan(startKey, new_len, result);
@@ -416,7 +432,6 @@ void ROLeaf::Print(string prefix) {
 
 void ROLeaf::DoSplit(_key_t * split_key, ROLeaf ** split_node) {
     // lock-based split operation
-    morphlock.Lock();
     nodelock.Lock();
     
     std::vector<Record> data;
@@ -426,8 +441,7 @@ void ROLeaf::DoSplit(_key_t * split_key, ROLeaf ** split_node) {
     int pid = getSubOptimalSplitkey(data.data(), data.size());
     // creat two new nodes
     ROLeaf * left = new ROLeaf(data.data(), pid);
-    left->morphlock.Lock();
-    left->nodelock.Lock();
+    
     
     ROLeaf * right = new ROLeaf(data.data() + pid, data.size() - pid);
     left->sibling = right;
@@ -439,9 +453,12 @@ void ROLeaf::DoSplit(_key_t * split_key, ROLeaf ** split_node) {
     *split_key = data[pid].key;
     *split_node = right;
 
+    left->nodelock.Lock();
+    left->headerlock.WLock();
+    headerlock.WLock();
     SwapNode(this, left);
+    headerlock.UnLock();
 
-    morphlock.UnLock();
     nodelock.UnLock();
 }
 

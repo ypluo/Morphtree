@@ -46,44 +46,54 @@ WOLeaf::~WOLeaf() {
 }
 
 bool WOLeaf::Store(const _key_t & k, uint64_t v, _key_t * split_key, WOLeaf ** split_node) {
-    auto cur_shadow = shadow;
-    if(cur_shadow != nullptr) { // this node is under morphing
-        return cur_shadow->Store(k, v, split_key, (BaseNode **)split_node);
-    }
-
     woleaf_store_retry:
-    if(k >= mysplitkey) {
-        return sibling->Store(k, v, split_key, (BaseNode **)split_node);
+    auto shadow_st = shadow;
+    if(shadow_st != nullptr) { // this node is under morphing
+        return shadow_st->Store(k, v, split_key, (BaseNode **)split_node);
     }
 
-    writelock.Lock();
-    uint32_t next_count;
-    if(readable_count == GLOBAL_LEAF_SIZE) { // no more empty slot, wait for the node to split
-        writelock.UnLock();
-        std::this_thread::yield();
-        goto woleaf_store_retry;
-    } else {
-        recs[readable_count] = {k, v};
-        next_count = ++readable_count;
-        writelock.UnLock();
-    }
-    
-    // if(next_count - readonly_count == PIECE_SIZE) { // handle sort
-    //     sortlock.Lock();
-    //     std::sort(&recs[readonly_count], &recs[next_count]);
-    //     readonly_count += PIECE_SIZE;
-    //     sortlock.UnLock();
-    // }
-    
-    cur_shadow = shadow;
-    if(cur_shadow != nullptr) { // this node is under morphing
-        cur_shadow->Store(k, v, split_key, (BaseNode **)split_node);
-    } else {
-        auto v3 = morphlock.Version();
-        if(morphlock.Version() == v2) 
+    headerlock.RLock();
+        if(k >= mysplitkey) {
+            headerlock.UnLock();
+            return sibling->Store(k, v, split_key, (BaseNode **)split_node);
+        }
+
+        if(node_type != WOLEAF) {
+            // the node is changed to another type
+            headerlock.UnLock();
+            return ((ROLeaf *)this)->Store(k, v, split_key, (ROLeaf **)split_node);
+        }
+
+        writelock.Lock();
+        uint64_t cur_count;
+        if(readable_count >= GLOBAL_LEAF_SIZE) { // no more empty slot, wait for the node to split
+            writelock.UnLock();
+            headerlock.UnLock();
+            std::this_thread::yield();
             goto woleaf_store_retry;
-    }
-
+        } else {
+            cur_count = readable_count++;
+            recs[cur_count] = {k, v};
+            
+            if(nodelock.IsLocked()) { // CAUTIOUS: the node starts morphing / splitting after we enter this loop
+                // a better way is to retry and insert the record into its shadow node
+                readable_count--;
+                writelock.UnLock();
+                headerlock.UnLock();
+                goto woleaf_store_retry;
+            }
+            writelock.UnLock();
+        }
+        
+        uint32_t next_count = cur_count + 1;
+        if(next_count - readonly_count == PIECE_SIZE) { // handle sort
+            sortlock.Lock();
+            std::sort(&recs[readonly_count], &recs[next_count]);
+            readonly_count += PIECE_SIZE;
+            sortlock.UnLock();
+        }
+    headerlock.UnLock();
+    
     // handle splittion
     if(next_count == GLOBAL_LEAF_SIZE) {
         DoSplit(split_key, split_node);
@@ -94,51 +104,50 @@ bool WOLeaf::Store(const _key_t & k, uint64_t v, _key_t * split_key, WOLeaf ** s
 }
 
 bool WOLeaf::Lookup(const _key_t & k, uint64_t &v) {    
+    woleaf_look_retry:
+    auto v1 = headerlock.Version();
+        auto recs_st = recs;
+        auto count_st = count;
+        auto readonly_count_st = readonly_count;
+        auto readable_count_st = readable_count;
+        auto splitkey_st = mysplitkey;
+        auto sibling_st = sibling;
+    auto v2 = headerlock.Version();
+    if(!(v1 == v2 && v1 % 2 == 0)) goto woleaf_look_retry;
+    
+    // check its sibling node
+    if (k >= splitkey_st) {
+        return sibling_st->Lookup(k, v);
+    }
+
     // do binary search in the initial run
-    if(BinSearch(recs, count, k, v)) {
+    if(BinSearch(recs_st, count_st, k, v)) {
         return true;
     }
 
-    
     // do binary search in sorted pieces
-    for(int i = count; i < readonly_count; i += PIECE_SIZE) {
-        if(BinSearch(recs + i, PIECE_SIZE, k, v)) {
+    for(int i = count_st; i < readonly_count_st; i += PIECE_SIZE) {
+        if(BinSearch(recs_st + i, PIECE_SIZE, k, v)) {
             return true;
         }
     }
-    uint32_t readonly_count_snapshot = readonly_count;
 
-    woleaf_look_retry:
-    auto v1 = sortlock.Version();
     // do binary search in the unsorted piece
-    for(int i = readonly_count_snapshot; i < readable_count; i++) {
-        if(recs[i].key == k) {
-            v = recs[i].val;
-            if(sortlock.IsLocked() || v1 != sortlock.Version()) goto woleaf_look_retry;
+    for(int i = readonly_count_st; i < readable_count_st; i++) {
+        if(recs_st[i].key == k) {
+            v = recs_st[i].val;
             return v != 0;
         }
     }
-    if(sortlock.IsLocked() || v1 != sortlock.Version()) goto woleaf_look_retry;
-    
-    // check the shadow node
-    auto cur_shadow = shadow;
-    if(cur_shadow != nullptr) { 
-        return cur_shadow->Lookup(k, v);
-    }
 
-    // check its sibling node
-    if (k >= mysplitkey) {
-        return sibling->Lookup(k, v);
-    }
-    return false;
+    auto shadow_st = shadow;
+    if(shadow_st != nullptr)
+        return shadow_st->Lookup(k, v);
+    else
+        return false;
 }
 
 bool WOLeaf::Update(const _key_t & k, uint64_t v) {
-    auto cur_shadow = shadow;
-    if(cur_shadow != nullptr) { // this node is under morphing
-        return cur_shadow->Update(k, v);
-    }
-
     auto binary_update = [&v](Record & r) {
         if(r.val == 0) {
             return false;
@@ -149,58 +158,73 @@ bool WOLeaf::Update(const _key_t & k, uint64_t v) {
     };
 
     woleaf_update_retry:
-    if(k >= mysplitkey) {
-        return sibling->Update(k, v);
+    auto shadow_st = shadow;
+    if(shadow_st != nullptr) { // this node is under morphing
+        return shadow_st->Update(k, v);
     }
 
-    auto v1 = nodelock.Version();
-    auto v2 = morphlock.Version();
-    // do binary update in all sorted runs
-    if(BinSearch_CallBack(recs, count, k, binary_update)) {
-        if(nodelock.IsLocked() || v1 != nodelock.Version()) goto woleaf_update_retry;
-        return true;
-    }
-
-    for(int i = count; i < readonly_count; i += PIECE_SIZE) {
-        if(BinSearch_CallBack(recs + i, PIECE_SIZE, k, binary_update)) {
-            if(nodelock.IsLocked() || v1 != nodelock.Version()) goto woleaf_update_retry;
-            return true;
+    headerlock.RLock();
+        if(k >= mysplitkey) {
+            headerlock.UnLock();
+            return sibling->Update(k, v);
         }
-    }
-
-    sortlock.Lock();
-    // do scan in unsorted runs
-    for(int i = readonly_count; i < readable_count; i++) {
-        if(recs[i].key == k) {
-            recs[i].val = v;
-            
-            sortlock.UnLock();
-            if(nodelock.IsLocked() && v1 != nodelock.Version()) goto woleaf_update_retry;
-            return true;
+        
+        if(node_type != WOLEAF) {
+            // the node is changed to another type
+            headerlock.UnLock();
+            return ((ROLeaf *)this)->Update(k, v);
         }
-    }
 
-    sortlock.UnLock();
-    if(nodelock.IsLocked() && v1 != nodelock.Version()) goto woleaf_update_retry;
-    
-    cur_shadow = shadow;
-    if(cur_shadow != nullptr) { // this node is under morphing
-        return cur_shadow->Update(k, v);
-    } else {
-        auto v3 = morphlock.Version();
-        if(v2 != v3 && v3 % 2 == 0) 
+        // do binary update in all sorted runs
+        if(BinSearch_CallBack(recs, count, k, binary_update)) {
+            if(nodelock.IsLocked()) { // CAUTIOUS: the node starts morphing / splitting after we enter this loop
+                headerlock.UnLock();
+                goto woleaf_update_retry;
+            } else {
+                headerlock.UnLock();
+                return true;
+            }
+        }
+
+        for(int i = count; i < readonly_count; i += PIECE_SIZE) {
+            if(BinSearch_CallBack(recs + i, PIECE_SIZE, k, binary_update)) {
+                if(nodelock.IsLocked()) { // CAUTIOUS: the node starts morphing / splitting after we enter this loop
+                    headerlock.UnLock();
+                    goto woleaf_update_retry;
+                } else {
+                    headerlock.UnLock();
+                    return true;
+                }
+            }
+        }
+
+        sortlock.Lock();
+            // do scan in unsorted runs
+            for(int i = readonly_count; i < readable_count; i++) {
+                if(recs[i].key == k) {
+                    recs[i].val = v;
+                    sortlock.UnLock();
+                    if(nodelock.IsLocked()) { // CAUTIOUS: the node starts morphing / splitting after we enter this loop
+                        headerlock.UnLock();
+                        goto woleaf_update_retry;
+                    } else {
+                        headerlock.UnLock();
+                        return true;
+                    }
+                }
+            }
+        sortlock.UnLock();
+
+        if(nodelock.IsLocked()) { // CAUTIOUS: the node starts morphing / splitting after we enter this loop
+            headerlock.UnLock();
             goto woleaf_update_retry;
-    }
+        }
+    headerlock.UnLock();
 
     return false;
 }
 
 bool WOLeaf::Remove(const _key_t & k) {
-    auto cur_shadow = shadow;
-    if(cur_shadow != nullptr) { // this node is under morphing
-        return cur_shadow->Remove(k);
-    }
-
     auto binary_remove = [](Record & r) {
         if(r.val == 0) {
             return false;
@@ -211,45 +235,69 @@ bool WOLeaf::Remove(const _key_t & k) {
     };
 
     woleaf_remove_retry:
-    if(k >= mysplitkey) {
-        return sibling->Remove(k);
-    }
-    auto v1 = nodelock.Version();
-    auto v2 = morphlock.Version();
-    // do binary remove in all sorted runs
-    if(BinSearch_CallBack(recs, count, k, binary_remove)) {
-        return true;
+    auto shadow_st = shadow;
+    if(shadow_st != nullptr) { // this node is under morphing
+        return shadow_st->Remove(k);
     }
 
-    for(int i = count; i < readonly_count; i += PIECE_SIZE) {
-        if(BinSearch_CallBack(recs + i, PIECE_SIZE, k, binary_remove)) {
-            return true;
+    headerlock.RLock();
+        if(k >= mysplitkey) {
+            headerlock.UnLock();
+            return sibling->Remove(k);
         }
-    }
 
-    sortlock.Lock();
-    // do scan in unsorted runs
-    for(int i = readonly_count; i < readable_count; i++) {
-        if(recs[i].key == k) {
-            recs[i].val = 0;
-        
-            sortlock.UnLock();
-            if(nodelock.IsLocked() && v1 != nodelock.Version()) goto woleaf_remove_retry;
-            return true;
+        if(node_type != WOLEAF) {
+            // the node is changed to another type
+            headerlock.UnLock();
+            return ((ROLeaf *)this)->Remove(k);
         }
-    }
 
-    sortlock.UnLock();
-    if(nodelock.IsLocked() && v1 != nodelock.Version()) goto woleaf_remove_retry;
+        // do binary update in all sorted runs
+        if(BinSearch_CallBack(recs, count, k, binary_remove)) {
+            if(nodelock.IsLocked()) { // CAUTIOUS: the node starts morphing / splitting after we enter this loop
+                headerlock.UnLock();
+                goto woleaf_remove_retry;
+            } else {
+                headerlock.UnLock();
+                return true;
+            }
+        }
 
-    cur_shadow = shadow;
-    if(cur_shadow != nullptr) { // this node is under morphing
-        return cur_shadow->Remove(k);
-    }  else {
-        auto v3 = morphlock.Version();
-        if(v2 != v3 && v3 % 2 == 0) 
+        for(int i = count; i < readonly_count; i += PIECE_SIZE) {
+            if(BinSearch_CallBack(recs + i, PIECE_SIZE, k, binary_remove)) {
+                if(nodelock.IsLocked()) { // CAUTIOUS: the node starts morphing / splitting after we enter this loop
+                    headerlock.UnLock();
+                    goto woleaf_remove_retry;
+                } else {
+                    headerlock.UnLock();
+                    return true;
+                }
+            }
+        }
+
+        sortlock.Lock();
+            // do scan in unsorted runs
+            for(int i = readonly_count; i < readable_count; i++) {
+                if(recs[i].key == k) {
+                    recs[i].val = 0;
+                    sortlock.UnLock();
+                    if(nodelock.IsLocked()) { // CAUTIOUS: the node starts morphing / splitting after we enter this loop
+                        headerlock.UnLock();
+                        goto woleaf_remove_retry;
+                    } else {
+                        headerlock.UnLock();
+                        return true;
+                    }
+                }
+            }
+        sortlock.UnLock();
+
+        if(nodelock.IsLocked()) { // CAUTIOUS: the node starts morphing / splitting after we enter this loop
+            headerlock.UnLock();
             goto woleaf_remove_retry;
-    }
+        }
+    headerlock.UnLock();
+
     return false;
 }
 
@@ -298,7 +346,7 @@ void WOLeaf::Dump(std::vector<Record> & out) {
 
     uint32_t total_count = readable_count;
     sortlock.Lock();
-    std::sort(&recs[readonly_count], &recs[readable_count]);
+    std::sort(&recs[readonly_count], &recs[total_count]);
     sortlock.UnLock();
 
     int run_cnt = 0;
@@ -318,7 +366,6 @@ void WOLeaf::Dump(std::vector<Record> & out) {
 }
 
 void WOLeaf::DoSplit(_key_t * split_key, WOLeaf ** split_node) {
-    morphlock.Lock();
     nodelock.Lock();
 
     std::vector<Record> data;
@@ -328,8 +375,6 @@ void WOLeaf::DoSplit(_key_t * split_key, WOLeaf ** split_node) {
     int pid = GLOBAL_LEAF_SIZE / 2;
     // creat two new nodes
     WOLeaf * left = new WOLeaf(data.data(), pid);
-    left->morphlock.Lock();
-    left->nodelock.Lock();
     
     WOLeaf * right = new WOLeaf(data.data() + pid, data.size() - pid);
     left->sibling = right;
@@ -341,10 +386,13 @@ void WOLeaf::DoSplit(_key_t * split_key, WOLeaf ** split_node) {
     *split_key = data[pid].key;
     *split_node = right;
 
+    left->nodelock.Lock();
+    left->headerlock.WLock();
+    headerlock.WLock();
     SwapNode(this, left);
-    
+    headerlock.UnLock();
+
     nodelock.UnLock();
-    morphlock.UnLock();
 }
 
 void WOLeaf::Print(string prefix) {
@@ -354,12 +402,6 @@ void WOLeaf::Print(string prefix) {
     printf("%s(%d, %d)[", prefix.c_str(), node_type, readable_count);
     for(int i = 0; i < out.size(); i++) {
         printf("%12.8lf, ", out[i].key);
-    }
-    printf("]\n");
-    
-    printf("%s(%d, %d)[", prefix.c_str(), node_type, readable_count);
-    for(int i = 0; i < readable_count; i++) {
-        printf("%12.8lf, ", recs[i].key);
     }
     printf("]\n");
 }

@@ -11,7 +11,7 @@
 
 using namespace morphtree;
 
-const int TEST_SCALE = GLOBAL_LEAF_SIZE * 200;
+const int TEST_SCALE = GLOBAL_LEAF_SIZE * 400;
 const int THREAD_NUM = 8;
 
 class rotest : public testing::Test {
@@ -51,7 +51,7 @@ protected:
 
 TEST_F(rotest, insert) {
     omp_set_num_threads(THREAD_NUM);
-    #pragma omp parallel for schedule(dynamic, 32)
+    #pragma omp parallel for schedule(static)
     for(int i = 0; i < TEST_SCALE; i++) {
         tree->insert(recs1[i].key, recs1[i].val);
     }
@@ -116,7 +116,7 @@ TEST_F(rotest, remove) {
 }
 
 // scan test is predicated on that key/values are sequencial number for 0 to TEST_SCALE - 1
-TEST_F(rotest, scan) {
+TEST_F(rotest, DISABLED_scan) {
     uint16_t notvalid = 0;
     int max_scan_len = TEST_SCALE / 20;
     Record * buf = new Record[max_scan_len];

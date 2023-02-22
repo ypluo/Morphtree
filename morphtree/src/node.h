@@ -18,6 +18,7 @@
 #include <glog/logging.h>
 
 #include "versionlock.h"
+#include "rwlock.h"
 #include "../include/util.h"
 
 namespace morphtree {
@@ -59,11 +60,11 @@ public:
 
 public:
     // Node header: 32 bytes
-    uint8_t node_type      : 4;
-    uint8_t next_node_type : 4;
+    uint8_t node_type      : 2;
+    uint8_t next_node_type : 2;
+    uint8_t lsn            : 4;
     VersionLock nodelock;
-    VersionLock morphlock;
-    uint8_t lsn;
+    RWLock headerlock;
     uint32_t count;
     uint64_t stats;
     BaseNode * sibling;
@@ -88,8 +89,8 @@ public:
     void Print(string prefix);
 
 private:
-    inline int Predict(const _key_t & k) {
-        return std::min(std::max(0.0, slope * k + intercept), capacity - 1.0);
+    inline int Predict(const _key_t & k, double a, double b) {
+        return std::min(std::max(0.0, a * k + b), capacity - 1.0);
     }
 
     inline bool ShouldRebuild() {
@@ -147,12 +148,8 @@ private:
 
     void DoSplit(_key_t * split_key, ROLeaf ** split_node);
 
-    inline bool ShouldSplit() {
-        return count >= GLOBAL_LEAF_SIZE;
-    }
-
-    inline int Predict(const _key_t & k) {
-        return std::min(std::max(0.0, slope * k + intercept), NODE_SIZE - 1.0);
+    static inline int Predict(const _key_t & k, double a, double b) {
+        return std::min(std::max(0.0, a * k + b), NODE_SIZE - 1.0);
     }
 
 public:
@@ -204,10 +201,8 @@ public:
 
     uint32_t readonly_count;
     uint32_t readable_count;
-    VersionLock writelock;
     VersionLock sortlock;
-    VersionLock mutex;
-    char dummy[5];
+    VersionLock writelock;
 };
 
 // background threads

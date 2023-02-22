@@ -9,7 +9,7 @@
 
 #include "gtest/gtest.h"
 
-const int THREAD_NUM = 4;
+const int THREAD_NUM = 8;
 
 class ycsbtest : public testing::Test {
 protected:
@@ -24,7 +24,7 @@ protected:
     }
 };
 
-TEST_F(ycsbtest, DISABLED_ycsb) {
+TEST_F(ycsbtest, ycsb) {
     std::ifstream infile_load("/home/lyp/morphtree/build/dataset.dat");
     std::ifstream infile_txn("/home/lyp/morphtree/build/query.dat");
     if(!infile_load || !infile_txn) {

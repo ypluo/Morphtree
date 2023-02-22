@@ -41,7 +41,7 @@ void BaseNode::MorphJudge(bool isWrite) {
 
 // Swap the metadata of two nodes
 void SwapNode(BaseNode * oldone, BaseNode *newone) {
-    static const int HEADER_SIZE = 64;
+    static const int HEADER_SIZE = sizeof(ROLeaf);
     char * tmp = new char[HEADER_SIZE];
 
     memcpy(tmp, oldone, HEADER_SIZE); // record the old node
@@ -54,18 +54,9 @@ void SwapNode(BaseNode * oldone, BaseNode *newone) {
 
 // Morph a leaf node from From-type to To-type
 void MorphLogger::MorphOneNode(BaseNode * leaf, uint16_t lsn, uint8_t to) {
-    auto v1 = leaf->nodelock.Version();
-    leaf->morphlock.Lock();
-
-    // skip when the node just splits
-    if (v1 != leaf->nodelock.Version()) {
-        leaf->morphlock.UnLock();
-        return ;
-    }
-
+    leaf->nodelock.Lock();
     // skip when the record is stale
     if(lsn != leaf->lsn || leaf->node_type == (NodeType)to) {
-        leaf->morphlock.UnLock(); // skip stale or unnecessary MorphRecords
         return ;
     }
 
@@ -74,7 +65,6 @@ void MorphLogger::MorphOneNode(BaseNode * leaf, uint16_t lsn, uint8_t to) {
         ROLeaf * rleaf = (ROLeaf *) leaf;
         // create a new leaf node
         newleaf = new WOLeaf(rleaf->count);
-        newleaf->morphlock.Lock();
         newleaf->lsn = leaf->lsn;
         newleaf->sibling = leaf->sibling;
         ((WOLeaf *) newleaf)->mysplitkey = rleaf->mysplitkey;
@@ -98,7 +88,6 @@ void MorphLogger::MorphOneNode(BaseNode * leaf, uint16_t lsn, uint8_t to) {
 
         // create a new roleaf node
         newleaf = new ROLeaf(model.a_ * GLOBAL_LEAF_SIZE / wleaf->count, model.b_ * GLOBAL_LEAF_SIZE / wleaf->count);
-        newleaf->morphlock.Lock();
         newleaf->lsn = leaf->lsn;
         newleaf->sibling = leaf->sibling;
         ((ROLeaf *) newleaf)->mysplitkey = wleaf->mysplitkey;
@@ -115,8 +104,12 @@ void MorphLogger::MorphOneNode(BaseNode * leaf, uint16_t lsn, uint8_t to) {
     }
 
     // finish morphing
+    newleaf->nodelock.Lock();
+    newleaf->headerlock.WLock();
+    leaf->headerlock.WLock();
     SwapNode(leaf, newleaf);
-    leaf->morphlock.UnLock();
+    leaf->headerlock.UnLock();
+    leaf->nodelock.UnLock();
 }
 
 void MorphNode(BaseNode * leaf, uint8_t lsn, NodeType to) {
