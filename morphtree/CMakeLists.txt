@@ -3,6 +3,8 @@ project(morphtree)
 
 cmake_minimum_required(VERSION 3.16)
 
+find_library(TBB_LIBRARIES NAMES tbb)
+
 # Download and unpack googletest at configure time
 configure_file(CMakeLists.txt.in googletest-download/CMakeLists.txt)
 execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .

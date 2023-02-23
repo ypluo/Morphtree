@@ -2,6 +2,7 @@
 #define __MORPHTREE_IMPL_H__
 
 #include "node.h"
+#include "epoch.h"
 
 namespace morphtree {
 
@@ -49,8 +50,8 @@ MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::MorphtreeImpl() {
     // global variables assignment
     do_morphing = MORPH_IF;
     morph_log = new MorphLogger();
-    reclaimer = new NodeReclaimer();
     gacn = 0;
+    ebr = EpochBasedMemoryReclamationStrategy::getInstance();
 }
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
@@ -59,17 +60,18 @@ MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::MorphtreeImpl(std::vector<Record> & ini
     // global variables assignment
     do_morphing = MORPH_IF;
     morph_log = new MorphLogger();
-    reclaimer = new NodeReclaimer();
     gacn = 0;
+    ebr = EpochBasedMemoryReclamationStrategy::getInstance();
 }
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::~MorphtreeImpl() {
+    ebr->clearAll();
     // delete the inner search tree;
-    root_->DeleteNode();;
+    root_->DeleteNode();
     // delete all leafs
     BaseNode * cur = first_leaf_;
-    while(cur != nullptr) {
+    while(cur != root_ && cur != nullptr) {
         BaseNode * tmp = cur;
         cur = cur->sibling;
         tmp->DeleteNode();
@@ -79,6 +81,8 @@ MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::~MorphtreeImpl() {
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::lookup(const _key_t &key, uint64_t & val) {
     gacn++;
+    EpochGuard guard;
+
     BaseNode * cur = root_;
 
     uint64_t v;
@@ -93,6 +97,8 @@ bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::lookup(const _key_t &key, uint64_t
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 void MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::insert(const _key_t &key, uint64_t val) {
     gacn++;
+    EpochGuard guard;
+
     BaseNode * cur = root_;
 
     uint64_t v;
@@ -126,6 +132,8 @@ void MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::Print() {
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::update(const _key_t & key, const uint64_t val) {
     gacn++;
+    EpochGuard guard;
+
     BaseNode * cur = root_;
 
     uint64_t v;
@@ -140,6 +148,8 @@ bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::update(const _key_t & key, const u
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::remove(const _key_t & key) {
     gacn++;
+    EpochGuard guard;
+
     BaseNode * cur = root_;
 
     uint64_t v;
@@ -151,10 +161,12 @@ bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::remove(const _key_t & key) {
     return cur->Remove(key);
 }
 
+// users are reponsible for reserve enough space for saving result
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 int MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::scan(const _key_t &startKey, int len, Record *result) {
     gacn++;
-    // the user is reponsible for reserve enough space for saving result
+    EpochGuard guard;
+    
     BaseNode * cur = root_;
 
     uint64_t v;

@@ -12,7 +12,6 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -std=c++17 -pthread -fmax-
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -O0")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O2")
 
-find_path(GLOG_INCLUDE_DIRS NAMES glog/logging.h) 
 find_library(GLOG_LIBRARIES NAMES glog)
 
 #======= include directories =======

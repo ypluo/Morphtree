@@ -17,8 +17,9 @@
 #include <iomanip>
 #include <glog/logging.h>
 
-#include "versionlock.h"
-#include "rwlock.h"
+#include "lock/versionlock.h"
+#include "lock/rwlock.h"
+#include "lock/spinlock.h"
 #include "../include/util.h"
 
 namespace morphtree {
@@ -95,7 +96,7 @@ private:
 
     inline bool ShouldRebuild() {
         // more than 67% index records are overflowed
-        return of_count > (count << 1) / 3; // || count >= capacity;
+        return of_count > (count << 1) / 3 || count >= capacity;
     }
 
     void RebuildSubTree();
@@ -104,7 +105,7 @@ private:
 
 public:
     static const int PROBE_SIZE       = 4;
-    static const int BNODE_SIZE       = 12;
+    static const int BNODE_SIZE       = 16;
     // model: 16 Bytes
     double intercept;
     double slope;
@@ -201,49 +202,11 @@ public:
 
     uint32_t readonly_count;
     uint32_t readable_count;
-    VersionLock sortlock;
-    VersionLock writelock;
+    SpinLock sortlock;
+    SpinLock writelock;
 };
 
 // background threads
-class NodeReclaimer {
-    typedef std::tuple<BaseNode *, bool, int> ReclaimEle;
-    std::queue<ReclaimEle> que;
-    VersionLock mtx;
-
-public:
-    NodeReclaimer() {
-        // Run();
-    }
-
-    void Add(BaseNode * node, bool header_only, int epoch = 1) {
-        mtx.Lock();
-        que.emplace(node, header_only, epoch);
-        mtx.UnLock();
-    }
-
-    static void ReclaimOneNode(BaseNode * node, bool header_only) {
-        if(header_only)
-            node->DeleteNode(); // should also reclaim its data
-        else 
-            delete (char *)node; // reclaim its header only
-    }
-
-    void Run() {
-        while(true) {
-            mtx.Lock();
-            ReclaimEle r = que.front();
-            if(std::get<2>(r) > 0) { // able to reclaim
-                que.pop();
-                ReclaimOneNode(std::get<0>(r), std::get<1>(r));
-            } else {
-                mtx.UnLock();
-            }
-            std::this_thread::yield();
-        }
-    }
-};
-
 class MorphLogger {
     typedef std::tuple<BaseNode *, uint16_t, uint8_t> MorphRecord;
     std::queue<MorphRecord> que;
@@ -253,7 +216,8 @@ class MorphLogger {
 public:
     MorphLogger() : size(0) {
         #ifdef BG_MORPH
-            Run();
+            std::thread t(MorphLogger::Run, this);
+            t.detach();
         #endif
     }
 
@@ -266,23 +230,13 @@ public:
 
     static void MorphOneNode(BaseNode * leaf, uint16_t lsn, uint8_t to);
 
-    void Run() {
-        while(true) {
-            if(size > 0) {
-                mtx.Lock();
-                MorphRecord r = que.front();
-                que.pop();
-                size -= 1;
-                mtx.UnLock();
-                MorphOneNode(std::get<0>(r), std::get<1>(r), std::get<2>(r));
-            }
-        }
-    }
+    void Run();
 };
+
+typedef std::pair<BaseNode *, bool> ReclaimEle;
 
 // Global variables and functions controling the morphing of Morphtree 
 extern bool do_morphing;
-extern NodeReclaimer *reclaimer;
 extern MorphLogger *morph_log;
 extern uint64_t gacn;
 extern void MorphNode(BaseNode * leaf, uint8_t lsn, NodeType to);

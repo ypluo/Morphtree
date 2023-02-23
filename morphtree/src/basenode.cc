@@ -1,12 +1,13 @@
 #include "node.h"
+#include "epoch.h"
 
 namespace morphtree {
 
 // definitions of global variables
 bool do_morphing;
-NodeReclaimer *reclaimer;
-MorphLogger *morph_log;
 uint64_t gacn;
+MorphLogger *morph_log;
+EpochBasedMemoryReclamationStrategy *ebr;
 
 // Predict the node type of a leaf node according to its access history
 void BaseNode::MorphJudge(bool isWrite) {
@@ -46,10 +47,10 @@ void SwapNode(BaseNode * oldone, BaseNode *newone) {
 
     memcpy(tmp, oldone, HEADER_SIZE); // record the old node
     memcpy(oldone, newone, HEADER_SIZE); // replace the old node with the newone
-    
+
     // the old node is recliamed
-    reclaimer->Add((BaseNode *)tmp, true);
-    reclaimer->Add(newone, false);
+    ebr->scheduleForDeletion(ReclaimEle{(BaseNode *)tmp, false});
+    ebr->scheduleForDeletion(ReclaimEle{newone, true});
 }
 
 // Morph a leaf node from From-type to To-type
@@ -112,8 +113,21 @@ void MorphLogger::MorphOneNode(BaseNode * leaf, uint16_t lsn, uint8_t to) {
     leaf->nodelock.UnLock();
 }
 
+void MorphLogger::Run() {
+    while(true) {
+        if(size > 0) {
+            mtx.Lock();
+            MorphRecord r = que.front();
+            que.pop();
+            size -= 1;
+            mtx.UnLock();
+            EpochGuard guard;
+            MorphOneNode(std::get<0>(r), std::get<1>(r), std::get<2>(r));
+        }
+    }
+}
+
 void MorphNode(BaseNode * leaf, uint8_t lsn, NodeType to) {
-    // printf("%s", to == ROLEAF ? "R" : "W");
     MorphLogger::MorphOneNode(leaf, lsn, to);
 }
 
@@ -193,7 +207,7 @@ void BaseNode::Print(string prefix) {
     if(!Leaf()) {
         reinterpret_cast<ROInner *>(this)->Print(prefix);
     } else {
-        // return ;
+        return ;
         switch(node_type) {
         case NodeType::ROLEAF: 
             return reinterpret_cast<ROLeaf *>(this)->Print(prefix);

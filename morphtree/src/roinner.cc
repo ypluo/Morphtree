@@ -19,6 +19,7 @@ ROInner::ROInner(Record * recs_in, int num) {
     node_type = NodeType::ROINNER;
     count = num;
     of_count = 0;
+    lsn = 0;
     recs = nullptr;
 
     if(num < BNODE_SIZE) {
@@ -77,7 +78,7 @@ ROInner::ROInner(Record * recs_in, int num) {
 
 ROInner::~ROInner() {
     for(int i = PROBE_SIZE - 1; i < capacity; i += PROBE_SIZE) {
-        BaseNode * child = (ROInner *) (recs[i].val & POINTER_MARK);
+        BaseNode * child = (BaseNode *) (recs[i].val & POINTER_MARK);
         if(child != nullptr && !child->Leaf()) {
             child->DeleteNode();
         }

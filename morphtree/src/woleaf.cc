@@ -345,6 +345,7 @@ void WOLeaf::Dump(std::vector<Record> & out) {
     int ends[MAX_RUN_NUM + 1];
 
     uint32_t total_count = readable_count;
+    assert(total_count <= GLOBAL_LEAF_SIZE);
     sortlock.Lock();
     std::sort(&recs[readonly_count], &recs[total_count]);
     sortlock.UnLock();
