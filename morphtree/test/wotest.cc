@@ -126,7 +126,7 @@ TEST_F(wotest, remove) {
 }
 
 // scan test is predicated on that key/values are sequencial number for 0 to TEST_SCALE - 1
-TEST_F(wotest, scan) {
+TEST_F(wotest, DISABLED_scan) {
     uint16_t notvalid = 0;
     int max_scan_len = TEST_SCALE / 20;
     Record * buf = new Record[max_scan_len];

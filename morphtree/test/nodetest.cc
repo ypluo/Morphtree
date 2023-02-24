@@ -3,7 +3,7 @@
 #include <random>
 
 #include "../src/node.h"
-
+#include "../src/epoch.h"
 #include "gtest/gtest.h"
 
 using namespace morphtree;
@@ -118,7 +118,7 @@ TEST(TwoNode, wonode) {
     
     Record * tmp = new Record[SCALE2];
     std::default_random_engine gen(997);
-    std::uniform_int_distribution<int> dist(0, SCALE2 * 100);
+    std::uniform_int_distribution<int> dist(1, SCALE2 * 100);
 
     for(uint64_t i = 0; i < SCALE2; i++) {
         tmp[i].key = dist(gen);
@@ -128,6 +128,8 @@ TEST(TwoNode, wonode) {
 
     // insert data into nodes
     for(int i = 0; i < SCALE2; i++) {
+        EpochGuard epoch;
+        // printf("%lf\n", tmp[i].key);
         if(tmp[i].key < split_key) {
             n->Store(tmp[i].key, uint64_t((uint64_t)tmp[i].val), &split_key, &split_node);
         } else {
@@ -156,7 +158,7 @@ TEST(TwoNode, roleaf) {
     
     Record * tmp = new Record[SCALE2];
     std::default_random_engine gen(997);
-    std::uniform_int_distribution<int> dist(0, SCALE2 * 100);
+    std::uniform_int_distribution<int> dist(1, SCALE2 * 100);
 
     for(uint64_t i = 0; i < SCALE2; i++) {
         tmp[i].key = dist(gen);
@@ -170,6 +172,8 @@ TEST(TwoNode, roleaf) {
 
     // insert data into nodes
     for(int i = SCALE2 / 2; i < SCALE2; i++) {
+        EpochGuard epoch;
+        // printf("%lf\n", tmp[i].key);
         if(tmp[i].key < split_key) {
             n->Store(tmp[i].key, tmp[i].val, &split_key, &split_node);
         } else {
@@ -180,11 +184,12 @@ TEST(TwoNode, roleaf) {
     // test lookup
     uint64_t res;
     for(uint64_t i = 0; i < SCALE2; i++) {
+        // printf("%lf\n", tmp[i].key);
         if(tmp[i].key < split_key)
             ASSERT_TRUE(n->Lookup(tmp[i].key, res));
         else
             ASSERT_TRUE(split_node->Lookup(tmp[i].key, res));
-        ASSERT_EQ(res, uint64_t(tmp[i].key));
+        ASSERT_EQ(res, uint64_t(tmp[i].val));
     }
     
     delete tmp;
@@ -194,7 +199,7 @@ TEST(TwoNode, roleaf) {
 
 int main(int argc, char ** argv) {
     ::testing::InitGoogleTest(&argc, argv);
-
+    ebr = EpochBasedMemoryReclamationStrategy::getInstance();
     do_morphing = false;
     return RUN_ALL_TESTS();
 }

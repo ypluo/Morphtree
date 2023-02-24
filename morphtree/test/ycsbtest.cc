@@ -6,6 +6,7 @@
 
 #include "../src/node.h"
 #include "morphtree.h"
+#include "../src/morphtree_impl.h"
 
 #include "gtest/gtest.h"
 
@@ -24,7 +25,7 @@ protected:
     }
 };
 
-TEST_F(ycsbtest, ycsb) {
+TEST_F(ycsbtest, sycsb) {
     std::ifstream infile_load("/home/lyp/morphtree/build/dataset.dat");
     std::ifstream infile_txn("/home/lyp/morphtree/build/query.dat");
     if(!infile_load || !infile_txn) {
@@ -41,22 +42,21 @@ TEST_F(ycsbtest, ycsb) {
         if(!infile_load.good()) {
             break;
         }
-        tree->insert(_key_t(key), uint64_t((uint64_t)key));
+        tree->insert(_key_t(key), uint64_t(std::abs(key) + 1));
         count += 1;
     }
 
     while (infile_txn.good()) {
         infile_txn >> op >> key;
-        // std::cout << op << " " << key << std::endl;
-
+        // std::cout << std::setprecision(12) << op << " " << key << std::endl;
         if(!infile_txn.good()) {
             break;
         }
         if (op.compare("INSERT") == 0) {
-            tree->insert(_key_t(key), uint64_t((uint64_t)key));
+            tree->insert(_key_t(key), uint64_t(std::abs(key) + 1));
         }
         else if (op.compare("READ") == 0) {
-            ASSERT_EQ(tree->lookup(_key_t(key)), uint64_t((uint64_t)key));
+            ASSERT_EQ(tree->lookup(_key_t(key)), uint64_t(std::abs(key) + 1));
         }
     }
 
@@ -64,7 +64,7 @@ TEST_F(ycsbtest, ycsb) {
     infile_txn.close();
 } 
 
-TEST_F(ycsbtest, concurrent_ycsb) {
+TEST_F(ycsbtest, cycsb) {
     std::ifstream infile_load("/home/lyp/morphtree/build/dataset.dat");
     std::ifstream infile_txn("/home/lyp/morphtree/build/query.dat");
     if(!infile_load || !infile_txn) {
@@ -78,7 +78,7 @@ TEST_F(ycsbtest, concurrent_ycsb) {
     int range = 0;
     while (true) {
         infile_load >> op >> key;
-        // std::cout << op << " " << key << std::endl;
+        // std::cout << std::setprecision(12) << op << " " << key << std::endl;
         if(!infile_load.good()) {
             break;
         }
@@ -143,6 +143,8 @@ TEST_F(ycsbtest, concurrent_ycsb) {
         if (op == OP_INSERT) { //INSERT
             tree->insert(keys[i], uint64_t(std::abs(keys[i]) + 1));
         } else if (op == OP_READ) { //READ
+            // tree->lookup(_key_t(key), v);
+            // assert(v == uint64_t(std::abs(key) + 1));
             v = tree->lookup(keys[i]);
             assert(v == uint64_t(std::abs(keys[i]) + 1));
         } else if (op == OP_UPDATE) { //UPDATE
@@ -157,3 +159,20 @@ TEST_F(ycsbtest, concurrent_ycsb) {
     infile_load.close();
     infile_txn.close();
 } 
+
+
+int main(int argc, char *argv[]) {
+    google::InitGoogleLogging(argv[0]);
+
+    google::SetLogDestination(google::GLOG_INFO, "/home/lyp/morphtree/build/log/INFO-");
+    google::SetLogDestination(google::GLOG_ERROR, "/home/lyp/morphtree/build/log/ERROR-");
+    google::SetStderrLogging(google::GLOG_FATAL);
+
+    ::testing::InitGoogleTest(&argc, argv);
+
+    do_morphing = false;
+    auto ret = RUN_ALL_TESTS();
+
+    google::ShutdownGoogleLogging();
+    return 0;
+}

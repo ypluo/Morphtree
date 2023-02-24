@@ -11,8 +11,6 @@
 
 namespace morphtree {
 
-const uint64_t LOCK_MARK    = 0xffff000000000000;
-const uint64_t POINTER_MARK = 0x0000ffffffffffff;
 static const int MARGIN = ROInner::PROBE_SIZE;
 
 ROInner::ROInner(Record * recs_in, int num) {
@@ -129,7 +127,7 @@ bool ROInner::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROInner **
             new_inner->headerlock.WLock();
             headerlock.WLock();
             SwapNode(this, new_inner);
-            headerlock.UnLock();
+            headerlock.UnWLock();
         }
 
         nodelock.UnLock();
@@ -291,7 +289,7 @@ void ROInner::RebuildSubTree() {
     new_inner->headerlock.WLock();
     this->headerlock.WLock();
     SwapNode(this, new_inner);
-    this->headerlock.UnLock();
+    this->headerlock.UnWLock();
     nodelock.UnLock();
 }
 

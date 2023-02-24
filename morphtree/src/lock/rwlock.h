@@ -28,10 +28,11 @@ public:
         bool success;
         do {
             RWLock expected = *this;
+            expected.lock = 0;
             expected.intent = 0;        // the reader waits for writer to clear its intent
             RWLock desired = expected;
             desired.reader_num = expected.reader_num + 1;
-            success = __atomic_compare_exchange(this, &expected, &desired, false, __ATOMIC_RELAXED, __ATOMIC_RELAXED);
+            success = __atomic_compare_exchange(this, &expected, &desired, false, __ATOMIC_ACQUIRE, __ATOMIC_ACQUIRE);
         } while(success == false);
     }
 
@@ -41,22 +42,24 @@ public:
             this->intent = 1;        // set lock intent
             RWLock expected = *this;
             expected.lock = 0;       // the lock is not locked
+            expected.intent = 1;
             expected.reader_num = 0; // the writer waits for all readers to finish
             RWLock desired = expected;
             desired.lock = 1;        // the writer owns the lock exclusively after WLock
-            success = __atomic_compare_exchange(this, &expected, &desired, false, __ATOMIC_RELAXED, __ATOMIC_RELAXED);
+            desired.version = expected.version + 1;
+            success = __atomic_compare_exchange(this, &expected, &desired, false, __ATOMIC_ACQUIRE, __ATOMIC_ACQUIRE);
         } while(success == false);
-        version += 1;
     }
 
     void UnLock() {
-        if(reader_num == 0 && lock == 1) { // writer unlock
-            version += 1;
-            intent = 0; // release lock intent
-            lock = 0;
-        } else { // reader unlock
-            __atomic_fetch_sub(&reader_num, 1, __ATOMIC_RELAXED);
-        }
+        __atomic_fetch_sub(&reader_num, 1, __ATOMIC_ACQUIRE);
+    }
+
+    void UnWLock() {
+        RWLock discard;
+        RWLock desired;
+        desired.version = Version() + 1;
+        __atomic_exchange(this, &desired, &discard, __ATOMIC_ACQUIRE);
     }
 };
 

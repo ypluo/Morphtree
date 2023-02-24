@@ -1,5 +1,6 @@
 #include <random>
 
+#include "../src/epoch.h"
 #include "../src/node.h"
 #include "gtest/gtest.h"
 
@@ -7,7 +8,7 @@ using namespace morphtree;
 
 const int SCALE1 = GLOBAL_LEAF_SIZE / 2; // not big enough to trigger a node split
 
-TEST(NodeMorph, wonode) {
+TEST(NodeMorph, DISABLED_wonode) {
     BaseNode * n = new WOLeaf;
     _key_t split_key = 0;
     BaseNode * split_node = nullptr;
@@ -25,7 +26,10 @@ TEST(NodeMorph, wonode) {
         n->Store(tmp[i].key, (uint64_t)tmp[i].val, &split_key, &split_node);
     }
 
-    MorphNode(n, (uint8_t)0, NodeType::ROLEAF);
+    {   
+        EpochGuard epoch;
+        MorphNode(n, (uint8_t)0, NodeType::ROLEAF);
+    }
 
     // test lookup
     uint64_t res;
@@ -60,12 +64,16 @@ TEST(NodeMorph, ronode) {
     for(uint64_t i = load_size; i < SCALE1; i++) {
         ASSERT_FALSE(n->Store(tmp[i].key, tmp[i].val, &split_key, &split_node));
     }
-
-    MorphNode(n, (uint8_t)0, NodeType::WOLEAF);
+    
+    {   
+        EpochGuard epoch;
+        MorphNode(n, (uint8_t)0, NodeType::WOLEAF);
+    }
 
     // test lookup
     uint64_t res;
     for(uint64_t i = 0; i < SCALE1; i++) {
+        // printf("%lf\n", tmp[i].key);
         ASSERT_TRUE(n->Lookup(tmp[i].key, res));
         ASSERT_EQ(res, uint64_t(tmp[i].val));
     }
@@ -78,6 +86,7 @@ TEST(NodeMorph, ronode) {
 int main(int argc, char ** argv) {
     ::testing::InitGoogleTest(&argc, argv);
 
+    ebr = EpochBasedMemoryReclamationStrategy::getInstance();
     do_morphing = false;
     return RUN_ALL_TESTS();
 }

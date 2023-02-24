@@ -81,7 +81,7 @@ TEST_F(rotest, update) {
     omp_set_num_threads(THREAD_NUM);
     #pragma omp parallel for schedule(dynamic,32)
     for(int i = 0; i < TEST_SCALE; i += 2) {
-        tree->update(recs[i].key, uint64_t(recs[i].val) * 2);
+        tree->update(recs[i].key, uint64_t(recs[i].val * 2));
     }
     
     uint64_t v;

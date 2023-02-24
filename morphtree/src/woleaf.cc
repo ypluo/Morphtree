@@ -45,23 +45,23 @@ WOLeaf::~WOLeaf() {
     delete [] recs;
 }
 
-bool WOLeaf::Store(const _key_t & k, uint64_t v, _key_t * split_key, WOLeaf ** split_node) {
-    woleaf_store_retry:
+bool WOLeaf::Store(const _key_t & k, uint64_t v, _key_t * split_key, WOLeaf ** split_node) { 
     auto shadow_st = shadow;
     if(shadow_st != nullptr) { // this node is under morphing
-        return shadow_st->Store(k, v, split_key, (BaseNode **)split_node);
+        return ((ROLeaf *)shadow_st)->Store(k, v, split_key, (ROLeaf **)split_node);
     }
 
+    woleaf_store_retry:
     headerlock.RLock();
-        if(k >= mysplitkey) {
-            headerlock.UnLock();
-            return sibling->Store(k, v, split_key, (BaseNode **)split_node);
-        }
-
         if(node_type != WOLEAF) {
             // the node is changed to another type
             headerlock.UnLock();
             return ((ROLeaf *)this)->Store(k, v, split_key, (ROLeaf **)split_node);
+        }
+
+        if(k >= mysplitkey) {
+            headerlock.UnLock();
+            return sibling->Store(k, v, split_key, (BaseNode **)split_node);
         }
 
         writelock.Lock();
@@ -103,8 +103,12 @@ bool WOLeaf::Store(const _key_t & k, uint64_t v, _key_t * split_key, WOLeaf ** s
     }
 }
 
-bool WOLeaf::Lookup(const _key_t & k, uint64_t &v) {    
+bool WOLeaf::Lookup(const _key_t & k, uint64_t &v) {
     woleaf_look_retry:
+    if(node_type != WOLEAF) {
+        // the node is changed to another type
+        return ((ROLeaf *)this)->Lookup(k, v);
+    }
     auto v1 = headerlock.Version();
         auto recs_st = recs;
         auto count_st = count;
@@ -112,6 +116,7 @@ bool WOLeaf::Lookup(const _key_t & k, uint64_t &v) {
         auto readable_count_st = readable_count;
         auto splitkey_st = mysplitkey;
         auto sibling_st = sibling;
+        auto shadow_st = shadow;
     auto v2 = headerlock.Version();
     if(!(v1 == v2 && v1 % 2 == 0)) goto woleaf_look_retry;
     
@@ -140,9 +145,8 @@ bool WOLeaf::Lookup(const _key_t & k, uint64_t &v) {
         }
     }
 
-    auto shadow_st = shadow;
     if(shadow_st != nullptr)
-        return shadow_st->Lookup(k, v);
+        return ((ROLeaf *)shadow_st)->Lookup(k, v);
     else
         return false;
 }
@@ -160,21 +164,21 @@ bool WOLeaf::Update(const _key_t & k, uint64_t v) {
     woleaf_update_retry:
     auto shadow_st = shadow;
     if(shadow_st != nullptr) { // this node is under morphing
-        return shadow_st->Update(k, v);
+        return ((ROLeaf *)shadow_st)->Update(k, v);
     }
 
     headerlock.RLock();
-        if(k >= mysplitkey) {
-            headerlock.UnLock();
-            return sibling->Update(k, v);
-        }
-        
         if(node_type != WOLEAF) {
             // the node is changed to another type
             headerlock.UnLock();
             return ((ROLeaf *)this)->Update(k, v);
         }
 
+        if(k >= mysplitkey) {
+            headerlock.UnLock();
+            return sibling->Update(k, v);
+        }
+        
         // do binary update in all sorted runs
         if(BinSearch_CallBack(recs, count, k, binary_update)) {
             if(nodelock.IsLocked()) { // CAUTIOUS: the node starts morphing / splitting after we enter this loop
@@ -237,19 +241,19 @@ bool WOLeaf::Remove(const _key_t & k) {
     woleaf_remove_retry:
     auto shadow_st = shadow;
     if(shadow_st != nullptr) { // this node is under morphing
-        return shadow_st->Remove(k);
+        return ((ROLeaf *)shadow_st)->Remove(k);
     }
 
     headerlock.RLock();
-        if(k >= mysplitkey) {
-            headerlock.UnLock();
-            return sibling->Remove(k);
-        }
-
         if(node_type != WOLEAF) {
             // the node is changed to another type
             headerlock.UnLock();
             return ((ROLeaf *)this)->Remove(k);
+        }
+
+        if(k >= mysplitkey) {
+            headerlock.UnLock();
+            return sibling->Remove(k);
         }
 
         // do binary update in all sorted runs
@@ -391,7 +395,7 @@ void WOLeaf::DoSplit(_key_t * split_key, WOLeaf ** split_node) {
     left->headerlock.WLock();
     headerlock.WLock();
     SwapNode(this, left);
-    headerlock.UnLock();
+    headerlock.UnWLock();
 
     nodelock.UnLock();
 }
@@ -402,7 +406,7 @@ void WOLeaf::Print(string prefix) {
 
     printf("%s(%d, %d)[", prefix.c_str(), node_type, readable_count);
     for(int i = 0; i < out.size(); i++) {
-        printf("%12.8lf, ", out[i].key);
+        printf("(%12.8lf %lu), ", out[i].key, out[i].val);
     }
     printf("]\n");
 }

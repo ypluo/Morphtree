@@ -3,6 +3,9 @@
 
 #include <cstdint>
 
+#include <iomanip>
+#include <glog/logging.h>
+
 class VersionLock {
 private:
     uint8_t lock : 1;
@@ -19,9 +22,10 @@ public:
     bool TryLock() {
         VersionLock expected = *this;
         expected.lock = 0; // we always expect the lock to be free
-        VersionLock desired = *this; // the desired value should always be fresh
+        VersionLock desired = expected; // the desired value should always be fresh
         desired.lock = 1;
-        return __atomic_compare_exchange(this, &expected, &desired, false, __ATOMIC_RELAXED, __ATOMIC_RELAXED);
+        desired.version = expected.version + 1;
+        return __atomic_compare_exchange(this, &expected, &desired, false, __ATOMIC_ACQUIRE, __ATOMIC_ACQUIRE);
     }
 
     void Lock() {
@@ -29,18 +33,19 @@ public:
         do {
             VersionLock expected = *this;
             expected.lock = 0; // we always expect the lock to be free
-            VersionLock desired = *this; // the desired value should always be fresh
+            VersionLock desired = expected; // the desired value should always be fresh
             desired.lock = 1;
-            success = __atomic_compare_exchange(this, &expected, &desired, false, __ATOMIC_RELAXED, __ATOMIC_RELAXED);
+            desired.version = expected.version + 1;
+            success = __atomic_compare_exchange(this, &expected, &desired, false, __ATOMIC_ACQUIRE, __ATOMIC_ACQUIRE);
         } while(success == false);
-        // lock first and update verion
-        version += 1;
     }
 
     void UnLock() {
-        version += 1;
-        // update verion and UnLock
-        lock = 0;
+        VersionLock desired = *this;
+        VersionLock discard;
+        desired.lock = 0;
+        desired.version += 1;
+        __atomic_exchange(this, &desired, &discard, __ATOMIC_ACQUIRE);
     }
 
     bool IsLocked() {

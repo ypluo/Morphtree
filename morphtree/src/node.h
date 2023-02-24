@@ -32,6 +32,9 @@ const uint64_t ROSTATS = 0x0000000000000000; // default statistic of RONode
 const uint64_t WOSTATS = 0xFFFFFFFFFFFFFFFF; // default statistic of WONode
 const int GLOBAL_LEAF_SIZE   = 1280;    // the maximum node size of a leaf node
 
+
+const uint64_t LOCK_MARK    = 0xffff000000000000;
+const uint64_t POINTER_MARK = 0x0000ffffffffffff;
 // We do NOT use virtual function here, 
 // as it brings extra overhead of searching virtual table
 class BaseNode {
@@ -117,7 +120,6 @@ public:
 };
 
 // read optimized leaf nodes
-struct Bucket;
 class ROLeaf : public BaseNode {
 public:
     ROLeaf();
@@ -145,7 +147,9 @@ public:
     void Print(string prefix);
 
 private:
-    bool Append(const _key_t & k, uint64_t v);
+    void Append(const _key_t k, uint64_t v, int predict);
+
+    bool DeAppend(const _key_t k, int predict);
 
     void DoSplit(_key_t * split_key, ROLeaf ** split_node);
 
@@ -162,7 +166,8 @@ public:
     double slope;
     
     // data
-    Bucket *buckets;
+    // Bucket *buckets;
+    Record * recs;
     _key_t mysplitkey;
 };
 
@@ -233,7 +238,7 @@ public:
     void Run();
 };
 
-typedef std::pair<BaseNode *, bool> ReclaimEle;
+typedef std::pair<void *, bool> ReclaimEle;
 
 // Global variables and functions controling the morphing of Morphtree 
 extern bool do_morphing;

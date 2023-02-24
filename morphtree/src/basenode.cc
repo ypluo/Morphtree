@@ -25,19 +25,25 @@ void BaseNode::MorphJudge(bool isWrite) {
                 new_type = NodeType::WOLEAF;
             break;
     }
-
-    if(new_type != next_node_type) { // add a morph record
-        this->next_node_type = new_type; // wait for a node morphing
-        this->lsn++;         // the lsn for next morphing
-        #ifdef BG_MORPH
-            morph_log->Add(this, this->lsn, new_type);
-        #else
+    #ifdef BG_MORPH
+        if(new_type != next_node_type) { // add a morph record
+            this->next_node_type = new_type; // wait for a node morphing
+            this->lsn++;         // the lsn for next morphing
+            morph_log.Add(this, this->lsn, new_type);
+            return ;
+        } else {
+            return ;// this node is already waitting for a morph, do nothing
+        }
+    #else 
+        if(new_type != next_node_type && nodelock.TryLock()) { // add a morph record
+            this->next_node_type = new_type; // wait for a node morphing
+            this->lsn++;         // the lsn for next morphing
             MorphNode(this, this->lsn, (NodeType)new_type);
-        #endif
-        return ;
-    } else {
-        return ;// this node is already waitting for a morph, do nothing
-    }
+            return ;
+        } else {
+            return ;// this node is already waitting for a morph, do nothing
+        }
+    #endif
 }
 
 // Swap the metadata of two nodes
@@ -49,15 +55,18 @@ void SwapNode(BaseNode * oldone, BaseNode *newone) {
     memcpy(oldone, newone, HEADER_SIZE); // replace the old node with the newone
 
     // the old node is recliamed
-    ebr->scheduleForDeletion(ReclaimEle{(BaseNode *)tmp, false});
+    ebr->scheduleForDeletion(ReclaimEle{tmp, false});
     ebr->scheduleForDeletion(ReclaimEle{newone, true});
 }
 
 // Morph a leaf node from From-type to To-type
 void MorphLogger::MorphOneNode(BaseNode * leaf, uint16_t lsn, uint8_t to) {
-    leaf->nodelock.Lock();
+    #ifdef BG_MORPH
+        leaf->nodelock.Lock();
+    #endif
     // skip when the record is stale
     if(lsn != leaf->lsn || leaf->node_type == (NodeType)to) {
+        leaf->nodelock.UnLock();
         return ;
     }
 
@@ -106,11 +115,13 @@ void MorphLogger::MorphOneNode(BaseNode * leaf, uint16_t lsn, uint8_t to) {
 
     // finish morphing
     newleaf->nodelock.Lock();
-    newleaf->headerlock.WLock();
     leaf->headerlock.WLock();
+    newleaf->headerlock.WLock();
     SwapNode(leaf, newleaf);
-    leaf->headerlock.UnLock();
+    newleaf->headerlock.UnWLock();
+    leaf->headerlock.UnWLock();
     leaf->nodelock.UnLock();
+    newleaf->nodelock.UnLock();
 }
 
 void MorphLogger::Run() {

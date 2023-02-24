@@ -56,12 +56,14 @@ MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::MorphtreeImpl() {
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::MorphtreeImpl(std::vector<Record> & initial_recs) {
-    root_ = bulkload(initial_recs);
     // global variables assignment
     do_morphing = MORPH_IF;
     morph_log = new MorphLogger();
     gacn = 0;
     ebr = EpochBasedMemoryReclamationStrategy::getInstance();
+
+    EpochGuard guard;
+    root_ = bulkload(initial_recs);
 }
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>

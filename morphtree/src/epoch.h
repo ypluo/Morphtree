@@ -15,9 +15,9 @@
 
 namespace morphtree {
 
-using MyReclaimEle = morphtree::ReclaimEle;
+using MyReclaimEle = ReclaimEle;
 static inline void ReclaimOneNode(MyReclaimEle & ele) {
-	morphtree::BaseNode * node = ele.first;
+	BaseNode * node = (BaseNode *)ele.first;
 
 	if(ele.second == false)
 		node->DeleteNode(); // should also reclaim its data
@@ -114,7 +114,7 @@ public:
 		currentMemoryInformation.enter(currentEpoch);
 		if (currentMemoryInformation.doesThreadWantToAdvanceEpoch() &&
 			canAdvance(currentEpoch)) {
-		mCurrentEpoch.compare_exchange_strong(currentEpoch,
+			mCurrentEpoch.compare_exchange_strong(currentEpoch,
 												NEXT_EPOCH[currentEpoch]);
 		}
 	}
