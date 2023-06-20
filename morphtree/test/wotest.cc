@@ -10,7 +10,7 @@
 
 using namespace morphtree;
 
-const int TEST_SCALE = 100000;
+const int TEST_SCALE = 1024000;
 
 class wotest : public testing::Test {
 protected:

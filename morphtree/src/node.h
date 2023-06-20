@@ -85,8 +85,8 @@ private:
     }
 
     inline bool ShouldRebuild() {
-        // more than 67% index records are overflowed
-        return of_count > (count << 1) / 3;
+        // more than 50% index records are overflowed
+        return of_count > (count >> 1);
     }
     
     void RebuildSubTree();
@@ -145,7 +145,7 @@ private:
     }
 
 public:
-    static const int PROBE_SIZE = 16;
+    static const int PROBE_SIZE = 8;
     static const int NODE_SIZE = GLOBAL_LEAF_SIZE;
 
 public:
