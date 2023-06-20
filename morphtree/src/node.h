@@ -18,7 +18,7 @@ using std::string;
 namespace morphtree {
 // hyper parameters of Morphtree
 const int GLOBAL_LEAF_SIZE   = 10240;    // the maximum node size of a leaf node
-const int SAMPLE_FREQ        = 9;
+const int SAMPLE_FREQ        = 1;
 
 // Node types: all non-leaf nodes are of type ROLEAF
 enum NodeType {ROINNER = (uint8_t)0, ROLEAF, WOLEAF};
@@ -145,7 +145,7 @@ private:
     }
 
 public:
-    static const int PROBE_SIZE = 8;
+    static const int PROBE_SIZE = 16;
     static const int NODE_SIZE = GLOBAL_LEAF_SIZE;
 
 public:
@@ -204,6 +204,8 @@ private:
     char dummy[16];
 };
 
+void MorphNode(BaseNode * leaf, NodeType from, NodeType to);
+
 // Swap the metadata of two nodes
 inline void SwapNode(BaseNode * a, BaseNode *b) {
     static const int COMMON_SIZE = 64;
@@ -212,6 +214,9 @@ inline void SwapNode(BaseNode * a, BaseNode *b) {
     memcpy(a, b, COMMON_SIZE);
     memcpy(b, tmp, COMMON_SIZE);
 }
+
+extern uint32_t gacn;
+extern bool do_morphing;
 
 } // namespace morphtree
 

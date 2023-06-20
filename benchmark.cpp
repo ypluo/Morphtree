@@ -223,10 +223,10 @@ void exec(int index_type,
   }
   
   size_t warmup_size = 0;
-  // if(detail_tp == false)
-  //   warmup_size = ops.size() / 10;
-  // else 
-  //   warmup_size = 0;
+  if(detail_tp == false)
+    warmup_size = ops.size() / 10;
+  else 
+    warmup_size = 0;
 
   // warmup part
   ValType v;
@@ -271,7 +271,8 @@ void exec(int index_type,
       } else if (op == OP_UPSERT) { //UPDATE
         idx->upsert(keys[i], ValType(std::abs(keys[i])));
       } else if (op == OP_SCAN) { //SCAN
-        idx->scan(keys[i], ranges[i]);
+        int cnt = idx->scan(keys[i], ranges[i]);
+        if(cnt == 0) counter += 1; 
       } else if (op == OP_DELETE) {
         idx->remove(keys[i]);
       }

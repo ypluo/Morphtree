@@ -86,6 +86,39 @@ public:
         }
     }
 
+    void scan (K lower_bound, int scanlen, std::vector<std::pair<K, P>>& answers) {
+        if (!less_than(lower_bound, min_key) && !greater_than(lower_bound, max_key)) {
+            auto it = --btree.upper_bound(lower_bound);
+            if ((scanlen -= it->second->scan(false, lower_bound, scanlen, answers)) > 0) {
+                if (++it == btree.end()) {
+                    scanlen -= right_buffer.scan(lower_bound, scanlen, answers);
+                }
+                else {
+                    while ((scanlen -= it->second->scan(true, lower_bound, scanlen, answers)) > 0) {
+                        if (++it == btree.end()) {
+                            right_buffer.scan(lower_bound, scanlen, answers);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        else if (less_than(lower_bound, min_key)) {
+            scanlen -= left_buffer.scan(lower_bound, scanlen, answers);
+            if (scanlen > 0 && !less_than(lower_bound, max_key)) {
+                auto it = btree.begin();
+                while ((scanlen -= it->second->scan(true, lower_bound, scanlen, answers)) > 0) {
+                    if (++it == btree.end()) {
+                        right_buffer.scan(lower_bound, scanlen, answers);
+                        break;
+                    }
+                }
+            }
+        }
+        else {
+            right_buffer.scan(lower_bound, scanlen, answers);
+        }
+    }
 
     // Range query
     void range_query(K lower_bound, K upper_bound, std::vector<std::pair<K, P>>& answers) const {
@@ -276,6 +309,22 @@ struct InplaceIndex<K, P>::Buffer {
                 return;
             }
         }
+    }
+
+    int scan(K lower_bound, int scanlen, std::vector<std::pair<K, P>>& answers){
+        size_t cnt = 0;
+        for(size_t i = 0; i < number; i++) {
+            if (!less_than(keys[i], lower_bound)) {
+                while (i < number && cnt < scanlen) {
+                    answers.emplace_back(keys[i], payloads[i]);
+                    i++;
+                    ++cnt;
+                }
+                return cnt;
+            }
+        }
+
+        return cnt;
     }
 
     size_t upsert(K key, P payload) {

@@ -1,10 +1,12 @@
 #include "node.h"
-#include "do_morph.h"
 
 namespace morphtree {
+
+uint32_t gacn;
+bool do_morphing;
+
 // Predict the node type of a leaf node according to its access history
 void BaseNode::MorphJudge(bool isWrite) {
-    return ;
     // update sampled history
     stats = (stats << 1) + (isWrite ? 1 : 0);
     
@@ -22,15 +24,39 @@ void BaseNode::MorphJudge(bool isWrite) {
             break;
     }
 
-    /* Normally, the next_node_type is equal to node_type. The node_type is not equal 
-     * to the next_node_type when the node is waiting for a logged node morphing.
-     * During the waiting, subsequent attemps to the same next_node_type will be ignored.
-    */ 
-    if(new_type != next_node_type) { // add a morph record
-        this->next_node_type = new_type; // wait for a node morphing
-        this->lsn = glsn++;         // the lsn for next morphing
-        morph_log.AddLog(MorphRecord{this, this->lsn, new_type});
+    if(new_type != (NodeType)node_type) {
+        MorphNode(this, (NodeType)node_type, new_type);
     }
+}
+
+// Morph a leaf node from From-type to To-type
+void MorphNode(BaseNode * leaf, NodeType from, NodeType to) {
+    BaseNode * newLeaf;
+    std::vector<Record> tmp;
+    tmp.reserve(GLOBAL_LEAF_SIZE);
+    leaf->Dump(tmp);
+
+    switch(to) {
+    case NodeType::ROLEAF:
+        newLeaf = new ROLeaf(tmp.data(), tmp.size());
+        break;
+    case NodeType::WOLEAF:
+        newLeaf = new WOLeaf(tmp.data(), tmp.size());
+        break;
+    }
+    // swap the header of two nodes
+    SwapNode(leaf, newLeaf);
+
+    switch(from) {
+    case NodeType::ROLEAF:
+        delete reinterpret_cast<ROLeaf *>(newLeaf); 
+        return;
+    case NodeType::WOLEAF:
+        delete reinterpret_cast<WOLeaf *>(newLeaf);
+        return;
+    }
+    assert(false);
+    __builtin_unreachable();
 }
 
 bool BaseNode::Store(const _key_t & k, uint64_t v, _key_t * split_key, BaseNode ** split_node) {
@@ -101,6 +127,9 @@ bool BaseNode::Remove(const _key_t & k) {
 }
 
 int BaseNode::Scan(const _key_t &startKey, int len, Record *result) {
+    if(do_morphing && (gacn++ % SAMPLE_FREQ) == 0) {
+        MorphJudge(false);
+    }
     switch(node_type) {
     case NodeType::ROLEAF: 
         return reinterpret_cast<ROLeaf *>(this)->Scan(startKey, len, result);

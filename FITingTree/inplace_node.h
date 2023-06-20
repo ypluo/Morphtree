@@ -145,6 +145,21 @@ public:
             return true;
     }
 
+    int scan(bool type, K lower_bound, int scanlen, std::vector<std::pair<K, P>>& answers) const {
+        size_t it = 0, cnt = 0;
+        if (!type) {
+            it = find_precise_position(lower_bound);
+            while (it < number && less_than(get_key(it), lower_bound))
+                ++it;
+        }
+        while (it < number && cnt < scanlen) {
+            answers.emplace_back(get_key(it), get_payload(it));
+            ++it;
+            ++cnt;
+        }
+        return cnt;
+    }
+
     // Upsert record into leaf node
     size_t upsert(K key, P payload) {
         size_t position = find_precise_position(key);

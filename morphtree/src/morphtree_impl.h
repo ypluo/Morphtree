@@ -2,7 +2,6 @@
 #define __MORPHTREE_IMPL_H__
 
 #include "node.h"
-#include "do_morph.h"
 
 namespace morphtree {
 
@@ -46,7 +45,6 @@ MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::MorphtreeImpl() {
 
     // global variables assignment
     do_morphing = MORPH_IF;
-    glsn = 0;
     gacn = 0;
 }
 

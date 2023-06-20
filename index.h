@@ -2,6 +2,7 @@
 #define _INDEX_H
 
 #include <iostream>
+#include <vector>
 #include "ALEX/src/core/alex.h"
 #include "LIPP/src/core/lipp.h"
 #include "PGM-index/pgm_index_dynamic.hpp"
@@ -48,7 +49,7 @@ public:
 
     bool insert(KeyType key, uint64_t value) {
         idx->insert(key, value);
-        return false;
+        return true;
     }
 
     bool find(KeyType key, uint64_t *v) {
@@ -62,11 +63,25 @@ public:
     }
 
     bool upsert(KeyType key, uint64_t value) {
-        return true;
+        typename alex::Alex<KeyType, uint64_t>::Iterator it = idx->find(key);
+        if (it != idx->end()) {
+            it.payload() = value;
+            return true;
+        }
+        return false;
     }
 
     uint64_t scan(KeyType key, int range) {
-        return 0;
+        std::vector<std::pair<KeyType, uint64_t>> res(range);
+        int cnt = 0;
+
+        auto it = idx->lower_bound(key);
+        while(cnt < range && it != idx->end()) {
+            res[cnt++] = {it.key(), it.payload()};
+            ++it;
+        }
+
+        return cnt;
     }
 
     bool remove(KeyType key) {
@@ -101,7 +116,7 @@ public:
 
     bool insert(KeyType key, uint64_t value) {
         idx->insert(key, value);
-        return false;
+        return true;
     }
 
     bool find(KeyType key, uint64_t *v) {
@@ -110,6 +125,7 @@ public:
     }
 
     bool upsert(KeyType key, uint64_t value) {
+        idx->at(key) = value;
         return true;
     }
 
@@ -158,11 +174,21 @@ public:
     }
 
     bool upsert(KeyType key, uint64_t value) {
+        idx->insert_or_assign(key, value);
         return true;
     }
 
     uint64_t scan(KeyType key, int range) {
-        return 0;
+        std::vector<std::pair<KeyType, uint64_t>> res(range);
+        int cnt = 0;
+
+        auto it = idx->lower_bound(key);
+        while(cnt < range && it != idx->end()) {
+            res[cnt++] = {(*it).first, (*it).second};
+            ++it;
+        }
+
+        return cnt;
     }
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
@@ -195,7 +221,7 @@ public:
 
     bool insert(KeyType key, uint64_t value) {
         idx->upsert(key, value);
-        return false;
+        return true;
     }
 
     bool find(KeyType key, uint64_t *v) {
@@ -204,11 +230,16 @@ public:
     }
 
     bool upsert(KeyType key, uint64_t value) {
+        idx->upsert(key, value);
         return true;
     }
 
     uint64_t scan(KeyType key, int range) {
-        return 0;
+        std::vector<std::pair<KeyType, uint64_t>> res(range);
+        int cnt = 0;
+
+        idx->scan(key, range, res);
+        return res.size();
     }
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
@@ -246,7 +277,7 @@ public:
 
     bool insert(KeyType key, uint64_t value) {
         idx->insert(key, value);
-        return false;
+        return true;
     }
 
     bool find(KeyType key, uint64_t *v) {
@@ -259,7 +290,8 @@ public:
     }
 
     uint64_t scan(KeyType key, int range) {
-        return 0;
+        Record buff[1000];
+        return idx->scan(key, range, buff);
     }
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
@@ -297,7 +329,7 @@ public:
 
     bool insert(KeyType key, uint64_t value) {
         idx->insert(key, value);
-        return false;
+        return true;
     }
 
     bool find(KeyType key, uint64_t *v) {
@@ -310,7 +342,8 @@ public:
     }
 
     uint64_t scan(KeyType key, int range) {
-        return 0;
+        Record buff[1000];
+        return idx->scan(key, range, buff);
     }
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
@@ -348,7 +381,7 @@ public:
 
     bool insert(KeyType key, uint64_t value) {
         idx->insert(key, value);
-        return false;
+        return true;
     }
 
     bool find(KeyType key, uint64_t *v) {
@@ -361,7 +394,8 @@ public:
     }
 
     uint64_t scan(KeyType key, int range) {
-        return 0;
+        Record buff[1000];
+        return idx->scan(key, range, buff);
     }
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
@@ -399,7 +433,7 @@ public:
 
     bool insert(KeyType key, uint64_t value) {
         idx->insert(key, value);
-        return false;
+        return true;
     }
 
     bool find(KeyType key, uint64_t *v) {
@@ -413,11 +447,24 @@ public:
     }
 
     bool upsert(KeyType key, uint64_t value) {
+        auto it = idx->find(key);
+        if (it != idx->end()) {
+            it.data() = value;
+        }
         return true;
     }
 
     uint64_t scan(KeyType key, int range) {
-        return 0;
+        std::vector<std::pair<KeyType, uint64_t>> res(range);
+        int cnt = 0;
+
+        auto it = idx->lower_bound(key);
+        while(cnt < range && it != idx->end()) {
+            res[cnt++] = {it.key(), it.data()};
+            ++it;
+        }
+
+        return cnt;
     }
 
     int64_t printTree() const {

@@ -21,9 +21,9 @@ protected:
     }
 };
 
-TEST_F(ycsbtest, DISABLED_ycsb) {
-    std::ifstream infile_load("../../build/dataset.dat");
-    std::ifstream infile_txn("../../build/query.dat");
+TEST_F(ycsbtest, ycsb) {
+    std::ifstream infile_load("/home/lyp/morphtree/build/dataset.dat");
+    std::ifstream infile_txn("/home/lyp/morphtree/build/query.dat");
     if(!infile_load || !infile_txn) {
         printf("file open error\n");
         return;
