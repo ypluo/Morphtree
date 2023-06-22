@@ -29,6 +29,7 @@ public:
     void Print();
     
 private:
+
     BaseNode * root_;
 };
 

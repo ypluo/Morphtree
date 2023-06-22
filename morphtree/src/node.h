@@ -85,8 +85,7 @@ private:
     }
 
     inline bool ShouldRebuild() {
-        // more than 50% index records are overflowed
-        return of_count > (count >> 1);
+        return of_count > (count >> 2);
     }
     
     void RebuildSubTree();
