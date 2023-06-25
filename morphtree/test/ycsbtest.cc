@@ -8,7 +8,7 @@
 
 #include "gtest/gtest.h"
 
-class tree_test : public testing::Test {
+class ycsbtest : public testing::Test {
 protected:
     Morphtree * tree;
 
@@ -21,36 +21,9 @@ protected:
     }
 };
 
-TEST_F(tree_test, load) {
-    const int TEST_SCALE = 100000;
-    uint64_t STEP = 1000;
-
-    _key_t * keys = new _key_t[TEST_SCALE];
-    for(int i = 0; i < TEST_SCALE; i++) {
-        // keys[i] = _key_t(i);
-        keys[i] = _key_t(i) * STEP + ((i | 0x5a5a5a5a) % 0xffff);
-    }
-
-    std::default_random_engine gen(997);
-    // std::default_random_engine gen(getRandom());
-    std::shuffle(keys, &keys[TEST_SCALE - 1], gen);
-
-    for(int i = 0; i < TEST_SCALE; i++) {
-        // printf("insert %d %lf\n",i, keys[i]);
-        tree->insert(_key_t(keys[i]), _val_t((uint64_t)i));
-    }
-    
-    for(int i = 0; i < TEST_SCALE; i++) {
-        // printf("%lf\n", keys[i]);
-        ASSERT_EQ(tree->lookup(_key_t(keys[i])), _val_t((uint64_t)i));
-    }
-
-    delete keys;
-} 
-
-TEST_F(tree_test, ycsb) {
-    std::ifstream infile_load("../../build/dataset.dat");
-    std::ifstream infile_txn("../../build/query.dat");
+TEST_F(ycsbtest, ycsb) {
+    std::ifstream infile_load("/home/lyp/morphtree/build/dataset.dat");
+    std::ifstream infile_txn("/home/lyp/morphtree/build/query.dat");
     if(!infile_load || !infile_txn) {
         printf("file open error\n");
         return;

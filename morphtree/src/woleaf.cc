@@ -79,6 +79,75 @@ bool WOLeaf::Lookup(_key_t k, _val_t &v) {
     return false;
 }
 
+bool WOLeaf::Update(const _key_t & k, _val_t v) {
+    auto binary_update = [&v](Record & r) {
+        r.val = v;
+        return true;
+    };
+
+    // do binary update in all sorted runs
+    if(BinSearch_CallBack(recs, inital_count, k, binary_update)) {
+        return true;
+    }
+
+    int16_t bin_end = insert_count / PIECE_SIZE * PIECE_SIZE;
+    for(int i = inital_count; i < inital_count + bin_end; i += PIECE_SIZE) {
+        if(BinSearch_CallBack(recs + i, PIECE_SIZE, k, binary_update)) {
+            return true;
+        }
+    }
+
+    // do scan in unsorted runs
+    for(int i = inital_count + bin_end; i < inital_count + insert_count; i++) {
+        if(recs[i].key == k) {
+            recs[i].val = v;
+            if(i - inital_count - bin_end > 64) 
+                std::swap(recs[swap_pos++], recs[i]); // bubble the record to the front of unsorted run
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool WOLeaf::Remove(const _key_t & k) {
+    // TODO
+    return true;
+}
+
+int WOLeaf::Scan(const _key_t &startKey, int len, Record *result) {
+    static const int MAX_RUN_NUM = GLOBAL_LEAF_SIZE / PIECE_SIZE;
+    Record * sort_runs[MAX_RUN_NUM + 1];
+    int ends[MAX_RUN_NUM + 1];
+
+    int16_t total_count = inital_count + insert_count;
+    int16_t bin_end = insert_count / PIECE_SIZE * PIECE_SIZE;
+    if(bin_end < insert_count) {
+        std::sort(recs + inital_count + bin_end, recs + total_count);
+    }
+
+    int run_cnt = 0;
+    if(inital_count > 0) {
+        sort_runs[0] = recs;
+        ends[0] = inital_count;
+        run_cnt += 1;
+    }
+    for(int i = inital_count; i < total_count; i += PIECE_SIZE) {
+        sort_runs[run_cnt] = recs + i;
+        ends[run_cnt] = (i + PIECE_SIZE <= total_count) ? PIECE_SIZE : total_count - i;
+        run_cnt += 1;
+    }
+
+    int cur = KWayScan(sort_runs, ends, run_cnt, startKey, len, result);
+    
+    if(cur >= len) 
+        return len;
+    else if(sibling == nullptr) 
+        return cur;
+    else
+        return cur + ((BaseNode *) sibling)->Scan(result[cur - 1].key, len - cur, result + cur);
+}
+
 void WOLeaf::Dump(std::vector<Record> & out) {
     static const int MAX_RUN_NUM = GLOBAL_LEAF_SIZE / PIECE_SIZE;
     Record * sort_runs[MAX_RUN_NUM + 1];
@@ -111,7 +180,7 @@ void WOLeaf::DoSplit(_key_t * split_key, WOLeaf ** split_node) {
     data.reserve(inital_count + insert_count);
     Dump(data);
 
-    int pid = getSubOptimalSplitkey(data, inital_count + insert_count);
+    int pid = getSubOptimalSplitkey(data.data(), inital_count + insert_count);
     // creat two new nodes
     WOLeaf * left = new WOLeaf(data.data(), pid);
     WOLeaf * right = new WOLeaf(data.data() + pid, data.size() - pid);
@@ -130,11 +199,11 @@ void WOLeaf::Print(string prefix) {
     std::vector<Record> out;
     Dump(out);
 
-    // printf("%s(%d, %d)[", prefix.c_str(), node_type, inital_count + insert_count);
-    // for(int i = 0; i < out.size(); i++) {
-    //     printf("%12.8lf, ", out[i].key);
-    // }
-    // printf("]\n");
+    printf("%s(%d, %d)[", prefix.c_str(), node_type, inital_count + insert_count);
+    for(int i = 0; i < out.size(); i++) {
+        printf("%12.8lf, ", out[i].key);
+    }
+    printf("]\n");
 }
 
 } // namespace morphtree

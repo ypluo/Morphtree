@@ -8,6 +8,7 @@
 #include <limits>
 #include <sys/time.h>
 #include <sys/stat.h>
+#include <functional>
 
 using _key_t = double;
 using _val_t = void *; // less than 8 bytes
@@ -119,12 +120,16 @@ extern void TwoWayMerge(Record * a, Record * b, int lena, int lenb, std::vector<
 
 extern void KWayMerge(Record ** runs, int * run_lens, int k, std::vector<Record> & out);
 
+extern int KWayScan(Record ** runs, int * run_lens, int k, _key_t startKey, int len, Record * out);
+
 extern void KWayMerge_nodup(Record ** runs, int * run_lens, int k, std::vector<Record> & out);
 
 extern bool BinSearch(Record * recs, int len, _key_t k, _val_t &v);// do binary search
 
+extern bool BinSearch_CallBack(Record * recs, int len, _key_t k, std::function<bool(Record &)> func);
+
 extern bool ExpSearch(Record * recs, int len, int predict, _key_t k, _val_t &v); // do exponential search
 
-extern int getSubOptimalSplitkey(std::vector<Record> & recs, int num);
+extern int getSubOptimalSplitkey(Record * recs, int num);
 
 #endif // __MORPHTREE_UTIL_H__

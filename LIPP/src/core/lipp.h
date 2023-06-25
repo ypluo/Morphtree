@@ -109,7 +109,7 @@ public:
     void insert(const T& key, const P& value) {
         root = insert_tree(root, key, value);
     }
-    P at(const T& key, bool skip_existence_check = true) const {
+    P & at(const T& key, bool skip_existence_check = true) const {
         Node* node = root;
 
         while (true) {

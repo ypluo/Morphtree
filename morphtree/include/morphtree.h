@@ -17,6 +17,11 @@ public:
         mt_ = new MorphtreeImpl<NodeType::WOLEAF, true>();
     }
 
+    Morphtree(std::vector<Record> initial_recs) {
+        // build from initial records
+        mt_ = new MorphtreeImpl<NodeType::WOLEAF, true>(initial_recs);
+    }
+
     ~Morphtree() {
         delete mt_;
     }
@@ -41,7 +46,7 @@ public:
 
     inline _val_t remove(_key_t key) {
         _val_t val;
-        bool found = mt_->remove(key, val);
+        bool found = mt_->remove(key);
 
         if (found) 
             return val;

@@ -59,6 +59,32 @@ struct OFNode {
             return BinSearch(recs_, len, k, v);
         }
     }
+
+    bool update(const _key_t & k, _val_t v) {
+        auto binary_update = [&v](Record & r) {
+            r.val = v;
+            return true;
+        };
+        return BinSearch_CallBack(recs_, len, k, binary_update);
+    }
+
+    bool remove(const _key_t & k) {
+        // this function might be slow
+        uint16_t i;
+        for(i = 0; i < len; i++) {
+            if(recs_[i].key >= k) {
+                break;
+            }
+        }
+
+        if(recs_[i].key == k) {
+            memmove(&recs_[i], &recs_[i + 1], (len - i) * sizeof(Record));
+            recs_[len - 1] = Record();
+            return true;
+        } else {
+            return false;
+        }
+    }
 };
 
 ROLeaf::ROLeaf() {
@@ -191,6 +217,124 @@ bool ROLeaf::Lookup(_key_t k, _val_t &v) {
     }
 }
 
+bool ROLeaf::Update(const _key_t & k, _val_t v) {
+    int predict = Predict(k);
+    predict = predict / PROBE_SIZE * PROBE_SIZE;
+
+    int i;
+    for (i = predict; i < predict + PROBE_SIZE - 1; i++) {
+        if(recs[i].key == k) {
+            recs[i].val = v;
+            return true;
+        } else if(recs[i].key > k) {
+            return false;
+        }
+    }
+
+    _val_t vv = recs[predict + PROBE_SIZE - 1].val;
+    OFNode * ofnode = (OFNode *) vv;
+    if(ofnode != nullptr) {  
+        return ofnode->update(k, v);
+    } else {
+        return false;
+    }
+}
+
+bool ROLeaf::Remove(const _key_t & k) {
+    //TODO
+    return true;
+}
+
+void ROLeaf::ScanOneBucket(int startPos, Record *result, int &cur, int end) {
+    for(int i = startPos; i < startPos + PROBE_SIZE - 1; i++) {
+        if(recs[i].key != MAX_KEY)
+            result[cur++] = recs[i];
+        else // no overflow node
+            return;
+        if(cur >= end) return;
+    }
+    
+    _val_t vv = recs[startPos + PROBE_SIZE - 1].val;
+    OFNode * ofnode = (OFNode *) vv;
+    if(ofnode != nullptr) {  
+        for(int i = 0; i < ofnode->len; i++) {
+            if(ofnode->recs_[i].key != MAX_KEY)
+                result[cur++] = ofnode->recs_[i];
+            if(cur >= end) return;
+        }
+    }
+
+    return;
+}
+
+int ROLeaf::Scan(const _key_t &startKey, int len, Record *result) {
+    int predict = Predict(startKey);
+    predict = predict / PROBE_SIZE * PROBE_SIZE;
+
+    int i;
+    for (i = predict; i < predict + PROBE_SIZE - 1; i++) {
+        if(recs[i].key >= startKey) 
+            break;
+    }
+
+    // scan in the first bucket that the startKey resides
+    int cur = 0;
+    if(i < predict + PROBE_SIZE - 1) {
+        for (; i < predict + PROBE_SIZE - 1; i++) {
+            if(recs[i].key != MAX_KEY)
+                result[cur++] = recs[i];
+            else 
+                break;
+            if(cur >= len) return len;
+        }
+
+        _val_t vv = recs[predict + PROBE_SIZE - 1].val;
+        OFNode * ofnode = (OFNode *) vv;
+        if(ofnode != nullptr) {  
+            for(int i = 0; i < ofnode->len; i++) {
+                if(ofnode->recs_[i].key != MAX_KEY)
+                    result[cur++] = ofnode->recs_[i];
+                else 
+                    break;
+                if(cur >= len) return len;
+            }
+        }
+    } else {
+        _val_t vv = recs[predict + PROBE_SIZE - 1].val;
+        OFNode * ofnode = (OFNode *) vv;
+        if(ofnode != nullptr) {
+            int i = 0;
+            for(i = 0; i < ofnode->len; i++) {
+                if(ofnode->recs_[i].key >= startKey) {
+                    break;
+                }
+            }
+
+            for(; i < ofnode->len; i++) {
+                if(ofnode->recs_[i].key != MAX_KEY)
+                    result[cur++] = ofnode->recs_[i];
+                else 
+                    break;
+                if(cur >= len) return len;
+            }
+        }
+    }
+
+    // scan the next buckets if necessary
+    int startPos = predict + PROBE_SIZE;
+    while(cur < len && startPos < NODE_SIZE) {
+        ScanOneBucket(startPos, result, cur, len);
+        startPos += PROBE_SIZE;
+    }
+
+    if(cur >= len) 
+        return len;
+    else if(sibling == nullptr) 
+        return cur;
+    else
+        return cur + ((BaseNode *) sibling)->Scan(result[cur - 1].key, len - cur, result + cur);
+}
+
 void ROLeaf::Dump(std::vector<Record> & out) {
     // retrieve records from this node
     for(int i = 0; i < NODE_SIZE; i++) {
@@ -221,7 +365,7 @@ void ROLeaf::DoSplit(_key_t * split_key, ROLeaf ** split_node) {
     data.reserve(count);
     Dump(data);
     
-    int pid = getSubOptimalSplitkey(data, data.size());
+    int pid = getSubOptimalSplitkey(data.data(), data.size());
     // creat two new nodes
     ROLeaf * left = new ROLeaf(data.data(), pid);
     ROLeaf * right = new ROLeaf(data.data() + pid, data.size() - pid);

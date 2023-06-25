@@ -112,6 +112,48 @@ void BaseNode::Print(string prefix) {
     }
 }
 
+bool BaseNode::Update(const _key_t & k, _val_t v) {
+    if(do_morphing) {
+        TypeManager(false);
+    }
+    switch(node_type) {
+    case NodeType::ROLEAF: 
+        return reinterpret_cast<ROLeaf *>(this)->Update(k, v);
+    case NodeType::WOLEAF:
+        return reinterpret_cast<WOLeaf *>(this)->Update(k, v);
+    }
+    assert(false);
+    __builtin_unreachable();
+}
+
+bool BaseNode::Remove(const _key_t & k) {
+    if(do_morphing) {
+        TypeManager(true);
+    }
+    switch(node_type) {
+    case NodeType::ROLEAF: 
+        return reinterpret_cast<ROLeaf *>(this)->Remove(k);
+    case NodeType::WOLEAF:
+        return reinterpret_cast<WOLeaf *>(this)->Remove(k);
+    }
+    assert(false);
+    __builtin_unreachable();
+}
+
+int BaseNode::Scan(const _key_t &startKey, int len, Record *result) {
+    if(do_morphing) {
+        TypeManager(false);
+    }
+    switch(node_type) {
+    case NodeType::ROLEAF: 
+        return reinterpret_cast<ROLeaf *>(this)->Scan(startKey, len, result);
+    case NodeType::WOLEAF:
+        return reinterpret_cast<WOLeaf *>(this)->Scan(startKey, len, result);
+    }
+    assert(false);
+    __builtin_unreachable();
+}
+
 void BaseNode::Dump(std::vector<Record> & out) {
     switch(node_type) {
     case NodeType::ROLEAF: 

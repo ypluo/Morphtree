@@ -40,6 +40,12 @@ public:
 
     bool Lookup(_key_t k, _val_t & v);
 
+    bool Update(const _key_t & k, _val_t v);
+
+    bool Remove(const _key_t & k);
+
+    int Scan(const _key_t &startKey, int len, Record *result);
+
     void Dump(std::vector<Record> & out);
 
     inline bool Leaf() { return node_type != ROINNER; }
@@ -114,11 +120,19 @@ public:
 
     bool Lookup(_key_t k, _val_t &v);
 
+    bool Update(const _key_t & k, _val_t v);
+
+    bool Remove(const _key_t & k);
+
+    int Scan(const _key_t &startKey, int len, Record *result);
+
     void Dump(std::vector<Record> & out);
 
     void Print(string prefix);
 
 private:
+    void ScanOneBucket(int startPos, Record *result, int & cur, int end);
+
     void DoSplit(_key_t * split_key, ROLeaf ** split_node);
 
     inline bool ShouldSplit() {
@@ -155,6 +169,12 @@ public:
     bool Store(_key_t k, _val_t v, _key_t * split_key, WOLeaf ** split_node);
 
     bool Lookup(_key_t k, _val_t &v);
+
+    bool Update(const _key_t & k, _val_t v);
+
+    bool Remove(const _key_t & k);
+
+    int Scan(const _key_t &startKey, int len, Record *result);
 
     void Dump(std::vector<Record> & out);
 

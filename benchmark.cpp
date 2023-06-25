@@ -72,8 +72,8 @@ void load(std::vector<KeyType> &init_keys, std::vector<KeyType> &keys,
   std::string init_file;
   std::string txn_file;
 
-  init_file = "../build/dataset.dat";
-  txn_file = "../build/query.dat";
+  init_file = "/home/lyp/morphtree/build/dataset.dat";
+  txn_file = "/home/lyp/morphtree/build/query.dat";
 
   std::ifstream infile_load(init_file);
   if(!infile_load) {

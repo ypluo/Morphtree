@@ -2,6 +2,7 @@
 #define _INDEX_H
 
 #include <iostream>
+#include <vector>
 #include "ALEX/src/core/alex.h"
 #include "LIPP/src/core/lipp.h"
 #include "PGM-index/pgm_index_dynamic.hpp"
@@ -18,6 +19,8 @@ class Index
     virtual bool find(KeyType key, ValType *v) = 0;
 
     virtual bool upsert(KeyType key, ValType value) = 0;
+
+    virtual bool remove(KeyType key) {return true;}
 
     virtual uint64_t scan(KeyType key, int range) = 0;
 
@@ -46,7 +49,7 @@ public:
 
     bool insert(KeyType key, uint64_t value) {
         idx->insert(key, value);
-        return false;
+        return true;
     }
 
     bool find(KeyType key, uint64_t *v) {
@@ -60,11 +63,30 @@ public:
     }
 
     bool upsert(KeyType key, uint64_t value) {
-        return true;
+        typename alex::Alex<KeyType, uint64_t>::Iterator it = idx->find(key);
+        if (it != idx->end()) {
+            it.payload() = value;
+            return true;
+        }
+        return false;
     }
 
     uint64_t scan(KeyType key, int range) {
-        return 0;
+        std::vector<std::pair<KeyType, uint64_t>> res(range);
+        int cnt = 0;
+
+        auto it = idx->lower_bound(key);
+        while(cnt < range && it != idx->end()) {
+            res[cnt++] = {it.key(), it.payload()};
+            ++it;
+        }
+
+        return cnt;
+    }
+
+    bool remove(KeyType key) {
+        idx->erase(key);
+        return true;
     }
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
@@ -94,7 +116,7 @@ public:
 
     bool insert(KeyType key, uint64_t value) {
         idx->insert(key, value);
-        return false;
+        return true;
     }
 
     bool find(KeyType key, uint64_t *v) {
@@ -103,6 +125,7 @@ public:
     }
 
     bool upsert(KeyType key, uint64_t value) {
+        idx->at(key) = value;
         return true;
     }
 
@@ -151,15 +174,30 @@ public:
     }
 
     bool upsert(KeyType key, uint64_t value) {
+        idx->insert_or_assign(key, value);
         return true;
     }
 
     uint64_t scan(KeyType key, int range) {
-        return 0;
+        std::vector<std::pair<KeyType, uint64_t>> res(range);
+        int cnt = 0;
+
+        auto it = idx->lower_bound(key);
+        while(cnt < range && it != idx->end()) {
+            res[cnt++] = {(*it).first, (*it).second};
+            ++it;
+        }
+
+        return cnt;
     }
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
         idx = new pgm::DynamicPGMIndex<KeyType, ValType>(recs, recs + len);
+    }
+
+    bool remove(KeyType key) {
+        idx->erase(key);
+        return true;
     }
 
     int64_t printTree() const {return 0;}
@@ -183,7 +221,7 @@ public:
 
     bool insert(KeyType key, uint64_t value) {
         idx->upsert(key, value);
-        return false;
+        return true;
     }
 
     bool find(KeyType key, uint64_t *v) {
@@ -192,10 +230,12 @@ public:
     }
 
     bool upsert(KeyType key, uint64_t value) {
+        idx->upsert(key, value);
         return true;
     }
 
     uint64_t scan(KeyType key, int range) {
+        //TODO
         return 0;
     }
 
@@ -233,21 +273,24 @@ public:
     }
 
     bool insert(KeyType key, uint64_t value) {
-        idx->insert(key, reinterpret_cast<void *>(value));
-        return false;
+        idx->insert(key, (void *)value);
+        return true;
     }
 
     bool find(KeyType key, uint64_t *v) {
-        return idx->lookup(key, reinterpret_cast<void * &>(*v));
+        void * res;
+        return idx->lookup(key, res);
+        *v = (uint64_t)res;
     }
 
     bool upsert(KeyType key, uint64_t value) {
-        idx->update(key, reinterpret_cast<void *>(value));
+        idx->update(key, (void *)value);
         return true;
     }
 
     uint64_t scan(KeyType key, int range) {
-        return 0;
+        Record buff[1000];
+        return idx->scan(key, range, buff);
     }
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
@@ -257,6 +300,11 @@ public:
     int64_t printTree() const {
         idx->Print();
         return 0;
+    }
+
+    bool remove(KeyType key) {
+        idx->remove(key);
+        return true;
     }
     
 private:
@@ -279,21 +327,24 @@ public:
     }
 
     bool insert(KeyType key, uint64_t value) {
-        idx->insert(key, reinterpret_cast<void *>(value));
-        return false;
+        idx->insert(key, (void *)value);
+        return true;
     }
 
     bool find(KeyType key, uint64_t *v) {
-        return idx->lookup(key, reinterpret_cast<void * &>(*v));
+        void * res;
+        return idx->lookup(key, res);
+        *v = (uint64_t)res;
     }
 
     bool upsert(KeyType key, uint64_t value) {
-        idx->update(key, reinterpret_cast<void *>(value));
+        idx->update(key, (void *)value);
         return true;
     }
 
     uint64_t scan(KeyType key, int range) {
-        return 0;
+        Record buff[1000];
+        return idx->scan(key, range, buff);
     }
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
@@ -303,6 +354,11 @@ public:
     int64_t printTree() const {
         idx->Print();
         return 0;
+    }
+
+    bool remove(KeyType key) {
+        idx->remove(key);
+        return true;
     }
     
 private:
@@ -325,25 +381,33 @@ public:
     }
 
     bool insert(KeyType key, uint64_t value) {
-        idx->insert(key, reinterpret_cast<void *>(value));
-        return false;
+        idx->insert(key, (void *)value);
+        return true;
     }
 
     bool find(KeyType key, uint64_t *v) {
-        return idx->lookup(key, reinterpret_cast<void * &>(*v));
+        void * res;
+        return idx->lookup(key, res);
+        *v = (uint64_t)res;
     }
 
     bool upsert(KeyType key, uint64_t value) {
-        idx->update(key, reinterpret_cast<void *>(value));
+        idx->update(key, (void *)value);
         return true;
     }
 
     uint64_t scan(KeyType key, int range) {
-        return 0;
+        Record buff[1000];
+        return idx->scan(key, range, buff);
     }
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
         return;
+    }
+
+    bool remove(KeyType key) {
+        idx->remove(key);
+        return true;
     }
 
     int64_t printTree() const {
@@ -372,7 +436,7 @@ public:
 
     bool insert(KeyType key, uint64_t value) {
         idx->insert(key, value);
-        return false;
+        return true;
     }
 
     bool find(KeyType key, uint64_t *v) {
@@ -386,11 +450,24 @@ public:
     }
 
     bool upsert(KeyType key, uint64_t value) {
+        auto it = idx->find(key);
+        if (it != idx->end()) {
+            it.data() = value;
+        }
         return true;
     }
 
     uint64_t scan(KeyType key, int range) {
-        return 0;
+        std::vector<std::pair<KeyType, uint64_t>> res(range);
+        int cnt = 0;
+
+        auto it = idx->lower_bound(key);
+        while(cnt < range && it != idx->end()) {
+            res[cnt++] = {it.key(), it.data()};
+            ++it;
+        }
+
+        return cnt;
     }
 
     int64_t printTree() const {
@@ -399,6 +476,11 @@ public:
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
         return;
+    }
+
+    bool remove(KeyType key) {
+        idx->erase(key);
+        return true;
     }
     
 private:
