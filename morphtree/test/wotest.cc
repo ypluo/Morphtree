@@ -96,7 +96,7 @@ TEST_F(wotest, scan) {
             // do validate
             ASSERT_EQ(count, step);
             for(int j = 0; j < count; j++) {
-                ASSERT_EQ(buf[j].val, _val_t(i + j));
+                ASSERT_EQ(buf[j].val, _val_t((uint64_t)i + j));
             }
         }
     }

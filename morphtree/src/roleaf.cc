@@ -354,9 +354,9 @@ void ROLeaf::Print(string prefix) {
     Dump(out);
 
     printf("%s(%d)[(%f)", prefix.c_str(), node_type, (float)of_count / count);
-    for(int i = 0; i < out.size(); i++) {
-        printf("%lf, ", out[i].key);
-    }
+    // for(int i = 0; i < out.size(); i++) {
+    //     printf("%lf, ", out[i].key);
+    // }
     printf("]\n");
 }
 

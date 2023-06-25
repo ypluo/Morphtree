@@ -209,6 +209,10 @@ inline void SwapNode(BaseNode * a, BaseNode *b) {
 extern bool do_morphing;
 extern uint64_t global_stats;
 extern void MorphNode(BaseNode * leaf, NodeType from, NodeType to);
+
+extern uint32_t rebuild_times;
+extern uint32_t morph_times;
+
 } // namespace morphtree
 
 #endif // __MORPHTREE_BASENODE__

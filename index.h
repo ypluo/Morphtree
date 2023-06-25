@@ -373,7 +373,7 @@ class MorphTree : public Index<KeyType, ValType>
 {
 public:
     MorphTree() {
-        idx = new morphtree::MorphtreeImpl<morphtree::NodeType::WOLEAF, true>();
+        idx = new morphtree::MorphtreeImpl<morphtree::NodeType::ROLEAF, true>();
     }
 
     ~MorphTree() {
@@ -402,7 +402,13 @@ public:
     }
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
-        return;
+        std::vector<Record> recs1(len);
+        for(int i = 0; i < len; i++) {
+            recs1[i] = {recs[i].first, (_val_t)recs[i].second};
+        }
+
+        idx = new morphtree::MorphtreeImpl<morphtree::NodeType::ROLEAF, true>(recs1);
+        return ;
     }
 
     bool remove(KeyType key) {
@@ -416,7 +422,7 @@ public:
     }
     
 private:
-    morphtree::MorphtreeImpl<morphtree::NodeType::WOLEAF, true> * idx;
+    morphtree::MorphtreeImpl<morphtree::NodeType::ROLEAF, true> * idx;
 };
 
 /////////////////////////////////////////////////////////////////////

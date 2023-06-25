@@ -212,6 +212,7 @@ bool ROInner::Lookup(_key_t k, _val_t &v) {
 }
 
 void ROInner::RebuildSubTree() {
+    rebuild_times += 1;
     std::vector<Record> all_record;
     all_record.reserve(count);
 

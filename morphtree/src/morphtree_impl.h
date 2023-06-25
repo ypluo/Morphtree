@@ -51,6 +51,8 @@ MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::MorphtreeImpl() {
     // global variables assignment
     do_morphing = MORPH_IF;
     global_stats = 0;
+    rebuild_times = 0;
+    morph_times = 0;
 }
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
@@ -58,11 +60,14 @@ MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::MorphtreeImpl(std::vector<Record> & ini
     root_ = bulkload(initial_recs);
     // global variables assignment
     do_morphing = MORPH_IF;
+    rebuild_times = 0;
+    morph_times = 0;
 }
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::~MorphtreeImpl() {
     delete root_;
+    printf("Rebuild times: %d\n Morph Times: %d\n", rebuild_times, morph_times);
 }
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
@@ -172,7 +177,7 @@ BaseNode * MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::bulkload(std::vector<Record>
     for(; i < initial_recs.size() / GLOBAL_LEAF_SIZE; i++) {
         Record * base = initial_recs.data() + i * GLOBAL_LEAF_SIZE;
         int split_pos = getSubOptimalSplitkey(base, GLOBAL_LEAF_SIZE);
-        index_record[i * 2].key = base[0].key;
+        index_record[i * 2].key = (i == 0 ? MIN_KEY : base[0].key);
         index_record[i * 2].val = _val_t(new ROLeaf(base, split_pos));
         index_record[i * 2 + 1].key = base[split_pos].key;
         index_record[i * 2 + 1].val = _val_t(new ROLeaf(base + split_pos, GLOBAL_LEAF_SIZE - split_pos));

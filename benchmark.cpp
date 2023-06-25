@@ -161,7 +161,7 @@ void load(std::vector<KeyType> &init_keys, std::vector<KeyType> &keys,
 Index<KeyType, ValType> * populate(int index_type, std::vector<KeyType> &init_keys) {
   Index<KeyType, ValType> *idx = getInstance<KeyType, ValType>(index_type);
   uint64_t bulkload_size = init_keys.size() * CONFIG_BULK;
-  if (index_type <= 3) {
+  if (index_type <= 3 || index_type == 6) {
     std::pair<KeyType, uint64_t> *recs;
     recs = new std::pair<KeyType, uint64_t>[bulkload_size];
 
@@ -260,8 +260,6 @@ void exec(int index_type,
         idx->insert(keys[i], ValType(std::abs(keys[i])));
       } else if (op == OP_READ) { //READ
         bool found = idx->find(keys[i], &v);
-        // assert(v == ValType(std::abs(keys[i])));
-        // assert(found == true);
         if(!found) counter += 1; 
       } else if (op == OP_UPSERT) { //UPDATE
         idx->upsert(keys[i], ValType(std::abs(keys[i])));

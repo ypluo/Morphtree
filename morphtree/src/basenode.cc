@@ -6,6 +6,9 @@ namespace morphtree {
 bool do_morphing;
 uint64_t global_stats;
 
+uint32_t rebuild_times;
+uint32_t morph_times;
+
 // Predict the node type of a leaf node according to its access history
 void BaseNode::TypeManager(bool isWrite) {
     stats = (stats << 1) + (isWrite ? 1 : 0);
@@ -24,6 +27,7 @@ void BaseNode::TypeManager(bool isWrite) {
     }
 
     if(new_type != (NodeType)node_type) {
+        morph_times += 1;
         MorphNode(this, (NodeType)node_type, new_type);
     }
 }
@@ -101,6 +105,7 @@ void BaseNode::Print(string prefix) {
     if(!Leaf()) {
         reinterpret_cast<ROInner *>(this)->Print(prefix);
     } else {
+        // return ;
         switch(node_type) {
         case NodeType::ROLEAF: 
             return reinterpret_cast<ROLeaf *>(this)->Print(prefix);
