@@ -13,7 +13,7 @@
 
 #include "alex.h"
 
-namespace alex {
+namespace alexol {
 
 template <class T, class P, class Compare = AlexCompare,
           class Alloc = std::allocator<std::pair<T, P>>>

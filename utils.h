@@ -8,8 +8,8 @@
 enum {
   TYPE_ALEX = 0,
   TYPE_LIPP,
-  TYPE_PGM,
-  TYPE_FITING,
+  TYPE_XINDEX,
+  TYPE_FINEDEX,
   TYPE_MORPHTREE_WO,
   TYPE_MORPHTREE_RO,
   TYPE_MORPHTREE,
@@ -35,10 +35,10 @@ Index<KeyType, ValType> *getInstance(const int type) {
     return new AlexIndex<KeyType, ValType>();
   else if (type == TYPE_LIPP) 
     return new LippIndex<KeyType, ValType>();
-  else if(type == TYPE_PGM) 
-    return new PGMIndex<KeyType, ValType>();
-  else if(type == TYPE_FITING) 
-    return new FITingTree<KeyType, ValType>();
+  else if(type == TYPE_XINDEX) 
+    return new XindexIndex<KeyType, ValType>();
+  else if(type == TYPE_FINEDEX) 
+    return new Finedex<KeyType, ValType>();
   else if(type == TYPE_MORPHTREE_WO)
     return new WoIndex<KeyType, ValType>();
   else if(type == TYPE_MORPHTREE_RO)

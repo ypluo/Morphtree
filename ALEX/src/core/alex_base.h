@@ -51,13 +51,54 @@ typedef unsigned __int32 uint32_t;
 #define forceinline inline
 #endif
 
-namespace alex {
+//#define DEBUG_OUTPUT
+#if defined(DEBUG_OUTPUT)
+#define PRINT_DEBUG(format, ...) printf(format,##__VA_ARGS__)
+#else
+#define PRINT_DEBUG(format, ...)
+#endif
+
+
+#include "util.h"
+
+namespace alexol {
+
+const uint32_t lockSet = ((uint32_t)1 << 31);
+const uint32_t lockMask = ((uint32_t)1 << 31) - 1;
+const int counterMask = (1 << 19) - 1;
+
+void align_alloc(void **ptr, size_t size){
+  posix_memalign(ptr, 64, size);
+}
+
+void align_zalloc(void **ptr, size_t size){
+  posix_memalign(ptr, 64, size);
+  memset(*ptr, 0, size);
+}
 
 /*** Linear model and model builder ***/
 
 // Forward declaration
 template <class T>
 class LinearModelBuilder;
+
+
+class StringOutput {
+public:
+  std::string s_;
+  StringOutput() {}
+  StringOutput(std::string s) {s_ = s;}
+  ~StringOutput() {
+#if defined(DEBUG_OUTPUT)
+    std::cout << "Thread " + std::to_string(omp_get_thread_num()) + s_ + "\n";
+#endif
+  }
+  void operator+=(std::string s) {
+#if defined(DEBUG_OUTPUT)
+    s_ = s_ + " " + s;
+#endif
+  }
+};
 
 // Linear regression model
 template <class T>

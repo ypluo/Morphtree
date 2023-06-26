@@ -1,10 +1,12 @@
-#ifndef __LIPP_BASE_H__
-#define __LIPP_BASE_H__
+#ifndef __LIPPOL_BASE_H__
+#define __LIPPOL_BASE_H__
 
 #include <limits>
 #include <cmath>
 #include <cstdlib>
 #include <algorithm>
+
+namespace lippolc {
 
 // Linear regression model
 template <class T>
@@ -29,4 +31,6 @@ public:
     }
 };
 
-#endif // __LIPP_BASE_H__
+}
+
+#endif

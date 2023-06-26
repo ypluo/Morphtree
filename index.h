@@ -4,10 +4,13 @@
 #include <iostream>
 #include "ALEX/src/core/alex.h"
 #include "LIPP/src/core/lipp.h"
-#include "PGM-index/pgm_index_dynamic.hpp"
-#include "FITingTree/inplace_index.h"
+#include "XIndex/xindex_impl.h"
+#include "FINEdex/osm/include/function.h"
+#include "FINEdex/osm/include/finedex.h"
 #include "morphtree/src/morphtree_impl.h"
-#include "FITingTree/btree.h"
+#include "BTreeOLC/BTreeOLC.h"
+
+extern int worknum;
 
 template<typename KeyType, typename ValType>
 class Index
@@ -39,7 +42,7 @@ class AlexIndex : public Index<KeyType, ValType>
 {
 public:
     AlexIndex() {
-        idx = new alex::Alex<KeyType, uint64_t>;
+        idx = new alexol::Alex <KeyType, ValType>;
     }
 
     ~AlexIndex() {
@@ -47,22 +50,15 @@ public:
     }
 
     bool insert(KeyType key, uint64_t value) {
-        idx->insert(key, value);
-        return false;
+        return idx->insert(key, value);
     }
 
     bool find(KeyType key, uint64_t *v) {
-        auto it = idx->find(key);
-        if (it != idx->end()) {
-            *v = it.payload();
-            return true;
-        } else {
-            return false;
-        }
+        return idx->get_payload(key, v);
     }
 
     bool upsert(KeyType key, uint64_t value) {
-        return true;
+        return idx->update(key, value);
     }
 
     uint64_t scan(KeyType key, int range) {
@@ -75,13 +71,15 @@ public:
     }
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
+        idx->set_max_model_node_size(1 << 24);
+        idx->set_max_data_node_size(1 << 19);
         idx->bulk_load(recs, len);
     }
 
     int64_t printTree() const {return 0;}
 
 private:
-    alex::Alex<KeyType, uint64_t> * idx;
+    alexol::Alex <KeyType, ValType> *idx;
 };
 
 /////////////////////////////////////////////////////////////////////
@@ -92,7 +90,7 @@ class LippIndex : public Index<KeyType, ValType>
 {
 public:
     LippIndex() {
-        idx = new LIPP<KeyType, ValType>;
+        idx = new lippolc::LIPP<KeyType, ValType>;
     }
 
     ~LippIndex() {
@@ -105,11 +103,11 @@ public:
     }
 
     bool find(KeyType key, uint64_t *v) {
-        *v = idx->at(key);
-        return (*v) != 0;
+        return idx->at(key, *v);
     }
 
     bool upsert(KeyType key, uint64_t value) {
+        idx->update(key, value);
         return true;
     }
 
@@ -118,89 +116,80 @@ public:
     }
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
-        idx->bulk_load(recs, len);
+        idx->bulk_load(recs, static_cast<int>(len));
     }
 
     int64_t printTree() const {return 0;}
 
 private:
-    LIPP<KeyType, ValType> * idx;
+    lippolc::LIPP<KeyType, ValType> * idx;
 };
 
 /////////////////////////////////////////////////////////////////////
-// PGM-index
+// XIndex
 /////////////////////////////////////////////////////////////////////
 template<typename KeyType, typename ValType>
-class PGMIndex : public Index<KeyType, ValType>
+class XindexIndex : public Index<KeyType, ValType>
 {
+
 public:
-    PGMIndex() {
+    class ModelKeyType {
+        typedef std::array<double, 1> model_key_t;
+
+        public:
+        static constexpr size_t model_key_size() { return 1; }
+        static ModelKeyType max() {
+            static const KeyType MAX_KEY = std::numeric_limits<KeyType>::max();
+            static ModelKeyType max_key(MAX_KEY);
+            return max_key;
+        }
+        static ModelKeyType min() {
+            static const KeyType MIN_KEY = typeid(KeyType) == typeid(double) || typeid(KeyType) == typeid(float) 
+                            ? -1 * MAX_KEY : std::numeric_limits<KeyType>::min();
+            static ModelKeyType min_key(MIN_KEY);
+            return min_key;
+        }
+
+        ModelKeyType() : key(0) {}
+        ModelKeyType(KeyType key) : key(key) {}
+        ModelKeyType(const ModelKeyType &other) { key = other.key; }
+        ModelKeyType &operator=(const ModelKeyType &other) {
+            key = other.key;
+            return *this;
+        }
+
+        model_key_t to_model_key() const {
+            model_key_t model_key;
+            model_key[0] = key;
+            return model_key;
+        }
+
+        friend bool operator<(const ModelKeyType &l, const ModelKeyType &r) { return l.key < r.key; }
+        friend bool operator>(const ModelKeyType &l, const ModelKeyType &r) { return l.key > r.key; }
+        friend bool operator>=(const ModelKeyType &l, const ModelKeyType &r) { return l.key >= r.key; }
+        friend bool operator<=(const ModelKeyType &l, const ModelKeyType &r) { return l.key <= r.key; }
+        friend bool operator==(const ModelKeyType &l, const ModelKeyType &r) { return l.key == r.key; }
+        friend bool operator!=(const ModelKeyType &l, const ModelKeyType &r) { return l.key != r.key; }
+
+        KeyType key;
+    };
+
+public:
+    XindexIndex() {
         idx = nullptr;
     }
 
-    ~PGMIndex() {
+    ~XindexIndex() {
         delete idx;
     }
 
     bool insert(KeyType key, uint64_t value) {
-        idx->insert(typename pgm::DynamicPGMIndex<KeyType, ValType>::Item(key, value));
-        return true;
-    }
-
-    bool find(KeyType key, uint64_t *v) {
-        auto iter = idx->find(key);
-        if(iter != idx->end()) {
-            *v = iter->second;
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    bool upsert(KeyType key, uint64_t value) {
-        return true;
-    }
-
-    uint64_t scan(KeyType key, int range) {
-        return 0;
-    }
-
-    void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
-        idx = new pgm::DynamicPGMIndex<KeyType, ValType>(recs, recs + len);
-    }
-
-    bool remove(KeyType key) {
-        idx->erase(key);
-        return true;
-    }
-
-    int64_t printTree() const {return 0;}
-
-private:
-    pgm::DynamicPGMIndex<KeyType, ValType> * idx;
-};
-
-/////////////////////////////////////////////////////////////////////
-// FITingTree
-/////////////////////////////////////////////////////////////////////
-template<typename KeyType, typename ValType>
-class FITingTree : public Index<KeyType, ValType>
-{
-public:
-    FITingTree() {}
-
-    ~FITingTree() {
-        delete idx;
-    }
-
-    bool insert(KeyType key, uint64_t value) {
-        idx->upsert(key, value);
+        idx->put(key, value, 0);
         return false;
     }
 
     bool find(KeyType key, uint64_t *v) {
-        *v = idx->find(key);
-        return (*v) != 0;
+        return idx->get(key, *v, 0);
     }
 
     bool upsert(KeyType key, uint64_t value) {
@@ -212,21 +201,83 @@ public:
     }
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
-        KeyType * keys = new KeyType[len];
-        ValType * vals = new ValType[len];
+        std::vector<ModelKeyType> keys;
+        std::vector<ValType> vals;
+        keys.resize(len);
+        vals.resize(len);
+        
+        for(int i = 0; i < len; i++) {
+            keys[i] = ModelKeyType(recs[i].first);
+            vals[i] = recs[i].second;
+        }
 
+        int bg_n = std::max(worknum / 12, 1);
+        idx = new xindex::XIndex<ModelKeyType, ValType>(keys, vals, worknum, bg_n);
+    }
+
+    int64_t printTree() const {return 0;}
+
+private:
+    xindex::XIndex<ModelKeyType, ValType> * idx;
+};
+
+/////////////////////////////////////////////////////////////////////
+// FINEDex
+/////////////////////////////////////////////////////////////////////
+template<typename KeyType, typename ValType>
+class Finedex : public Index<KeyType, ValType>
+{
+public:
+    Finedex() {
+        idx = new finedex::FINEdex<KeyType, ValType>();
+    }
+
+    ~Finedex() {
+        delete idx;
+    }
+
+    bool insert(KeyType key, uint64_t value) {
+        finedex::result_t res = idx->insert(key, value);
+        if(res == finedex::result_t::ok) {
+            return true;
+        }
+        return false;
+    }
+
+    bool find(KeyType key, uint64_t *v) {
+        finedex::result_t res = idx->find(key, *v);
+        if(res == finedex::result_t::ok) {
+            return true;
+        }
+        return false;
+    }
+
+    bool upsert(KeyType key, uint64_t value) {
+        return true;
+    }
+
+    uint64_t scan(KeyType key, int range) {
+        return 0;
+    }
+
+    void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
+        std::vector<KeyType> keys;
+        std::vector<ValType> vals;
+        keys.resize(len);
+        vals.resize(len);
+        
         for(int i = 0; i < len; i++) {
             keys[i] = recs[i].first;
             vals[i] = recs[i].second;
         }
 
-        idx = new InplaceIndex<KeyType, ValType>(keys, vals, len);
+        idx->train(keys, vals, 32);
     }
 
     int64_t printTree() const {return 0;}
 
 private:
-    InplaceIndex<KeyType, ValType> *idx;
+    finedex::FINEdex<KeyType, ValType> * idx;
 };
 
 /////////////////////////////////////////////////////////////////////
@@ -396,7 +447,7 @@ class BtreeIndex : public Index<KeyType, ValType>
 {
 public:
     BtreeIndex() {
-        idx = new stx::btree<KeyType, ValType>;
+        idx = new btreeolc::BTree<KeyType, ValType>;
     }
 
     ~BtreeIndex() {
@@ -409,13 +460,7 @@ public:
     }
 
     bool find(KeyType key, uint64_t *v) {
-        auto it = idx->find(key);
-        if (it != idx->end()) {
-            *v = it.data();
-            return true;
-        } else {
-            return false;
-        }
+        return idx->lookup(key, *v);
     }
 
     bool upsert(KeyType key, uint64_t value) {
@@ -437,12 +482,11 @@ public:
     }
 
     bool remove(KeyType key) {
-        idx->erase(key);
         return true;
     }
     
 private:
-    stx::btree<KeyType, ValType> * idx;
+    btreeolc::BTree<KeyType, ValType> * idx;
 };
 
 #endif

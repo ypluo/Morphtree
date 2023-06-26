@@ -30,7 +30,7 @@ enum NodeType {ROINNER = 0, ROLEAF, WOLEAF};
 // hyper parameters of Morphtree
 const uint64_t ROSTATS = 0x0000000000000000; // default statistic of RONode
 const uint64_t WOSTATS = 0xFFFFFFFFFFFFFFFF; // default statistic of WONode
-const int GLOBAL_LEAF_SIZE   = 1280;    // the maximum node size of a leaf node
+const int GLOBAL_LEAF_SIZE   = 10240;    // the maximum node size of a leaf node
 
 
 const uint64_t LOCK_MARK    = 0xffff000000000000;

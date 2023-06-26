@@ -11,6 +11,8 @@
 #include "utils.h"
 #include "index.h"
 
+int worknum = 0;
+
 typedef double KeyType;
 typedef uint64_t ValType;
 
@@ -300,10 +302,10 @@ int main(int argc, char *argv[]) {
     index_type = TYPE_ALEX;
   else if(strcmp(argv[1], "lipp") == 0)
     index_type = TYPE_LIPP;
-  else if(strcmp(argv[1], "pgm") == 0) 
-    index_type = TYPE_PGM;
-  else if(strcmp(argv[1], "fiting") == 0)
-    index_type = TYPE_FITING;
+  else if(strcmp(argv[1], "xindex") == 0) 
+    index_type = TYPE_XINDEX;
+  else if(strcmp(argv[1], "finedex") == 0)
+    index_type = TYPE_FINEDEX;
   else if(strcmp(argv[1], "wotree") == 0)
     index_type = TYPE_MORPHTREE_WO;
   else if(strcmp(argv[1], "rotree") == 0)
@@ -346,6 +348,7 @@ int main(int argc, char *argv[]) {
     printf("%d ", mem / 1024);
   }
 
+  worknum = num_thread;
   exec(index_type, num_thread, init_keys, keys, ranges, ops);
 
   google::ShutdownGoogleLogging();
