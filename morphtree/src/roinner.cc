@@ -43,9 +43,9 @@ ROInner::ROInner(Record * recs_in, int num) {
     intercept = model.b_ * (capacity - 2 * MARGIN) / num + MARGIN;
 
     // populate the node with records
-    int i, last_i = 0, cid = Predict(recs_in[0].key, slope, intercept) / PROBE_SIZE;
+    int i, last_i = 0, cid = Predict(recs_in[0].key, slope, intercept, capacity) / PROBE_SIZE;
     for(i = 1; i < num; i++) {
-        int predict = Predict(recs_in[i].key, slope, intercept);
+        int predict = Predict(recs_in[i].key, slope, intercept, capacity);
         if((predict / PROBE_SIZE) != cid) {
             int c = i - last_i;
 
@@ -104,8 +104,9 @@ void ROInner::Print(string prefix) {
 }
 
 bool ROInner::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROInner ** split_node) {
+    LOG_IF(ERROR, v < 10000000) << "try insert invalid child pointer";
     if(count < BNODE_SIZE) {
-        nodelock.Lock();
+        headerlock.WLock();
         int i;
         for(i = 0; i < count; i++) {
             if(recs[i].key >= k) {
@@ -123,22 +124,17 @@ bool ROInner::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROInner **
 
         if(count == BNODE_SIZE) { // create a new inner node
             ROInner * new_inner = new ROInner(recs, count);
-            new_inner->nodelock.Lock();
             new_inner->headerlock.WLock();
-            headerlock.WLock();
             SwapNode(this, new_inner);
             headerlock.UnWLock();
+        } else {
+            headerlock.UnWLock();
         }
-
-        nodelock.UnLock();
-
         return false;
     } else {
-        roinner_store_retry:
-        
+        // read lock the node
         headerlock.RLock();
-        
-        int predict = Predict(k, slope, intercept);
+        int predict = Predict(k, slope, intercept, capacity);
         predict = (predict / PROBE_SIZE) * PROBE_SIZE;
         int i;
         for (i = predict; i < predict + PROBE_SIZE; i++) {
@@ -146,21 +142,8 @@ bool ROInner::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROInner **
                 break;
         }
 
-        // lock the coresponding bucket
+        // lock a bucket
         ExtVersionLock::Lock(&recs[predict].val);
-        if(recs[i].key == k) { // reinsert from retry
-            recs[i].val = v;
-            ExtVersionLock::UnLock(&recs[predict].val);
-            if(nodelock.IsLocked()) {
-                headerlock.UnLock();
-                std::this_thread::yield();
-                goto roinner_store_retry;
-            } else {
-                headerlock.UnLock();
-                return false;
-            }
-        } 
-
         Record last_one = recs[predict + PROBE_SIZE - 1];
         if(i == predict) { // the insert record will rewrite the bucket lock
             v = (recs[predict].val & LOCK_MARK) + v;
@@ -169,6 +152,10 @@ bool ROInner::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROInner **
         if(last_one.key == MAX_KEY) { // there is an empty slot
             memmove(&recs[i + 1], &recs[i], sizeof(Record) * (predict + PROBE_SIZE - 1 - i));
             recs[i] = Record(k, v);
+            // unlock bucket
+            ExtVersionLock::UnLock(&recs[predict].val); 
+            headerlock.UnLock();
+            __atomic_fetch_add(&count, 1, __ATOMIC_ACQUIRE);
         } else {
             not_overflow = true;
             BaseNode * rightmost = (BaseNode *)(last_one.val & POINTER_MARK);
@@ -186,43 +173,50 @@ bool ROInner::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROInner **
                 ROInner * new_inner = new ROInner(&tmp[PROBE_SIZE - 1], 2);
                 recs[predict + PROBE_SIZE - 1].key = tmp[PROBE_SIZE - 1].key;
                 recs[predict + PROBE_SIZE - 1].val = (uint64_t)new_inner;
+
+                // unlock bucket
+                ExtVersionLock::UnLock(&recs[predict].val); 
+                headerlock.UnLock();
+
+                __atomic_fetch_add(&of_count, 2, __ATOMIC_ACQUIRE);
+                __atomic_fetch_add(&count, 1, __ATOMIC_ACQUIRE);
             } else { // has a overflow inner node
                 if(i < predict + PROBE_SIZE - 1) {
                     _key_t new_k = recs[predict + PROBE_SIZE - 2].key;
                     uint64_t new_v = (recs[predict + PROBE_SIZE - 2].val & POINTER_MARK);
                     memmove(&recs[i + 1], &recs[i], sizeof(Record) * (predict + PROBE_SIZE - 2 - i));
                     recs[i] = Record(k, v);
-                    
-                    rightmost->Store(new_k, new_v, nullptr, nullptr);
                     recs[predict + PROBE_SIZE - 1].key = new_k; // update the split key of bucket and overflow node
+
+                    // unlock bucket
+                    ExtVersionLock::UnLock(&recs[predict].val); 
+                    headerlock.UnLock();
+                    rightmost->Store(new_k, new_v, nullptr, nullptr);
                 } else if(i == predict + PROBE_SIZE - 1) { 
-                    rightmost->Store(k, v, nullptr, nullptr);
                     recs[predict + PROBE_SIZE - 1].key = k; // update the split key of bucket and overflow node
+                    
+                    // unlock bucket
+                    ExtVersionLock::UnLock(&recs[predict].val); 
+                    headerlock.UnLock();
+                    rightmost->Store(k, v, nullptr, nullptr);
                 } else {
+                    // unlock bucket
+                    ExtVersionLock::UnLock(&recs[predict].val);
+                    headerlock.UnLock(); 
                     rightmost->Store(k, v, nullptr, nullptr);
                 }
+                __atomic_fetch_add(&of_count, 1, __ATOMIC_ACQUIRE);
+                __atomic_fetch_add(&count, 1, __ATOMIC_ACQUIRE);
             }
-            __atomic_fetch_add(&of_count, 1, __ATOMIC_RELAXED);
         }
-        __atomic_fetch_add(&count, 1, __ATOMIC_RELAXED);
-
-        ExtVersionLock::UnLock(&recs[predict].val);
-
-        if(nodelock.IsLocked()) {
-            headerlock.UnLock();
-            std::this_thread::yield();
-            __atomic_fetch_sub(&count, 1, __ATOMIC_RELAXED);
-            if(not_overflow) __atomic_fetch_sub(&of_count, 1, __ATOMIC_RELAXED);
-            goto roinner_store_retry;
-        }
-        headerlock.UnLock();
 
         if(ShouldRebuild()) {
             RebuildSubTree();
             return true;
+        } else {
+            return false;
         }
-
-        return false;
+        
     }
 }
 
@@ -242,13 +236,16 @@ bool ROInner::Lookup(const _key_t & k, uint64_t &v) {
         return true;
     } else {
         auto v1 = headerlock.Version();
+            barrier();
             Record * recs_snapshot = recs;
             double slope_st = slope;
             double intercept_st = intercept;
+            uint32_t capacity_st = capacity;
+            barrier();
         auto v2 = headerlock.Version();
         if(!(v1 == v2 && v1 % 2 == 0)) goto roinner_lookup_retry;
 
-        int predict = Predict(k, slope_st, intercept_st);
+        int predict = Predict(k, slope_st, intercept_st, capacity_st);
         predict = (predict / PROBE_SIZE) * PROBE_SIZE;
 
         // probe left: if k is less than the minimal key in current bucket
@@ -265,7 +262,10 @@ bool ROInner::Lookup(const _key_t & k, uint64_t &v) {
                 v = (recs_snapshot[i - 1].val & POINTER_MARK);
                 if(ExtVersionLock::IsLocked(recs_snapshot[predict].val) || v3 != ExtVersionLock::Version(recs_snapshot[predict].val)) goto roinner_lookup_retry2;
 
-                DLOG_IF(FATAL, v == 0) << "The child pointer is invalid " << " Key " << k << " at slot " << predict;
+                if(v < 10000000)
+                    for(int j = predict; j < predict + PROBE_SIZE; j++)
+                        LOG(ERROR) << j << " " << recs_snapshot[j].key << " " << recs_snapshot[j].val;
+                LOG_IF(FATAL, v < 10000000) << "The child pointer is invalid " << " Key " << k << " at slot " << predict;
                 return true;
             }
         }
@@ -274,50 +274,52 @@ bool ROInner::Lookup(const _key_t & k, uint64_t &v) {
         v = (recs_snapshot[i - 1].val & POINTER_MARK);
         if(ExtVersionLock::IsLocked(recs_snapshot[predict].val) || v3 != ExtVersionLock::Version(recs_snapshot[predict].val)) goto roinner_lookup_retry2;
         
-        DLOG_IF(FATAL, v == 0) << "The child pointer is invalid " << " Key " << k << " at slot " << predict;
+        if(v < 10000000) {
+            for(int j = 800; j < capacity; j++)
+                LOG(ERROR) << j << " " << recs_snapshot[j].key << " " << recs_snapshot[j].val;
+        }
+        LOG_IF(FATAL, v < 10000000) << "The child pointer is invalid " << " Key " << k << " at slot " << predict;
         return true;
     }
 }
 
 void ROInner::RebuildSubTree() {
-    nodelock.Lock();
+    LOG(INFO) << "rebuild";
     std::vector<Record> all_record;
-    all_record.reserve(count);
-    Dump(all_record);
+    all_record.reserve(count * 2);
+    // Dump a node will lock the node
+    Dump(all_record, false);
     ROInner * new_inner = new ROInner(all_record.data(), all_record.size());
-    new_inner->nodelock.Lock();
     new_inner->headerlock.WLock();
-    this->headerlock.WLock();
     SwapNode(this, new_inner);
-    this->headerlock.UnWLock();
-    nodelock.UnLock();
+    headerlock.UnWLock();
 }
 
-void ROInner::Dump(std::vector<Record> & out) {
+void ROInner::Dump(std::vector<Record> & out, bool releaselock) {
+    headerlock.WLock();
     if(count < BNODE_SIZE) {
         for(int i = 0; i < count; i++) {
             out.emplace_back(recs[i].key, recs[i].val & POINTER_MARK);
         }
     } else {
         for(int i = 0; i < capacity; i += PROBE_SIZE) {
-        ExtVersionLock::Lock(&recs[i].val);
-        for(int j = 0; j < PROBE_SIZE; j++) {
-            if(recs[i + j].key == MAX_KEY) {
-                break;
-            } else if(j == PROBE_SIZE - 1) {
-                BaseNode * node = (BaseNode *) (recs[i + j].val & POINTER_MARK);
-                if(!node->Leaf()) {
-                    ((ROInner *)node)->Dump(out);
+            for(int j = 0; j < PROBE_SIZE; j++) {
+                if(recs[i + j].key == MAX_KEY) {
+                    break;
+                } else if(j == PROBE_SIZE - 1) {
+                    BaseNode * node = (BaseNode *) (recs[i + j].val & POINTER_MARK);
+                    if(!node->Leaf()) {
+                        ((ROInner *)node)->Dump(out);
+                    } else {
+                        out.emplace_back(recs[i + j].key, recs[i + j].val & POINTER_MARK);
+                    }
                 } else {
                     out.emplace_back(recs[i + j].key, recs[i + j].val & POINTER_MARK);
                 }
-            } else {
-                out.emplace_back(recs[i + j].key, recs[i + j].val & POINTER_MARK);
             }
         }
-        ExtVersionLock::UnLock(&recs[i].val);
+        if(releaselock) headerlock.UnWLock();
     }
 }
 
-}
 } // namespace morphtree

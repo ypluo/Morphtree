@@ -147,8 +147,6 @@ ROLeaf::ROLeaf(Record * recs_in, int num) {
     for(int i = 0; i < num; i++) {
         int predict = Predict(recs_in[i].key, slope, intercept) / PROBE_SIZE * PROBE_SIZE;
         this->Append(recs_in[i].key, recs_in[i].val, predict);
-        // printf("%lf\n", recs_in[i].key);
-        // this->Print("");
     }
 }
 
@@ -341,12 +339,14 @@ bool ROLeaf::Lookup(const _key_t & k, uint64_t &v) {
         return ((WOLeaf *)this)->Lookup(k, v);
     }
     auto v1 = headerlock.Version();
+        barrier();
         auto recs_st = recs;
         auto slope_st = slope;
         auto intercept_st = intercept;
         auto splitkey_st = mysplitkey;
         auto sibling_st = sibling;
         auto shadow_st = shadow;
+        barrier();
     auto v2 = headerlock.Version();
     if(!(v1 == v2 && v1 % 2 == 0)) goto roleaf_lookup_retry;
 
@@ -360,10 +360,12 @@ bool ROLeaf::Lookup(const _key_t & k, uint64_t &v) {
 
     int bucket_end = predict + PROBE_SIZE - 1;
     auto v3 = ExtVersionLock::Version(recs_st[bucket_end].val);
+    barrier();
     int i;
     for (i = predict; i < bucket_end; i++) {
         if(recs_st[i].key == k) {
             v = recs_st[i].val;
+            barrier();
             if(ExtVersionLock::IsLocked(recs_st[bucket_end].val) || v3 != ExtVersionLock::Version(recs_st[bucket_end].val)) 
                 goto roleaf_lookup_retry;
             return true;
@@ -378,6 +380,7 @@ bool ROLeaf::Lookup(const _key_t & k, uint64_t &v) {
         found = ofnode->Lookup(k, v);
     } 
     
+    barrier();
     if(ExtVersionLock::IsLocked(recs_st[bucket_end].val) || v3 != ExtVersionLock::Version(recs_st[bucket_end].val)) 
         goto roleaf_lookup_retry;
     

@@ -69,7 +69,7 @@ bool WOLeaf::Store(const _key_t & k, uint64_t v, _key_t * split_key, WOLeaf ** s
         if(readable_count >= GLOBAL_LEAF_SIZE) { // no more empty slot, wait for the node to split
             writelock.UnLock();
             headerlock.UnLock();
-            std::this_thread::yield();
+            usleep(10);
             goto woleaf_store_retry;
         } else {
             cur_count = readable_count++;
@@ -110,6 +110,7 @@ bool WOLeaf::Lookup(const _key_t & k, uint64_t &v) {
         return ((ROLeaf *)this)->Lookup(k, v);
     }
     auto v1 = headerlock.Version();
+        barrier();
         auto recs_st = recs;
         auto count_st = count;
         auto readonly_count_st = readonly_count;
@@ -117,6 +118,7 @@ bool WOLeaf::Lookup(const _key_t & k, uint64_t &v) {
         auto splitkey_st = mysplitkey;
         auto sibling_st = sibling;
         auto shadow_st = shadow;
+        barrier();
     auto v2 = headerlock.Version();
     if(!(v1 == v2 && v1 % 2 == 0)) goto woleaf_look_retry;
     

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.11)
 
-project(vibench)
+project(morphtree)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -8,9 +8,10 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Release")
 endif()
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -std=c++17 -pthread -fmax-errors=5 -fopenmp")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -std=c++17 -pthread -fmax-errors=5 -fopenmp -O3")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -O0")
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
+
+message("-- CMAKE BUILD TYPE: " ${CMAKE_BUILD_TYPE})
 
 find_library(GLOG_LIBRARIES NAMES glog)
 set(MKL_LINK_DIRECTORY "/opt/intel/mkl/lib/intel64")

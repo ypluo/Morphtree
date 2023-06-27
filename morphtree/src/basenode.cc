@@ -5,7 +5,6 @@ namespace morphtree {
 
 // definitions of global variables
 bool do_morphing;
-uint64_t gacn;
 MorphLogger *morph_log;
 EpochBasedMemoryReclamationStrategy *ebr;
 

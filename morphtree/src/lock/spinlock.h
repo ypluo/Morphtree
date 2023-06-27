@@ -4,7 +4,7 @@
 #include <atomic>
 
 class SpinLock {
-private:
+public:
 std::atomic_bool lock_;
 public:
     SpinLock() {

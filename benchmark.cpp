@@ -20,29 +20,6 @@ static bool insert_only = false;
 static bool detail_tp = false;
 static const int INTERVAL = 2000000;
 
-template <typename Fn, typename... Args>
-void StartThreads(Index<KeyType, ValType> *tree_p,
-                  uint64_t num_threads,
-                  Fn &&fn,
-                  Args &&...args) {
-  std::vector<std::thread> thread_group;
-
-  auto fn2 = [tree_p, &fn](uint64_t thread_id, Args ...args) {
-    fn(thread_id, args...);
-    return;
-  };
-
-  for (uint64_t thread_itr = 0; thread_itr < num_threads; ++thread_itr) {
-    thread_group.push_back(std::thread{fn2, thread_itr, std::ref(args...)});
-  }
-
-  for (uint64_t thread_itr = 0; thread_itr < num_threads; ++thread_itr) {
-    thread_group[thread_itr].join();
-  }
-
-  return;
-}
-
 int get_memory_by_pid(pid_t pid) {
   FILE* fd;
   char line[1024] = {0};
@@ -168,7 +145,7 @@ void load(std::vector<KeyType> &init_keys, std::vector<KeyType> &keys,
 //==============================================================
 Index<KeyType, ValType> * populate(int index_type, std::vector<KeyType> &init_keys) {
   Index<KeyType, ValType> *idx = getInstance<KeyType, ValType>(index_type);
-  uint64_t bulkload_size = init_keys.size() / 4;
+  uint64_t bulkload_size = init_keys.size() / 2;
 
   // bulkload
   std::pair<KeyType, uint64_t> *recs;
@@ -213,11 +190,28 @@ void exec(int index_type,
                  std::vector<int> &ops) {
   Index<KeyType, ValType> *idx = populate(index_type, init_keys);
   
+  LOG(INFO) << "finish populate";
   // If we do not perform other transactions, we can skip txn file
   if(insert_only == true) {
     int mem = get_memory_by_pid(getpid());
     printf("%d \n", mem / 1024);
     return;
+  }
+
+  // warmup part
+  size_t warmup_size = ops.size() / 10;
+  ValType v;
+  for(size_t i = 0; i < warmup_size; i++) {
+      int op = ops[i];
+      if (op == OP_INSERT) { //INSERT
+        idx->insert(keys[i], ValType(std::abs(keys[i])));
+      } else if (op == OP_READ) { //READ
+        bool found = idx->find(keys[i], &v);
+      } else if (op == OP_UPSERT) { //UPDATE
+        idx->upsert(keys[i], ValType(std::abs(keys[i])));
+      } else if (op == OP_SCAN) { //SCAN
+        idx->scan(keys[i], ranges[i]);
+      }
   }
 
   // test part
@@ -232,7 +226,7 @@ void exec(int index_type,
     size_t end_index = start_index + op_per_thread;
 
     uint64_t v;
-    int counter = 0;
+    int notfound = 0;
     double last_ts = get_now(), cur_ts;
     for(size_t i = start_index;i < end_index;i++) {
       int op = ops[i];
@@ -241,7 +235,7 @@ void exec(int index_type,
       } else if (op == OP_READ) { //READ
         bool found = idx->find(keys[i], &v);
         if(found == false) {
-          DLOG(ERROR) << std::setprecision(15) << " key = " << keys[i] << " not found";
+          notfound++;
         }
       } else if (op == OP_UPSERT) { //UPDATE
         idx->upsert(keys[i], ValType(std::abs(keys[i]) + 2));
@@ -259,6 +253,7 @@ void exec(int index_type,
       }
     }
 
+    LOG(INFO) << "not found number " << notfound;
     return;
   };
 
@@ -275,7 +270,7 @@ void exec(int index_type,
 
   double tput = (ops.size()) / (end_time - start_time) / 1000000; //Mops/sec
   if(detail_tp == false)
-    std::cout << tput << std::endl;
+    std::cout << tput << " ";
   
   delete idx;
   return;
@@ -287,8 +282,7 @@ int main(int argc, char *argv[]) {
 
   google::SetLogDestination(google::GLOG_INFO, "/home/lyp/morphtree/build/log/INFO-");
   google::SetLogDestination(google::GLOG_ERROR, "/home/lyp/morphtree/build/log/ERROR-");
-  google::SetStderrLogging(google::GLOG_FATAL);
-  
+  google::SetStderrLogging(google::GLOG_ERROR);
 
   if (argc == 1) {
     std::cout << "Usage:\n";
@@ -337,10 +331,9 @@ int main(int argc, char *argv[]) {
   memset(&keys[0], 0x00, 64000000 * sizeof(KeyType));
   memset(&ops[0], 0x00, 64000000 * sizeof(int));
 
-  if(detail_tp) {
-    printf("index type: %d\n", index_type);
-  }
-
+  LOG(INFO) << "index type:" << index_type;
+  LOG(INFO) << "thread num:" << num_thread;
+  
   load(init_keys, keys, ranges, ops);
 
   if(insert_only == true) {

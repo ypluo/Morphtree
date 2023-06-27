@@ -14,6 +14,8 @@
 #include <thread>
 #include <queue>
 
+#define barrier() __asm__ __volatile__("": : :"memory") 
+
 #include <iomanip>
 #include <glog/logging.h>
 
@@ -93,18 +95,17 @@ public:
     void Print(string prefix);
 
 private:
-    inline int Predict(const _key_t & k, double a, double b) {
-        return std::min(std::max(0.0, a * k + b), capacity - 1.0);
+    inline int Predict(const _key_t & k, double a, double b, uint32_t cap) {
+        return std::min(std::max(0.0, a * k + b), cap - 1.0);
     }
 
     inline bool ShouldRebuild() {
-        // more than 67% index records are overflowed
-        return of_count > (count << 1) / 3 || count >= capacity;
+        return count >= capacity;
     }
 
     void RebuildSubTree();
 
-    void Dump(std::vector<Record> & out);
+    void Dump(std::vector<Record> & out, bool releaselock = true);
 
 public:
     static const int PROBE_SIZE       = 4;
@@ -243,7 +244,6 @@ typedef std::pair<void *, bool> ReclaimEle;
 // Global variables and functions controling the morphing of Morphtree 
 extern bool do_morphing;
 extern MorphLogger *morph_log;
-extern uint64_t gacn;
 extern void MorphNode(BaseNode * leaf, uint8_t lsn, NodeType to);
 extern void SwapNode(BaseNode * oldone, BaseNode *newone);
 

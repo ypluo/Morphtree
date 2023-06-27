@@ -30,9 +30,6 @@ public:
     void Print();
     
 private:
-    bool insert_recursive(BaseNode * n, const _key_t & key, const uint64_t val, 
-                                _key_t * split_k, BaseNode ** split_n);
-
     BaseNode * root_;
     BaseNode * first_leaf_;
 };
@@ -53,7 +50,6 @@ MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::MorphtreeImpl() {
     // global variables assignment
     do_morphing = MORPH_IF;
     morph_log = new MorphLogger();
-    gacn = 0;
     ebr = EpochBasedMemoryReclamationStrategy::getInstance();
 }
 
@@ -62,7 +58,6 @@ MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::MorphtreeImpl(std::vector<Record> & ini
     // global variables assignment
     do_morphing = MORPH_IF;
     morph_log = new MorphLogger();
-    gacn = 0;
     ebr = EpochBasedMemoryReclamationStrategy::getInstance();
 
     EpochGuard guard;
@@ -85,45 +80,36 @@ MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::~MorphtreeImpl() {
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 void MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::insert(const _key_t &key, uint64_t val) {
-    // global_stats = (global_stats << 1) + 1;
+    EpochGuard guard;
 
-    _key_t split_k;
-    BaseNode * split_node;
-    bool splitIf = insert_recursive(root_, key, val, &split_k, &split_node);
-    
-    if(splitIf) {
-        Record tmp[2] = {Record(MIN_KEY, (uint64_t)root_), Record(split_k, (uint64_t)split_node)};
-        ROInner * newroot = new ROInner(tmp, 2);
-        root_ = newroot;
+    BaseNode * cur = root_;
+
+    uint64_t v;
+    while(!cur->Leaf()) {
+        BaseNode * last = cur;
+        cur->Lookup(key, v);
+        cur = (BaseNode *) v;
     }
-}
-
-template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
-bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::insert_recursive(BaseNode * n, const _key_t & key, const uint64_t val, 
-                                    _key_t * split_k, BaseNode ** split_n) {
-    if(n->Leaf()) {
-        return n->Store(key, val, split_k, split_n);
-    } else {
-        uint64_t v; n->Lookup(key, v);
-        BaseNode * child = (BaseNode *) v;
-
-        _key_t split_k_child;
-        BaseNode * split_n_child;
-        bool splitIf = insert_recursive(child, key, val, &split_k_child, &split_n_child);
-
-        if(splitIf) {
-            bool found = n->Store(split_k_child, (uint64_t)split_n_child, split_k, split_n);
-
-            return found;
+    _key_t split_k_child;
+    BaseNode * split_n_child;
+    bool splitIf = cur->Store(key, val, &split_k_child, &split_n_child);
+    
+    if(splitIf == true) {
+        if(root_ == cur) { 
+            // no any leaf node
+            Record tmp[2] = {Record(MIN_KEY, (uint64_t)root_), 
+                                Record(split_k_child, (uint64_t)split_n_child)};
+            ROInner * newroot = new ROInner(tmp, 2);
+            root_ = newroot;
         } else {
-            return false;
+            // insert into the root node
+            root_->Store(split_k_child, (uint64_t)split_n_child, nullptr, nullptr);
         }
     }
 }
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::lookup(const _key_t &key, uint64_t & val) {
-    gacn++;
     EpochGuard guard;
 
     BaseNode * cur = root_;
@@ -145,7 +131,6 @@ void MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::Print() {
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::update(const _key_t & key, const uint64_t val) {
-    gacn++;
     EpochGuard guard;
 
     BaseNode * cur = root_;
@@ -161,7 +146,6 @@ bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::update(const _key_t & key, const u
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::remove(const _key_t & key) {
-    gacn++;
     EpochGuard guard;
 
     BaseNode * cur = root_;
@@ -178,7 +162,6 @@ bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::remove(const _key_t & key) {
 // users are reponsible for reserve enough space for saving result
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 int MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::scan(const _key_t &startKey, int len, Record *result) {
-    gacn++;
     EpochGuard guard;
     
     BaseNode * cur = root_;
