@@ -146,11 +146,6 @@ void load(std::vector<KeyType> &init_keys, std::vector<KeyType> &keys,
 Index<KeyType, ValType> * populate(int index_type, std::vector<KeyType> &init_keys) {
   Index<KeyType, ValType> *idx = getInstance<KeyType, ValType>(index_type);
   uint64_t bulkload_size = init_keys.size() / 2;
-
-  // bulkload
-  std::pair<KeyType, uint64_t> *recs;
-  recs = new std::pair<KeyType, uint64_t>[bulkload_size];
-
   // sort the keys
   std::vector<KeyType> bulk_keys;
   for(int i = 0; i < bulkload_size; i++) {
@@ -159,6 +154,8 @@ Index<KeyType, ValType> * populate(int index_type, std::vector<KeyType> &init_ke
   std::sort(bulk_keys.begin(), bulk_keys.end());
   
   // generate records
+  std::pair<KeyType, uint64_t> *recs;
+  recs = new std::pair<KeyType, uint64_t>[bulkload_size];
   for (int i = 0; i < bulkload_size; i++) {
     recs[i] = {bulk_keys[i], ValType(std::abs(bulk_keys[i]) + 1)};
   }
@@ -213,36 +210,37 @@ void exec(int index_type,
         idx->scan(keys[i], ranges[i]);
       }
   }
-
+  
   // test part
   auto func2 = [num_thread, 
-                idx, index_type,
+                idx, index_type, warmup_size,
                 &keys,
                 &ranges,
-                &ops](uint64_t thread_id) {
-    size_t txn_num = ops.size();
+                &ops](int thread_id) {
+    size_t txn_num = ops.size() - warmup_size;
     size_t op_per_thread = txn_num / num_thread;
-    size_t start_index = op_per_thread * thread_id;
+    size_t start_index = warmup_size + op_per_thread * thread_id;
     size_t end_index = start_index + op_per_thread;
 
+    Param p = {thread_id};
     uint64_t v;
     int notfound = 0;
     double last_ts = get_now(), cur_ts;
     for(size_t i = start_index;i < end_index;i++) {
       int op = ops[i];
       if (op == OP_INSERT) { //INSERT
-        idx->insert(keys[i], ValType(std::abs(keys[i]) + 1));
+        idx->insert(keys[i], ValType(std::abs(keys[i]) + 1), p);
       } else if (op == OP_READ) { //READ
-        bool found = idx->find(keys[i], &v);
+        bool found = idx->find(keys[i], &v, p);
         if(found == false) {
           notfound++;
         }
       } else if (op == OP_UPSERT) { //UPDATE
-        idx->upsert(keys[i], ValType(std::abs(keys[i]) + 2));
+        idx->upsert(keys[i], ValType(std::abs(keys[i]) + 2), p);
       } else if (op == OP_REMOVE) {
-        idx->remove(keys[i]);
+        idx->remove(keys[i], p);
       } else if (op == OP_SCAN) { //SCAN
-        idx->scan(keys[i], ranges[i]);
+        idx->scan(keys[i], ranges[i], p);
       }
 
       if(detail_tp == true && (i + 1) % INTERVAL == 0) {
@@ -270,7 +268,7 @@ void exec(int index_type,
 
   double tput = (ops.size()) / (end_time - start_time) / 1000000; //Mops/sec
   if(detail_tp == false)
-    std::cout << tput << " ";
+    std::cout << tput << std::endl;
   
   delete idx;
   return;
@@ -280,8 +278,8 @@ void exec(int index_type,
 int main(int argc, char *argv[]) {
   google::InitGoogleLogging(argv[0]);
 
-  google::SetLogDestination(google::GLOG_INFO, "/home/lyp/morphtree/build/log/INFO-");
-  google::SetLogDestination(google::GLOG_ERROR, "/home/lyp/morphtree/build/log/ERROR-");
+  // google::SetLogDestination(google::GLOG_INFO, "/home/lyp/morphtree/build/log/INFO-");
+  // google::SetLogDestination(google::GLOG_ERROR, "/home/lyp/morphtree/build/log/ERROR-");
   google::SetStderrLogging(google::GLOG_ERROR);
 
   if (argc == 1) {

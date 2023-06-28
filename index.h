@@ -12,19 +12,25 @@
 
 extern int worknum;
 
+struct Param {
+    int worker_id;
+};
+
+const Param cp = {0};
+
 template<typename KeyType, typename ValType>
 class Index
 {
  public:
-    virtual bool insert(KeyType key, ValType value) = 0;
+    virtual bool insert(KeyType key, ValType value, Param p = cp) = 0;
 
-    virtual bool find(KeyType key, ValType *v) = 0;
+    virtual bool find(KeyType key, ValType *v, Param p = cp) = 0;
 
-    virtual bool upsert(KeyType key, ValType value) = 0;
+    virtual bool upsert(KeyType key, ValType value, Param p = cp) = 0;
 
-    virtual bool remove(KeyType key) {return true;}
+    virtual bool remove(KeyType key, Param p = cp) {return true;}
 
-    virtual uint64_t scan(KeyType key, int range) = 0;
+    virtual uint64_t scan(KeyType key, int range, Param p = cp) = 0;
 
     virtual int64_t printTree() const = 0;
     
@@ -49,23 +55,23 @@ public:
         delete idx;
     }
 
-    bool insert(KeyType key, uint64_t value) {
+    bool insert(KeyType key, uint64_t value, Param p = cp) {
         return idx->insert(key, value);
     }
 
-    bool find(KeyType key, uint64_t *v) {
+    bool find(KeyType key, uint64_t *v, Param p = cp) {
         return idx->get_payload(key, v);
     }
 
-    bool upsert(KeyType key, uint64_t value) {
+    bool upsert(KeyType key, uint64_t value, Param p = cp) {
         return idx->update(key, value);
     }
 
-    uint64_t scan(KeyType key, int range) {
+    uint64_t scan(KeyType key, int range, Param p = cp) {
         return 0;
     }
 
-    bool remove(KeyType key) {
+    bool remove(KeyType key, Param p = cp) {
         idx->erase(key);
         return true;
     }
@@ -97,21 +103,21 @@ public:
         delete idx;
     }
 
-    bool insert(KeyType key, uint64_t value) {
+    bool insert(KeyType key, uint64_t value, Param p = cp) {
         idx->insert(key, value);
         return false;
     }
 
-    bool find(KeyType key, uint64_t *v) {
+    bool find(KeyType key, uint64_t *v, Param p = cp) {
         return idx->at(key, *v);
     }
 
-    bool upsert(KeyType key, uint64_t value) {
+    bool upsert(KeyType key, uint64_t value, Param p = cp) {
         idx->update(key, value);
         return true;
     }
 
-    uint64_t scan(KeyType key, int range) {
+    uint64_t scan(KeyType key, int range, Param p = cp) {
         return 0;
     }
 
@@ -183,20 +189,24 @@ public:
         delete idx;
     }
 
-    bool insert(KeyType key, uint64_t value) {
-        idx->put(key, value, 0);
+    bool insert(KeyType key, uint64_t value, Param p = cp) {
+        idx->put(ModelKeyType(key), value, p.worker_id);
         return false;
     }
 
-    bool find(KeyType key, uint64_t *v) {
-        return idx->get(key, *v, 0);
+    bool find(KeyType key, uint64_t *v, Param p = cp) {
+        return idx->get(ModelKeyType(key), *v, p.worker_id);
     }
 
-    bool upsert(KeyType key, uint64_t value) {
+    bool upsert(KeyType key, uint64_t value, Param p = cp) {
         return true;
     }
 
-    uint64_t scan(KeyType key, int range) {
+    bool remove(KeyType key, Param p = cp) {
+        return idx->remove(ModelKeyType(key), p.worker_id);
+    }
+
+    uint64_t scan(KeyType key, int range, Param p = cp) {
         return 0;
     }
 
@@ -211,7 +221,7 @@ public:
             vals[i] = recs[i].second;
         }
 
-        int bg_n = std::max(worknum / 12, 1);
+        int bg_n = worknum / 12 + 1;
         idx = new xindex::XIndex<ModelKeyType, ValType>(keys, vals, worknum, bg_n);
     }
 
@@ -236,7 +246,7 @@ public:
         delete idx;
     }
 
-    bool insert(KeyType key, uint64_t value) {
+    bool insert(KeyType key, uint64_t value, Param p = cp) {
         finedex::result_t res = idx->insert(key, value);
         if(res == finedex::result_t::ok) {
             return true;
@@ -244,7 +254,7 @@ public:
         return false;
     }
 
-    bool find(KeyType key, uint64_t *v) {
+    bool find(KeyType key, uint64_t *v, Param p = cp) {
         finedex::result_t res = idx->find(key, *v);
         if(res == finedex::result_t::ok) {
             return true;
@@ -252,11 +262,11 @@ public:
         return false;
     }
 
-    bool upsert(KeyType key, uint64_t value) {
+    bool upsert(KeyType key, uint64_t value, Param p = cp) {
         return true;
     }
 
-    uint64_t scan(KeyType key, int range) {
+    uint64_t scan(KeyType key, int range, Param p = cp) {
         return 0;
     }
 
@@ -295,28 +305,30 @@ public:
         delete idx;
     }
 
-    bool insert(KeyType key, uint64_t value) {
+    bool insert(KeyType key, uint64_t value, Param p = cp) {
         idx->insert(key, value);
         return false;
     }
 
-    bool find(KeyType key, uint64_t *v) {
+    bool find(KeyType key, uint64_t *v, Param p = cp) {
         return idx->lookup(key, *v);
     }
 
-    bool upsert(KeyType key, uint64_t value) {
+    bool upsert(KeyType key, uint64_t value, Param p = cp) {
         idx->update(key, value);
         return true;
     }
 
-    uint64_t scan(KeyType key, int range) {
+    uint64_t scan(KeyType key, int range, Param p = cp) {
         return 0;
     }
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
+        std::vector<Record> tmp(len);
         for(size_t i = 0; i < len; i++) {
-            idx->insert(recs[i].first, recs[i].second);
+            tmp[i] = {recs[i].first, recs[i].second};
         }
+        idx->bulkload(tmp);
     }
 
     int64_t printTree() const {
@@ -324,7 +336,7 @@ public:
         return 0;
     }
 
-    bool remove(KeyType key) {
+    bool remove(KeyType key, Param p = cp) {
         idx->remove(key);
         return true;
     }
@@ -348,28 +360,30 @@ public:
         delete idx;
     }
 
-    bool insert(KeyType key, uint64_t value) {
+    bool insert(KeyType key, uint64_t value, Param p = cp) {
         idx->insert(key, value);
         return false;
     }
 
-    bool find(KeyType key, uint64_t *v) {
+    bool find(KeyType key, uint64_t *v, Param p = cp) {
         return idx->lookup(key, *v);
     }
 
-    bool upsert(KeyType key, uint64_t value) {
+    bool upsert(KeyType key, uint64_t value, Param p = cp) {
         idx->update(key, value);
         return true;
     }
 
-    uint64_t scan(KeyType key, int range) {
+    uint64_t scan(KeyType key, int range, Param p = cp) {
         return 0;
     }
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
+        std::vector<Record> tmp(len);
         for(size_t i = 0; i < len; i++) {
-            idx->insert(recs[i].first, recs[i].second);
+            tmp[i] = {recs[i].first, recs[i].second};
         }
+        idx->bulkload(tmp);
     }
 
     int64_t printTree() const {
@@ -377,7 +391,7 @@ public:
         return 0;
     }
 
-    bool remove(KeyType key) {
+    bool remove(KeyType key, Param p = cp) {
         idx->remove(key);
         return true;
     }
@@ -401,31 +415,33 @@ public:
         delete idx;
     }
 
-    bool insert(KeyType key, uint64_t value) {
+    bool insert(KeyType key, uint64_t value, Param p = cp) {
         idx->insert(key, value);
         return false;
     }
 
-    bool find(KeyType key, uint64_t *v) {
+    bool find(KeyType key, uint64_t *v, Param p = cp) {
         return idx->lookup(key, *v);
     }
 
-    bool upsert(KeyType key, uint64_t value) {
+    bool upsert(KeyType key, uint64_t value, Param p = cp) {
         idx->update(key, value);
         return true;
     }
 
-    uint64_t scan(KeyType key, int range) {
+    uint64_t scan(KeyType key, int range, Param p = cp) {
         return 0;
     }
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
+        std::vector<Record> tmp(len);
         for(size_t i = 0; i < len; i++) {
-            idx->insert(recs[i].first, recs[i].second);
+            tmp[i] = {recs[i].first, recs[i].second};
         }
+        idx->bulkload(tmp);
     }
 
-    bool remove(KeyType key) {
+    bool remove(KeyType key, Param p = cp) {
         idx->remove(key);
         return true;
     }
@@ -454,20 +470,20 @@ public:
         delete idx;
     }
 
-    bool insert(KeyType key, uint64_t value) {
+    bool insert(KeyType key, uint64_t value, Param p = cp) {
         idx->insert(key, value);
         return false;
     }
 
-    bool find(KeyType key, uint64_t *v) {
+    bool find(KeyType key, uint64_t *v, Param p = cp) {
         return idx->lookup(key, *v);
     }
 
-    bool upsert(KeyType key, uint64_t value) {
+    bool upsert(KeyType key, uint64_t value, Param p = cp) {
         return true;
     }
 
-    uint64_t scan(KeyType key, int range) {
+    uint64_t scan(KeyType key, int range, Param p = cp) {
         return 0;
     }
 
@@ -481,7 +497,7 @@ public:
         }
     }
 
-    bool remove(KeyType key) {
+    bool remove(KeyType key, Param p = cp) {
         return true;
     }
     

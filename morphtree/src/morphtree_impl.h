@@ -25,7 +25,7 @@ public:
 
     int scan(const _key_t &startKey, int len, Record *result);
 
-    BaseNode * bulkload(std::vector<Record> & initial_recs);
+    void bulkload(std::vector<Record> & initial_recs);
 
     void Print();
     
@@ -60,8 +60,7 @@ MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::MorphtreeImpl(std::vector<Record> & ini
     morph_log = new MorphLogger();
     ebr = EpochBasedMemoryReclamationStrategy::getInstance();
 
-    EpochGuard guard;
-    root_ = bulkload(initial_recs);
+    bulkload(initial_recs);
 }
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
@@ -83,7 +82,6 @@ void MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::insert(const _key_t &key, uint64_t
     EpochGuard guard;
 
     BaseNode * cur = root_;
-
     uint64_t v;
     while(!cur->Leaf()) {
         BaseNode * last = cur;
@@ -113,7 +111,6 @@ bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::lookup(const _key_t &key, uint64_t
     EpochGuard guard;
 
     BaseNode * cur = root_;
-
     uint64_t v;
     while(!cur->Leaf()) {
         cur->Lookup(key, v);
@@ -134,7 +131,6 @@ bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::update(const _key_t & key, const u
     EpochGuard guard;
 
     BaseNode * cur = root_;
-
     uint64_t v;
     while(!cur->Leaf()) {
         cur->Lookup(key, v);
@@ -149,7 +145,6 @@ bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::remove(const _key_t & key) {
     EpochGuard guard;
 
     BaseNode * cur = root_;
-
     uint64_t v;
     while(!cur->Leaf()) {
         cur->Lookup(key, v);
@@ -165,7 +160,6 @@ int MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::scan(const _key_t &startKey, int le
     EpochGuard guard;
     
     BaseNode * cur = root_;
-
     uint64_t v;
     while(!cur->Leaf()) {
         cur->Lookup(startKey, v);
@@ -176,21 +170,32 @@ int MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::scan(const _key_t &startKey, int le
 }
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
-BaseNode * MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::bulkload(std::vector<Record> & initial_recs) {
+void MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::bulkload(std::vector<Record> & initial_recs) {
+    EpochGuard guard;
+    
     int leafnode_num = (initial_recs.size() / GLOBAL_LEAF_SIZE) * 2 +
                         (initial_recs.size() % GLOBAL_LEAF_SIZE > 0 ? 1 : 0) * 2;
     int total_num = initial_recs.size();
     Record * index_record = new Record[leafnode_num];
     int i = 0;
+    BaseNode *l1, *l2;
     for(; i < initial_recs.size() / GLOBAL_LEAF_SIZE; i++) {
         Record * base = initial_recs.data() + i * GLOBAL_LEAF_SIZE;
         int split_pos = getSubOptimalSplitkey(base, GLOBAL_LEAF_SIZE);
         
-        ROLeaf * l1 = new ROLeaf(base, split_pos);
-        ROLeaf * l2 = new ROLeaf(base + split_pos, GLOBAL_LEAF_SIZE - split_pos);
-        l1->mysplitkey = base[split_pos].key;
-        l2->mysplitkey = (i * GLOBAL_LEAF_SIZE + GLOBAL_LEAF_SIZE < total_num) ? base[GLOBAL_LEAF_SIZE].key : MAX_KEY;
-        index_record[i * 2].key = i == 0 ? MIN_KEY : base[0].key;
+        if(INIT_LEAF_TYPE == NodeType::ROLEAF) {
+            l1 = new ROLeaf(base, split_pos);
+            l2 = new ROLeaf(base + split_pos, GLOBAL_LEAF_SIZE - split_pos);
+            ((ROLeaf *)l1)->mysplitkey = base[split_pos].key;
+            ((ROLeaf *)l2)->mysplitkey = (i * GLOBAL_LEAF_SIZE + GLOBAL_LEAF_SIZE < total_num) ? base[GLOBAL_LEAF_SIZE].key : MAX_KEY;
+        } else {
+            l1 = new ROLeaf(base, split_pos);
+            l2 = new ROLeaf(base + split_pos, GLOBAL_LEAF_SIZE - split_pos);
+            ((WOLeaf *)l1)->mysplitkey = base[split_pos].key;
+            ((WOLeaf *)l2)->mysplitkey = (i * GLOBAL_LEAF_SIZE + GLOBAL_LEAF_SIZE < total_num) ? base[GLOBAL_LEAF_SIZE].key : MAX_KEY;
+        }
+
+        index_record[i * 2].key = (i == 0 ? MIN_KEY : base[0].key);
         index_record[i * 2].val = uint64_t(l1);
         index_record[i * 2 + 1].key = base[split_pos].key;
         index_record[i * 2 + 1].val = uint64_t(l2);
@@ -200,11 +205,18 @@ BaseNode * MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::bulkload(std::vector<Record>
         int total = initial_recs.size() - i * GLOBAL_LEAF_SIZE; 
         Record * base = initial_recs.data() + i * GLOBAL_LEAF_SIZE;
         int split_pos = getSubOptimalSplitkey(base, total);
-        ROLeaf * l1 = new ROLeaf(base, split_pos);
-        ROLeaf * l2 = new ROLeaf(base + split_pos, total - split_pos);
-        l1->mysplitkey = base[split_pos].key;
-        l2->mysplitkey = MAX_KEY;
-
+        if(INIT_LEAF_TYPE == NodeType::ROLEAF) {
+            l1 = new ROLeaf(base, split_pos);
+            l2 = new ROLeaf(base + split_pos, total - split_pos);
+            ((ROLeaf *)l1)->mysplitkey = base[split_pos].key;
+            ((ROLeaf *)l2)->mysplitkey = MAX_KEY;
+        } else {
+            l1 = new WOLeaf(base, split_pos);
+            l2 = new WOLeaf(base + split_pos, total - split_pos);
+            ((WOLeaf *)l1)->mysplitkey = base[split_pos].key;
+            ((WOLeaf *)l2)->mysplitkey = MAX_KEY;
+        }
+        
         index_record[i * 2].key = base[0].key;
         index_record[i * 2].val = uint64_t(l1);
         index_record[i * 2 + 1].key = base[split_pos].key;
@@ -215,17 +227,15 @@ BaseNode * MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::bulkload(std::vector<Record>
     for(int i = 0; i < leafnode_num - 1; i++) {
         uint64_t vv1 = index_record[i].val;
         uint64_t vv2 = index_record[i + 1].val;
-        ROLeaf * cur = (ROLeaf *) vv1;
-        cur->sibling = (ROLeaf *) vv2;
+        BaseNode * cur = (BaseNode *) vv1;
+        cur->sibling = (BaseNode *) vv2;
     }
-    ROLeaf * cur = (ROLeaf *) index_record[leafnode_num - 1].val;
+    BaseNode * cur = (BaseNode *)index_record[leafnode_num - 1].val;
     cur->sibling = nullptr;
 
-    BaseNode * new_root = new ROInner(index_record, leafnode_num);
+    root_ = new ROInner(index_record, leafnode_num);
     first_leaf_ = (BaseNode *)index_record[0].val;
     delete [] index_record;
-    
-    return new_root;
 }
 
 } // namespace morphtree

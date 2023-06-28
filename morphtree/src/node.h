@@ -167,7 +167,6 @@ public:
     double slope;
     
     // data
-    // Bucket *buckets;
     Record * recs;
     _key_t mysplitkey;
 };
@@ -202,14 +201,15 @@ private:
     static const int PIECE_SIZE = GLOBAL_LEAF_SIZE / 10;
 
 public:
-    // data
-    Record * recs; 
-    _key_t mysplitkey;
-
+    // meta
     uint32_t readonly_count;
     uint32_t readable_count;
     SpinLock sortlock;
     SpinLock writelock;
+
+    // data
+    Record * recs; 
+    _key_t mysplitkey;
 };
 
 // background threads
