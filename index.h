@@ -294,7 +294,11 @@ public:
     }
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
-        return;
+        std::vector<Record> tmp(len);
+        for(size_t i = 0; i < len; i++) {
+            tmp[i] = {recs[i].first, (void *)recs[i].second};
+        }
+        idx->bulkload(tmp);
     }
 
     int64_t printTree() const {
@@ -348,7 +352,11 @@ public:
     }
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
-        return;
+        std::vector<Record> tmp(len);
+        for(size_t i = 0; i < len; i++) {
+            tmp[i] = {recs[i].first, (void *)recs[i].second};
+        }
+        idx->bulkload(tmp);
     }
 
     int64_t printTree() const {
@@ -373,7 +381,7 @@ class MorphTree : public Index<KeyType, ValType>
 {
 public:
     MorphTree() {
-        idx = new morphtree::MorphtreeImpl<morphtree::NodeType::ROLEAF, true>();
+        idx = new morphtree::MorphtreeImpl<morphtree::NodeType::WOLEAF, true>();
     }
 
     ~MorphTree() {
@@ -402,13 +410,11 @@ public:
     }
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
-        std::vector<Record> recs1(len);
-        for(int i = 0; i < len; i++) {
-            recs1[i] = {recs[i].first, (_val_t)recs[i].second};
+        std::vector<Record> tmp(len);
+        for(size_t i = 0; i < len; i++) {
+            tmp[i] = {recs[i].first, (void *)recs[i].second};
         }
-
-        idx = new morphtree::MorphtreeImpl<morphtree::NodeType::ROLEAF, true>(recs1);
-        return ;
+        idx->bulkload(tmp);
     }
 
     bool remove(KeyType key) {
@@ -422,7 +428,7 @@ public:
     }
     
 private:
-    morphtree::MorphtreeImpl<morphtree::NodeType::ROLEAF, true> * idx;
+    morphtree::MorphtreeImpl<morphtree::NodeType::WOLEAF, true> * idx;
 };
 
 /////////////////////////////////////////////////////////////////////
@@ -481,7 +487,7 @@ public:
     }
 
     void bulkload(std::pair<KeyType, uint64_t>* recs, int len) {
-        return;
+        idx->bulk_load(recs, recs + len);
     }
 
     bool remove(KeyType key) {

@@ -16,6 +16,8 @@ endif()
 set(MKL_LINK_DIRECTORY "/opt/intel/mkl/lib/intel64")
 set(MKL_INCLUDE_DIRECTORY "/opt/intel/mkl/include")
 
+message("CMAKE_CXX_FLAGS: " ${CMAKE_CXX_FLAGS})
+
 #======= include directories =======
 include_directories(${CMAKE_SOURCE_DIR}/ALEX/src/core)
 include_directories(${CMAKE_SOURCE_DIR}/LIPP/src/core)

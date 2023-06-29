@@ -1,7 +1,7 @@
 #!/bin/bash
 
 DATASET=$1
-CONFIG_FILE=../config.h
+CONFIG_FILE=../morphtree/include/config.h
 
 for p in 256 512 768 1024 1536; do
     echo ${p}

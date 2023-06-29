@@ -10,10 +10,10 @@
 
 class ycsbtest : public testing::Test {
 protected:
-    Morphtree * tree;
+    morphtree::Morphtree * tree;
 
     virtual void SetUp() {
-        tree = new Morphtree;
+        tree = new morphtree::Morphtree;
     }
 
     virtual void TearDown() {

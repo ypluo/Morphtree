@@ -11,7 +11,7 @@
 #include <cstring>
 #include <string>
 
-#include "../../config.h"
+#include "../include/config.h"
 
 #include "../include/util.h"
 
@@ -58,6 +58,7 @@ public:
     uint8_t lock;
     char padding[6];
     uint64_t stats;
+    BaseNode * sibling;
 };
 
 // Inner node structures
@@ -83,7 +84,7 @@ private:
     }
 
     bool shouldRebuild() {
-        return of_count >= count / 4;
+        return of_count >= count / 4 || count >= capacity;
     }
     
     void RebuildSubTree();
@@ -96,7 +97,6 @@ public:
 
     int32_t capacity;
     int32_t count;
-    ROInner *sibling;
     
     // model
     double slope;
@@ -136,7 +136,7 @@ private:
     void DoSplit(_key_t * split_key, ROLeaf ** split_node);
 
     inline bool ShouldSplit() {
-        return count >= GLOBAL_LEAF_SIZE || of_count > (GLOBAL_LEAF_SIZE / 6);
+        return count >= GLOBAL_LEAF_SIZE || of_count > (GLOBAL_LEAF_SIZE / 4);
     }
 
     inline int Predict(_key_t k) {
@@ -153,7 +153,6 @@ public:
     Record *recs;
     int32_t of_count;
     int32_t count;
-    ROLeaf *sibling;
     char dummy[8];
 };
 
@@ -188,7 +187,6 @@ private:
 
     // meta data
     Record * recs; 
-    WOLeaf * sibling;
     int16_t inital_count;
     int16_t insert_count;
     int16_t swap_pos;

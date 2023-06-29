@@ -1,7 +1,7 @@
 #!/bin/bash
 
 DATASET=$1
-CONFIG_FILE=../config.h
+CONFIG_FILE=../morphtree/include/config.h
 
 # for ns in 2048 4096 6144 8192 10240 14336 20480; do
 for ns in 2048; do

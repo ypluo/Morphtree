@@ -1,7 +1,7 @@
 #!/bin/bash
 
 DATASET=$1
-CONFIG_FILE=../config.h
+CONFIG_FILE=../morphtree/include/config.h
 
 for len in 4 8 16 32 64; do
     echo ${len}

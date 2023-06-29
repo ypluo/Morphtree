@@ -25,10 +25,10 @@ public:
     int scan(const _key_t &startKey, int range, Record *result);
 
     void Print();
+
+    void bulkload(std::vector<Record> & initial_recs);
     
 private:
-    BaseNode * bulkload(std::vector<Record> & initial_recs);
-
     bool insert_recursive(BaseNode * n, const _key_t & key, const _val_t val, 
                                 _key_t * split_k, BaseNode ** split_n);
 
@@ -57,22 +57,22 @@ MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::MorphtreeImpl() {
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::MorphtreeImpl(std::vector<Record> & initial_recs) {
-    root_ = bulkload(initial_recs);
     // global variables assignment
     do_morphing = MORPH_IF;
     rebuild_times = 0;
     morph_times = 0;
+
+    bulkload(initial_recs);
 }
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::~MorphtreeImpl() {
     delete root_;
-    printf("Rebuild times: %d\n Morph Times: %d\n", rebuild_times, morph_times);
+    // fprintf(stderr, "Rebuild times: %d\nMorph Times: %d\n", rebuild_times, morph_times);
 }
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::lookup(const _key_t &key, _val_t & val) {
-    // global_stats = (global_stats << 1);
     BaseNode * cur = root_;
 
     _val_t v;
@@ -86,8 +86,6 @@ bool MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::lookup(const _key_t &key, _val_t &
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
 void MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::insert(const _key_t &key, _val_t val) {
-    // global_stats = (global_stats << 1) + 1;
-
     _key_t split_k;
     BaseNode * split_node;
     bool splitIf = insert_recursive(root_, key, val, &split_k, &split_node);
@@ -168,43 +166,61 @@ int MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::scan(const _key_t &startKey, int le
 }
 
 template<NodeType INIT_LEAF_TYPE, bool MORPH_IF>
-BaseNode * MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::bulkload(std::vector<Record> & initial_recs) {
+void MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::bulkload(std::vector<Record> & initial_recs) {
     int leafnode_num = (initial_recs.size() / GLOBAL_LEAF_SIZE) * 2 +
                         (initial_recs.size() % GLOBAL_LEAF_SIZE > 0 ? 1 : 0) * 2;
+    int total_num = initial_recs.size();
     Record * index_record = new Record[leafnode_num];
-
     int i = 0;
+    BaseNode *l1, *l2;
     for(; i < initial_recs.size() / GLOBAL_LEAF_SIZE; i++) {
         Record * base = initial_recs.data() + i * GLOBAL_LEAF_SIZE;
         int split_pos = getSubOptimalSplitkey(base, GLOBAL_LEAF_SIZE);
+        
+        if(INIT_LEAF_TYPE == NodeType::ROLEAF) {
+            l1 = new ROLeaf(base, split_pos);
+            l2 = new ROLeaf(base + split_pos, GLOBAL_LEAF_SIZE - split_pos);
+        } else {
+            l1 = new WOLeaf(base, split_pos);
+            l2 = new WOLeaf(base + split_pos, GLOBAL_LEAF_SIZE - split_pos);
+        }
+
         index_record[i * 2].key = (i == 0 ? MIN_KEY : base[0].key);
-        index_record[i * 2].val = _val_t(new ROLeaf(base, split_pos));
+        index_record[i * 2].val = _val_t(l1);
         index_record[i * 2 + 1].key = base[split_pos].key;
-        index_record[i * 2 + 1].val = _val_t(new ROLeaf(base + split_pos, GLOBAL_LEAF_SIZE - split_pos));
+        index_record[i * 2 + 1].val = _val_t(l2);
     }
 
     if(initial_recs.size() % GLOBAL_LEAF_SIZE > 0) {
         int total = initial_recs.size() - i * GLOBAL_LEAF_SIZE; 
         Record * base = initial_recs.data() + i * GLOBAL_LEAF_SIZE;
         int split_pos = getSubOptimalSplitkey(base, total);
+        if(INIT_LEAF_TYPE == NodeType::ROLEAF) {
+            l1 = new ROLeaf(base, split_pos);
+            l2 = new ROLeaf(base + split_pos, total - split_pos);
+        } else {
+            l1 = new WOLeaf(base, split_pos);
+            l2 = new WOLeaf(base + split_pos, total - split_pos);
+        }
+        
         index_record[i * 2].key = base[0].key;
-        index_record[i * 2].val = _val_t(new ROLeaf(base, split_pos));
+        index_record[i * 2].val = _val_t(l1);
         index_record[i * 2 + 1].key = base[split_pos].key;
-        index_record[i * 2 + 1].val = _val_t(new ROLeaf(base + split_pos, total - split_pos));
+        index_record[i * 2 + 1].val = _val_t(l2);
     }
 
     // link them togather
     for(int i = 0; i < leafnode_num - 1; i++) {
         _val_t vv1 = index_record[i].val;
         _val_t vv2 = index_record[i + 1].val;
-        ROLeaf * cur = (ROLeaf *) vv1;
-        cur->sibling = (ROLeaf *) vv2;
+        BaseNode * cur = (BaseNode *) vv1;
+        cur->sibling = (BaseNode *) vv2;
     }
+    BaseNode * cur = (BaseNode *)index_record[leafnode_num - 1].val;
+    cur->sibling = nullptr;
 
-    BaseNode * new_root = new ROInner(index_record, leafnode_num);
+    root_ = new ROInner(index_record, leafnode_num);
     delete [] index_record;
-    
-    return new_root;
 }
 
 } // namespace morphtree

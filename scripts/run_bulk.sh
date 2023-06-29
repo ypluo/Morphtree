@@ -1,7 +1,7 @@
 #!/bin/bash
 
 DATASET=$1
-CONFIG_FILE=../config.h
+CONFIG_FILE=../morphtree/include/config.h
 
 taskset -c 21-22 cp ../workloads/${DATASET}_dataset.dat dataset.dat
 taskset -c 21-22 cp ../workloads/${DATASET}_query1.dat query.dat

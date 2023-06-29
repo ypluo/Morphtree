@@ -7,7 +7,6 @@
 
 #include "utils.h"
 #include "index.h"
-#include "config.h"
 
 typedef double KeyType;
 typedef uint64_t ValType;
@@ -161,29 +160,22 @@ void load(std::vector<KeyType> &init_keys, std::vector<KeyType> &keys,
 Index<KeyType, ValType> * populate(int index_type, std::vector<KeyType> &init_keys) {
   Index<KeyType, ValType> *idx = getInstance<KeyType, ValType>(index_type);
   uint64_t bulkload_size = init_keys.size() * CONFIG_BULK;
-  if (index_type <= 3 || index_type == 6) {
-    std::pair<KeyType, uint64_t> *recs;
-    recs = new std::pair<KeyType, uint64_t>[bulkload_size];
-
-    // sort the keys
-    std::vector<KeyType> bulk_keys;
-    for(int i = 0; i < bulkload_size; i++) {
-      bulk_keys.push_back(init_keys[i]);
-    }
-    std::sort(bulk_keys.begin(), bulk_keys.end());
-    
-    // generate records
-    for (int i = 0; i < bulkload_size; i++) {
-      recs[i] = {bulk_keys[i], ValType(std::abs(bulk_keys[i]))};
-    }
-
-    idx->bulkload(recs, bulkload_size);
-    delete recs;
-  } else {
-    for(size_t i = 0; i < bulkload_size; i++) {
-      idx->insert(init_keys[i], ValType(std::abs(init_keys[i])));
-    } 
+  // sort the keys
+  std::vector<KeyType> bulk_keys;
+  for(int i = 0; i < bulkload_size; i++) {
+    bulk_keys.push_back(init_keys[i]);
   }
+  std::sort(bulk_keys.begin(), bulk_keys.end());
+  
+  // generate records
+  std::pair<KeyType, uint64_t> *recs;
+  recs = new std::pair<KeyType, uint64_t>[bulkload_size];
+  for (int i = 0; i < bulkload_size; i++) {
+    recs[i] = {bulk_keys[i], ValType(std::abs(bulk_keys[i]))};
+  }
+
+  idx->bulkload(recs, bulkload_size);
+  delete recs;
   
   double start_time = get_now(); 
   size_t total_num_key = init_keys.size() - bulkload_size;
