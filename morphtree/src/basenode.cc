@@ -24,7 +24,7 @@ void BaseNode::MorphJudge(bool isWrite) {
                 new_type = NodeType::WOLEAF;
             break;
     }
-    #ifdef BG_MORPH
+    #ifdef MORPHTREE_BG_MORPH
         if(new_type != next_node_type) { // add a morph record
             this->next_node_type = new_type; // wait for a node morphing
             this->lsn++;         // the lsn for next morphing
@@ -60,7 +60,7 @@ void SwapNode(BaseNode * oldone, BaseNode *newone) {
 
 // Morph a leaf node from From-type to To-type
 void MorphLogger::MorphOneNode(BaseNode * leaf, uint16_t lsn, uint8_t to) {
-    #ifdef BG_MORPH
+    #ifdef MORPHTREE_BG_MORPH
         leaf->nodelock.Lock();
     #endif
     // skip when the record is stale

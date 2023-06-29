@@ -104,7 +104,6 @@ void ROInner::Print(string prefix) {
 }
 
 bool ROInner::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROInner ** split_node) {
-    LOG_IF(ERROR, v < 10000000) << "try insert invalid child pointer";
     if(count < BNODE_SIZE) {
         headerlock.WLock();
         int i;
@@ -255,36 +254,39 @@ bool ROInner::Lookup(const _key_t & k, uint64_t &v) {
 
         roinner_lookup_retry2:
         auto v3 = ExtVersionLock::Version(recs_snapshot[predict].val);
+        barrier();
         // probe right by 1 to find a proper index record
         int i = predict + 1;
         for (; i < predict + PROBE_SIZE; i++) {
             if(recs_snapshot[i].key > k) {
                 v = (recs_snapshot[i - 1].val & POINTER_MARK);
+                barrier();
                 if(ExtVersionLock::IsLocked(recs_snapshot[predict].val) || v3 != ExtVersionLock::Version(recs_snapshot[predict].val)) goto roinner_lookup_retry2;
 
-                if(v < 10000000)
-                    for(int j = predict; j < predict + PROBE_SIZE; j++)
-                        LOG(ERROR) << j << " " << recs_snapshot[j].key << " " << recs_snapshot[j].val;
-                LOG_IF(FATAL, v < 10000000) << "The child pointer is invalid " << " Key " << k << " at slot " << predict;
+                // if(v < 10000000)
+                //     for(int j = predict; j < predict + PROBE_SIZE; j++)
+                //         LOG(ERROR) << j << " " << recs_snapshot[j].key << " " << recs_snapshot[j].val;
+                // LOG_IF(FATAL, v < 10000000) << "The child pointer is invalid " << " Key " << k << " at slot " << predict;
                 return true;
             }
         }
 
         // this bucket is probed
         v = (recs_snapshot[i - 1].val & POINTER_MARK);
+        barrier();
         if(ExtVersionLock::IsLocked(recs_snapshot[predict].val) || v3 != ExtVersionLock::Version(recs_snapshot[predict].val)) goto roinner_lookup_retry2;
         
-        if(v < 10000000) {
-            for(int j = 800; j < capacity; j++)
-                LOG(ERROR) << j << " " << recs_snapshot[j].key << " " << recs_snapshot[j].val;
-        }
-        LOG_IF(FATAL, v < 10000000) << "The child pointer is invalid " << " Key " << k << " at slot " << predict;
+        // if(v < 10000000) {
+        //     for(int j = 800; j < capacity; j++)
+        //         LOG(ERROR) << j << " " << recs_snapshot[j].key << " " << recs_snapshot[j].val;
+        // }
+        // LOG_IF(FATAL, v < 10000000) << "The child pointer is invalid " << " Key " << k << " at slot " << predict;
         return true;
     }
 }
 
 void ROInner::RebuildSubTree() {
-    LOG(INFO) << "rebuild";
+    LOG(INFO) << "rebuild inner node " << (uint64_t) this;
     std::vector<Record> all_record;
     all_record.reserve(count * 2);
     // Dump a node will lock the node

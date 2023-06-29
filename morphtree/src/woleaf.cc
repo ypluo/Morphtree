@@ -69,7 +69,7 @@ bool WOLeaf::Store(const _key_t & k, uint64_t v, _key_t * split_key, WOLeaf ** s
         if(readable_count >= GLOBAL_LEAF_SIZE) { // no more empty slot, wait for the node to split
             writelock.UnLock();
             headerlock.UnLock();
-            usleep(10);
+            usleep(5);
             goto woleaf_store_retry;
         } else {
             cur_count = readable_count++;
@@ -353,6 +353,7 @@ void WOLeaf::Dump(std::vector<Record> & out) {
     uint32_t total_count = readable_count;
     assert(total_count <= GLOBAL_LEAF_SIZE);
     sortlock.Lock();
+    assert(total_count - readonly_count <= PIECE_SIZE);
     std::sort(&recs[readonly_count], &recs[total_count]);
     sortlock.UnLock();
 

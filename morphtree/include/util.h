@@ -122,4 +122,6 @@ extern bool BinSearch_CallBack(Record * recs, int len, _key_t k, std::function<b
 
 extern int getSubOptimalSplitkey(Record * recs, int num);
 
+inline void barrier() { __asm__ __volatile__("": : :"memory");}
+
 #endif // __MORPHTREE_UTIL_H__

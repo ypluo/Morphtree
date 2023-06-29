@@ -14,10 +14,10 @@ const int THREAD_NUM = 8;
 
 class ycsbtest : public testing::Test {
 protected:
-    Morphtree * tree;
+    morphtree::Morphtree * tree;
 
     virtual void SetUp() {
-        tree = new Morphtree;
+        tree = new morphtree::Morphtree;
     }
 
     virtual void TearDown() {
@@ -170,7 +170,7 @@ int main(int argc, char *argv[]) {
 
     ::testing::InitGoogleTest(&argc, argv);
 
-    do_morphing = false;
+    morphtree::do_morphing = false;
     auto ret = RUN_ALL_TESTS();
 
     google::ShutdownGoogleLogging();

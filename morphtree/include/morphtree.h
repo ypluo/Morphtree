@@ -6,7 +6,7 @@
 
 #include "util.h"
 
-using namespace morphtree;
+namespace morphtree {
 
 class Morphtree {
 private:
@@ -57,5 +57,7 @@ public:
         mt_->Print();
     }
 };
+
+} // morphtree
 
 #endif //__MORPHTREE_H__

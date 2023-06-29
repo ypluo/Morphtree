@@ -211,31 +211,35 @@ extern int KWayScan(Record ** runs, int * run_lens, int k, _key_t startKey, int 
 }
 
 int getSubOptimalSplitkey(Record * recs, int num) {
-    static const int PIVOT_NUM = 32;
-    if(num < PIVOT_NUM) return PIVOT_NUM / 2;
-    
-    _key_t min_pivot = recs[0].key;
-    _key_t max_pivot = recs[num * (PIVOT_NUM - 1) / PIVOT_NUM].key;
-    double slope = (PIVOT_NUM - 1) / (max_pivot - min_pivot);
-    double intercept = 0 - slope * min_pivot;
+    #ifdef MORPHTREE_CUSTOMIZED_SPLIT
+        static const int PIVOT_NUM = 32;
+        if(num < PIVOT_NUM) return PIVOT_NUM / 2;
+        
+        _key_t min_pivot = recs[0].key;
+        _key_t max_pivot = recs[num * (PIVOT_NUM - 1) / PIVOT_NUM].key;
+        double slope = (PIVOT_NUM - 1) / (max_pivot - min_pivot);
+        double intercept = 0 - slope * min_pivot;
 
-    // find two points that are furthest from the interpolated line
-    double max_distance = -1;
-    int max_i;
-    double submax_distance = -1;
-    int submax_i;
-    for(int i = PIVOT_NUM / 4; i <= PIVOT_NUM * 3 / 4; i++) {
-        _key_t cur_pivot = recs[num * i / PIVOT_NUM].key;
-        double distance = std::abs(slope * cur_pivot + intercept - i);
+        // find two points that are furthest from the interpolated line
+        double max_distance = -1;
+        int max_i;
+        double submax_distance = -1;
+        int submax_i;
+        for(int i = PIVOT_NUM / 4; i <= PIVOT_NUM * 3 / 4; i++) {
+            _key_t cur_pivot = recs[num * i / PIVOT_NUM].key;
+            double distance = std::abs(slope * cur_pivot + intercept - i);
 
-        if(distance > max_distance) {
-            submax_distance = max_distance; submax_i = max_i;
-            max_distance = distance; max_i = i;
-        } else if(distance > submax_distance) {
-            submax_distance = distance; submax_i = i;
+            if(distance > max_distance) {
+                submax_distance = max_distance; submax_i = max_i;
+                max_distance = distance; max_i = i;
+            } else if(distance > submax_distance) {
+                submax_distance = distance; submax_i = i;
+            }
         }
-    }
 
-    // use the average subscript as the split point
-    return (max_i + submax_i + 1) / 2 * num / PIVOT_NUM;
+        // use the average subscript as the split point
+        return (max_i + submax_i + 1) / 2 * num / PIVOT_NUM;
+    #else   
+        return num / 2;
+    #endif
 }

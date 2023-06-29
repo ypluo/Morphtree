@@ -189,8 +189,8 @@ void MorphtreeImpl<INIT_LEAF_TYPE, MORPH_IF>::bulkload(std::vector<Record> & ini
             ((ROLeaf *)l1)->mysplitkey = base[split_pos].key;
             ((ROLeaf *)l2)->mysplitkey = (i * GLOBAL_LEAF_SIZE + GLOBAL_LEAF_SIZE < total_num) ? base[GLOBAL_LEAF_SIZE].key : MAX_KEY;
         } else {
-            l1 = new ROLeaf(base, split_pos);
-            l2 = new ROLeaf(base + split_pos, GLOBAL_LEAF_SIZE - split_pos);
+            l1 = new WOLeaf(base, split_pos);
+            l2 = new WOLeaf(base + split_pos, GLOBAL_LEAF_SIZE - split_pos);
             ((WOLeaf *)l1)->mysplitkey = base[split_pos].key;
             ((WOLeaf *)l2)->mysplitkey = (i * GLOBAL_LEAF_SIZE + GLOBAL_LEAF_SIZE < total_num) ? base[GLOBAL_LEAF_SIZE].key : MAX_KEY;
         }

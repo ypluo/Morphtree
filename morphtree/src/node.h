@@ -14,8 +14,6 @@
 #include <thread>
 #include <queue>
 
-#define barrier() __asm__ __volatile__("": : :"memory") 
-
 #include <iomanip>
 #include <glog/logging.h>
 
@@ -100,7 +98,7 @@ private:
     }
 
     inline bool ShouldRebuild() {
-        return count >= capacity;
+        return count >= ((capacity * 7) >> 3) || of_count >= (count >> 1);
     }
 
     void RebuildSubTree();
@@ -159,7 +157,7 @@ private:
     }
 
 public:
-    static const int PROBE_SIZE = 16;
+    static const int PROBE_SIZE = 8;
     static const int NODE_SIZE = GLOBAL_LEAF_SIZE;
 
     // model
@@ -221,7 +219,7 @@ class MorphLogger {
 
 public:
     MorphLogger() : size(0) {
-        #ifdef BG_MORPH
+        #ifdef MORPHTREE_BG_MORPH
             std::thread t(MorphLogger::Run, this);
             t.detach();
         #endif
