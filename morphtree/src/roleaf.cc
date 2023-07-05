@@ -99,7 +99,7 @@ struct OFNode {
             }
         }
 
-        if(recs_[i].key == k) {
+        if(i < len && recs_[i].key == k) {
             memmove(&recs_[i], &recs_[i + 1], (len - 1 - i) * sizeof(Record));
             len -= 1;
             return true;
@@ -517,7 +517,7 @@ void ROLeaf::Dump(std::vector<Record> & out) {
 int ROLeaf::Dump(int i, Record * out) {
     int base = i * PROBE_SIZE;
     uint16_t total_len = 0;
-    ExtVersionLock::Lock(&recs[i + PROBE_SIZE - 1].val);
+    ExtVersionLock::Lock(&recs[base + PROBE_SIZE - 1].val);
     for(int j = 0; j < PROBE_SIZE; j++) {
         if(recs[base + j].key != MAX_KEY) {
             out[total_len] = recs[base + j];
@@ -534,7 +534,7 @@ int ROLeaf::Dump(int i, Record * out) {
         }
     }
     
-    ExtVersionLock::UnLock(&recs[i + PROBE_SIZE - 1].val);
+    ExtVersionLock::UnLock(&recs[base + PROBE_SIZE - 1].val);
     return total_len;
 }
 

@@ -64,7 +64,7 @@ public:
         do {
             uint64_t expected = (*v & 0x7fffffffffffffff); // we always expect the lock to be free
             uint64_t desired  = (*v | 0x8000000000000000);
-            success = __atomic_compare_exchange(v, &expected, &desired, false, __ATOMIC_RELAXED, __ATOMIC_RELAXED);
+            success = __atomic_compare_exchange(v, &expected, &desired, false, __ATOMIC_ACQUIRE, __ATOMIC_ACQUIRE);
         } while(success == false);
         // lock first and update verion
         if((*v & 0x7f00000000000000) == 0x7f00000000000000) {
