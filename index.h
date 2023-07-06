@@ -221,7 +221,7 @@ public:
             vals[i] = recs[i].second;
         }
 
-        int bg_n = worknum / 12 + 1;
+        int bg_n = std::min(worknum / 12 + 1, 2);
         idx = new xindex::XIndex<ModelKeyType, ValType>(keys, vals, worknum, bg_n);
     }
 

@@ -146,6 +146,8 @@ void load(std::vector<KeyType> &init_keys, std::vector<KeyType> &keys,
 Index<KeyType, ValType> * populate(int index_type, std::vector<KeyType> &init_keys) {
   Index<KeyType, ValType> *idx = getInstance<KeyType, ValType>(index_type);
   uint64_t bulkload_size = init_keys.size() / 2;
+  if(index_type == TYPE_XINDEX) // bug with xindex populated with single thread
+    bulkload_size = init_keys.size();
   // sort the keys
   std::vector<KeyType> bulk_keys;
   for(int i = 0; i < bulkload_size; i++) {
