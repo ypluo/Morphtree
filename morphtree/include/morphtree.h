@@ -19,7 +19,7 @@ public:
 
     Morphtree(std::vector<Record> initial_recs) {
         // build from initial records
-        mt_ = new MorphtreeImpl<NodeType::WOLEAF, true>(initial_recs);
+        mt_ = (MorphtreeImpl<NodeType::WOLEAF, true> *) new MorphtreeImpl<NodeType::ROLEAF, true>(initial_recs);
     }
 
     ~Morphtree() {
