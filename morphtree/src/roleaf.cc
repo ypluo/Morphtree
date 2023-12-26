@@ -241,8 +241,45 @@ bool ROLeaf::Update(const _key_t & k, _val_t v) {
 }
 
 bool ROLeaf::Remove(const _key_t & k) {
-    //TODO
-    return true;
+    int predict = Predict(k);
+    predict = predict / PROBE_SIZE * PROBE_SIZE;
+    int bucket_end = predict + PROBE_SIZE - 1;
+    int i;
+    for (i = predict; i < bucket_end; i++) {
+        if(recs[i].key >= k)
+            break;
+    }
+
+    OFNode * ofnode = (OFNode *) recs[bucket_end].val;
+    if(i < bucket_end) {
+        if(recs[i].key > k) return false; // not equal to k
+        
+        // found the record in inline bucket
+        memmove(&recs[i], &recs[i + 1], (predict + PROBE_SIZE - 2 - i) * sizeof(Record));
+        recs[predict + PROBE_SIZE - 2] = Record();
+
+        if(ofnode != nullptr) { // shift one record from ofnode into inline bucket
+            recs[predict + PROBE_SIZE - 2] = ofnode->recs_[0];
+            ofnode->remove(ofnode->recs_[0].key);
+            if(ofnode->len == 0) { // delete the ofnode if necessary
+                recs[bucket_end].val = nullptr;
+                delete [] ((char *)ofnode);
+            }
+        }
+        count -= 1;
+        return true;
+    } else if (ofnode != nullptr) {
+        bool foundIf = ofnode->remove(k);
+        if(ofnode->len == 0) { // delete the ofnode if necessary
+            recs[bucket_end].val = nullptr;
+            delete [] ((char *)ofnode);
+        }
+
+        if(foundIf) count -= 1;
+        return foundIf;
+    } else { // not found
+        return false;
+    }
 }
 
 void ROLeaf::ScanOneBucket(int startPos, Record *result, int &cur, int end) {

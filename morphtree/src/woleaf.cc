@@ -111,8 +111,36 @@ bool WOLeaf::Update(const _key_t & k, _val_t v) {
 }
 
 bool WOLeaf::Remove(const _key_t & k) {
-    // TODO
-    return true;
+    auto binary_remove = [](Record & r) {
+        if(r.val == 0) {
+            return false;
+        } else {
+            r.val = 0;
+            return true;
+        }
+    };
+
+    // do binary update in all sorted runs
+    if(BinSearch_CallBack(recs, inital_count, k, binary_remove)) {
+        return true;
+    }
+
+    int16_t bin_end = insert_count / PIECE_SIZE * PIECE_SIZE;
+    for(int i = inital_count; i < bin_end; i += PIECE_SIZE) {
+        if(BinSearch_CallBack(recs + i, PIECE_SIZE, k, binary_remove)) {
+            return true;
+        }
+    }
+
+    // do scan in unsorted runs
+    for(int i = inital_count + bin_end; i < insert_count; i++) {
+        if(recs[i].key == k) {
+            recs[i].val = 0;
+            return true;
+        }
+    }
+
+    return false;
 }
 
 int WOLeaf::Scan(const _key_t &startKey, int len, Record *result) {

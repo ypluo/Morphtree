@@ -10,7 +10,13 @@
 #include <sys/stat.h>
 #include <functional>
 
-using _key_t = double;
+// default KEYTYPE
+#ifndef KEYTYPE
+    using _key_t = double;
+#else
+    using _key_t = KEYTYPE;
+#endif
+
 using _val_t = void *; // less than 8 bytes
 
 const _key_t MAX_KEY = std::numeric_limits<_key_t>::max();

@@ -17,7 +17,7 @@ void BaseNode::TypeManager(bool isWrite) {
 
     switch(node_type) {
         case NodeType::WOLEAF:
-            if(one_count <= 44) 
+            if(one_count <= 32) 
                 new_type = NodeType::ROLEAF;
             break;
         case NodeType::ROLEAF:
