@@ -181,7 +181,7 @@ void ROLeaf::Append(const _key_t k, const uint64_t v, int predict) {
     uint64_t vv = v;
     int i = 0;
     for (i = predict; i < bucket_end; i++) {
-        if(recs[i].key > kk)
+        if(recs[i].key >= kk)
             break;
     }
 
