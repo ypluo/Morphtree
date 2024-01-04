@@ -25,9 +25,14 @@ struct OFNode {
         if(recs_[len - 1].key == MAX_KEY) {
             uint16_t i;
             for(i = 0; i < len; i++) {
-                if(recs_[i].key > k) {
+                if(recs_[i].key >= k) {
                     break;
                 }
+            }
+
+            if(recs_[i].key == k) { // upsert 
+                recs_[i].val = v;
+                return true;
             }
 
             memmove(&recs_[i + 1], &recs_[i], sizeof(Record) * (len - 1 - i));
@@ -137,8 +142,13 @@ bool ROLeaf::Store(_key_t k, _val_t v, _key_t * split_key, ROLeaf ** split_node)
 
     int i;
     for (i = predict; i < predict + PROBE_SIZE - 1; i++) {
-        if(recs[i].key > k)
+        if(recs[i].key >= k)
             break;
+    }
+
+    if(i < predict + PROBE_SIZE - 1 && recs[i].key == k) { // upsert
+        recs[i].val = v;
+        return false;
     }
 
     // try to find a empty slot
