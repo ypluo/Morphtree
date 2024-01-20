@@ -146,7 +146,7 @@ public:
     void Print(string prefix);
 
 private:
-    void Append(const _key_t k, uint64_t v, int predict);
+    bool Append(const _key_t k, uint64_t v, int predict);
 
     bool DeAppend(const _key_t k, int predict);
 

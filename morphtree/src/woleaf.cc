@@ -308,41 +308,8 @@ bool WOLeaf::Remove(const _key_t & k) {
 }
 
 int WOLeaf::Scan(const _key_t &startKey, int len, Record *result) {
-    woleaf_scan_retry:
-    if(shadow != nullptr) { // this node is under morphing
-        std::this_thread::yield();
-        goto woleaf_scan_retry;
-    }
-
-    static const int MAX_RUN_NUM = GLOBAL_LEAF_SIZE / PIECE_SIZE;
-    Record * sort_runs[MAX_RUN_NUM + 1];
-    int ends[MAX_RUN_NUM + 1];
-
-    uint32_t total_count = readable_count;
-    sortlock.Lock();
-    std::sort(recs + readonly_count, recs + readable_count);
-    sortlock.UnLock();
-
-    int run_cnt = 0;
-    if(count > 0) {
-        sort_runs[0] = recs;
-        ends[0] = count;
-        run_cnt += 1;
-    }
-    for(int i = count; i < total_count; i += PIECE_SIZE) {
-        sort_runs[run_cnt] = recs + i;
-        ends[run_cnt] = (i + PIECE_SIZE <= total_count) ? PIECE_SIZE : total_count - i;
-        run_cnt += 1;
-    }
-
-    int cur = KWayScan(sort_runs, ends, run_cnt, startKey, len, result);
-    
-    if(cur >= len) 
-        return len;
-    else if(sibling == nullptr) 
-        return cur;
-    else
-        return cur + ((BaseNode *) sibling)->Scan(result[cur - 1].key, len - cur, result + cur);
+    // we want to reimplement it with new interfaces => {startKey, endKey and result}
+    return 0;
 }
 
 void WOLeaf::Dump(std::vector<Record> & out) {

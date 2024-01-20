@@ -19,7 +19,7 @@ struct OFNode {
     
     OFNode(): len(0), cap(0) {}
 
-    bool Store(const _key_t & k, uint64_t v) {
+    bool Store(const _key_t & k, uint64_t v, bool & insertIf) {
         // this function can be slow
         if(len < cap) {
             uint16_t i;
@@ -31,9 +31,11 @@ struct OFNode {
 
             if(recs_[i].key == k) { // upsert 
                 recs_[i].val = v;
+                insertIf = false;
                 return true;
             }
 
+            insertIf = true;
             memmove(&recs_[i + 1], &recs_[i], sizeof(Record) * (len - i));
             recs_[i] = Record(k, v);
             len += 1;
@@ -107,6 +109,20 @@ struct OFNode {
             return false;
         }
     }
+
+    int scan(const _key_t & startKey, const _key_t & endKey, std::vector<Record> & out) {
+        int num = 0;
+        uint16_t i;
+        for(i = 0; i < len; i++) {
+            if(recs_[i].key >= startKey && recs_[i].key <= endKey) {
+                out.push_back(recs_[i]);
+                num += 1;
+            } else if(recs_[i].key > endKey) {
+                break;
+            }
+        }
+        return num;
+    }
 };
 
 ROLeaf::ROLeaf() {
@@ -172,10 +188,10 @@ ROLeaf::~ROLeaf() {
         }
     }
 
-    delete recs;
+    delete [] recs;
 }
 
-void ROLeaf::Append(const _key_t k, const uint64_t v, int predict) {
+bool ROLeaf::Append(const _key_t k, const uint64_t v, int predict) {
     int bucket_end = predict + PROBE_SIZE - 1;
     _key_t kk = k;
     uint64_t vv = v;
@@ -187,9 +203,10 @@ void ROLeaf::Append(const _key_t k, const uint64_t v, int predict) {
 
     if(i < bucket_end && recs[i].key == kk) { // upsert
         recs[i].val = vv;
-        return ;
+        return false;
     }
 
+    bool insertIf = true;
     // try to find a empty slot
     Record last_one = recs[predict + PROBE_SIZE - 2];
     if(last_one.key == MAX_KEY) { 
@@ -216,7 +233,7 @@ void ROLeaf::Append(const _key_t k, const uint64_t v, int predict) {
         }
 
         // store the target record into overflow node
-        if(!ofnode->Store(kk, vv)) {
+        if(!ofnode->Store(kk, vv, insertIf)) {
             // the overflow node is full
             OFNode * old_ofnode = ofnode;
             
@@ -229,12 +246,14 @@ void ROLeaf::Append(const _key_t k, const uint64_t v, int predict) {
             ofnode->cap = newcap;
             ofnode->len = old_ofnode->len;
             memcpy(ofnode->recs_, old_ofnode->recs_, sizeof(Record) * ofnode->len);
-            ofnode->Store(kk, vv);
+            ofnode->Store(kk, vv, insertIf);
             recs[bucket_end].val = (recs[bucket_end].val & LOCK_MARK) + (uint64_t) ofnode;
 
             ebr->scheduleForDeletion(ReclaimEle{old_ofnode, true});
         }
     }
+
+    return insertIf;
 }
 
 bool ROLeaf::DeAppend(const _key_t k, int predict) {
@@ -247,8 +266,7 @@ bool ROLeaf::DeAppend(const _key_t k, int predict) {
 
     OFNode * ofnode = (OFNode *) (recs[bucket_end].val & POINTER_MARK);
     if(i < bucket_end) {
-        if(recs[i].key > k) 
-            return false;
+        if(recs[i].key > k) return false;
 
         // found the record in inline bucket
         memmove(&recs[i], &recs[i + 1], (predict + PROBE_SIZE - 2 - i) * sizeof(Record));
@@ -309,8 +327,8 @@ bool ROLeaf::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROLeaf ** s
             int bucket_end = predict + PROBE_SIZE - 1;
             
             ExtVersionLock::Lock(&recs[bucket_end].val);
-            this->Append(k, v, predict);
-            if(nodelock.IsLocked()) { // CAUTIOUS: the node starts morphing / splitting after we enter this loop
+            bool insertIf = this->Append(k, v, predict);
+            if(insertIf && nodelock.IsLocked()) { // CAUTIOUS: the node starts morphing / splitting after we enter this loop
                 // a better way is to retry and insert the record into its shadow node
                 this->DeAppend(k, predict);
                 ExtVersionLock::UnLock(&recs[bucket_end].val);
@@ -318,7 +336,8 @@ bool ROLeaf::Store(const _key_t & k, uint64_t v, _key_t * split_key, ROLeaf ** s
                 goto roleaf_store_retry;
             } else {
                 ExtVersionLock::UnLock(&recs[bucket_end].val);
-                cur_count = __atomic_fetch_add(&count, 1, __ATOMIC_RELEASE);
+                if(insertIf) 
+                    cur_count = __atomic_fetch_add(&count, 1, __ATOMIC_RELEASE);
             }
         }
     headerlock.UnLock();
@@ -493,6 +512,7 @@ bool ROLeaf::Remove(const _key_t & k) {
 }
 
 int ROLeaf::Scan(const _key_t &startKey, int len, Record *result) {
+    // we want to reimplement it with new interfaces => {startKey, endKey and result}
     return 0;
 }
 
